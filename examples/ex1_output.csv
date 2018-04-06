@@ -1,0 +1,6 @@
+flow_txn_IDs,flow_txn_types,flow_acct_IDs,flow_amt,flow_rev,flow_frac_root,flow_timestamp,flow_duration,flow_durations,flow_tux,flow_tux_wrev
+'[''1'', ''4'', ''8'']','[''check_deposit'', ''p2p_transfer'', ''bill_payment'']','[''AAA'', ''BBB'', ''EEE'', ''QQQ'']',4000.0,0.0,1.0,2014-11-01 00:02:00,2:00:00,'[''1:00:00'', ''1:00:00'']',2,2.0
+'[''2'', ''5'', ''9'']','[''cash_deposit'', ''p2p_transfer'', ''card_payment'']','[''AAA'', ''CCC'', ''FFF'', ''FFF'']',100.0,0.0,0.05,2014-11-01 00:21:00,1:59:00,'[''1:05:00'', ''0:54:00'']',2,2.0
+'[''2'', ''5'', ''10'']','[''cash_deposit'', ''p2p_transfer'', ''bill_payment'']','[''AAA'', ''CCC'', ''FFF'', ''QQQ'']',900.0,0.0,0.45,2014-11-01 00:21:00,2:20:00,'[''1:05:00'', ''1:15:00'']',2,2.0
+'[''3'', ''7'', ''11'']','[''direct_deposit'', ''p2p_transfer'', ''cash_withdraw'']','[''AAA'', ''DDD'', ''GGG'', ''AAA'']',500.0,0.0,1.0,2014-11-01 00:51:00,1:57:00,'[''1:00:00'', ''0:57:00'']',2,2.0
+'[''2'', ''6'', ''7'', ''11'']','[''cash_deposit'', ''p2p_transfer'', ''p2p_transfer'', ''cash_withdraw'']','[''AAA'', ''CCC'', ''DDD'', ''GGG'', ''AAA'']',1000.0,0.0,0.5,2014-11-01 00:21:00,2:27:00,'[''1:28:00'', ''0:02:00'', ''0:57:00'']',3,3.0
