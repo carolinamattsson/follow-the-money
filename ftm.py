@@ -6,6 +6,7 @@ list of money flows, weighted trajectories of money through a system.
 Author: Carolina Mattsson, Northeastern University, April 2018
 '''
 from datetime import datetime, timedelta
+import copy
 
 class Transaction:
     # contains the basic features of a transaction, creating references to the source and target accounts
@@ -18,6 +19,16 @@ class Transaction:
         self.amt       = float(txn['amt'])
         self.rev       = float(txn['rev'])
         self.rev_ratio = self.rev/self.amt
+    def infer_deposit(self):
+        inf_txn = copy.copy(self)
+        inf_txn.txn_ID    = 'i'
+        inf_txn.type      = 'inferred'
+        inf_txn.tgt_acct  = self.src_acct
+        inf_txn.amt       = self.amt-self.src_acct.balance
+        inf_txn.rev       = 0
+        inf_txn.rev_ratio = 0
+        self.src_acct.deposit(inf_txn)
+        return None
 
 class Branch:
     # this class allows for chaining together transactions, or parts of those transactions
@@ -90,6 +101,9 @@ class LIFO_account:
         self.stack   = [Branch(None, None, float('inf'))]
         self.acct_ID = acct_ID
         self.balance = 0
+    def balance_check(self, txn):
+        # this returns True if there is enough in the account to process the transaction and False if not
+        return True if txn.amt <= self.balance else False
     def add_branch(self, branch):
         # according to the LIFO heuristic, incoming transactions mean "branches" get added to the end of the account.stack
         self.stack.append(branch)
@@ -97,7 +111,7 @@ class LIFO_account:
     def pop_branches(self, amt):
         # according to the LIFO heuristic, outgoing transactions mean "branches" are removed from the end of the account.stack
         if amt > self.balance: # raise accounting exception - to be implemented in the future
-            pass
+            pass 
         branches = []
         while amt > 0:
             # "branches" are removed from the end of the account.stack until the amount of the transaction is reached
@@ -166,7 +180,7 @@ class Account_holder:
     def withdraw(self, transaction):
         return self.account.withdraw(transaction)
 
-def process(txn,accts_dict,txn_categ,timeformat,resolution_limit):
+def process(txn,accts_dict,txn_categ,timeformat,resolution_limit,infer=True):
     global min_branch_amt
     min_branch_amt = resolution_limit
     # make sure both the sender and recipient are account_holders with accounts
@@ -178,8 +192,10 @@ def process(txn,accts_dict,txn_categ,timeformat,resolution_limit):
     if txn_categ[txn.type] == 'deposit':
         return txn.tgt_acct.deposit(txn)
     if txn_categ[txn.type] == 'transfer':
+        if infer and not txn.src_acct.balance_check(txn): txn.infer_deposit()
         return txn.src_acct.transfer(txn)
     if txn_categ[txn.type] == 'withdraw':
+        if infer and not txn.src_acct.balance_check(txn): txn.infer_deposit()
         return txn.src_acct.withdraw(txn)
 
 if __name__ == '__main__':
