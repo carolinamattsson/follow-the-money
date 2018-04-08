@@ -110,8 +110,7 @@ class LIFO_account:
         self.balance += branch.amt
     def pop_branches(self, amt):
         # according to the LIFO heuristic, outgoing transactions mean "branches" are removed from the end of the account.stack
-        if amt > self.balance: # raise accounting exception - to be implemented in the future
-            pass 
+        if amt > self.balance: pass # raise accounting exception - to be implemented in the future
         branches = []
         while amt > 0:
             # "branches" are removed from the end of the account.stack until the amount of the transaction is reached
@@ -186,7 +185,7 @@ def process(txn,accts_dict,txn_categ,timeformat,resolution_limit,infer=True):
     # make sure both the sender and recipient are account_holders with accounts
     accts_dict.setdefault(txn['src_ID'],Account_holder(LIFO_account(txn['src_ID'])))
     accts_dict.setdefault(txn['tgt_ID'],Account_holder(LIFO_account(txn['tgt_ID'])))
-    # convert the transaction into its type
+    # convert the transaction into its type, passing the transaction and the accounts involved
     txn = Transaction(txn,accts_dict,timeformat)
     # process the transaction!
     if txn_categ[txn.type] == 'deposit':
