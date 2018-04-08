@@ -19,21 +19,20 @@ class Transaction:
         self.amt       = float(txn['amt'])
         self.rev       = float(txn['rev'])
         self.rev_ratio = self.rev/self.amt
-    def infer_deposit(self):
+    def inferred_deposit(self, begin_timestamp):
         inf_txn = copy.copy(self)
         inf_txn.txn_ID    = 'i'
-        #inf_txn.timestamp = begin_timestamp
+        inf_txn.timestamp = begin_timestamp
         inf_txn.type      = 'inferred'
         inf_txn.tgt_acct  = self.src_acct
         inf_txn.amt       = self.amt-self.src_acct.balance
         inf_txn.rev       = 0
         inf_txn.rev_ratio = 0
-        self.src_acct.deposit(inf_txn)
-        return None
-    def infer_withdraw(self):
+        return inf_txn
+    def inferred_withdraw(self, end_timestamp):
         inf_txn = copy.copy(self)
         inf_txn.txn_ID    = 'i'
-        #inf_txn.timestamp = end_timestamp
+        inf_txn.timestamp = end_timestamp
         inf_txn.type      = 'inferred'
         inf_txn.src_acct  = self.tgt_acct
         inf_txn.amt       = self.tgt_acct.balance
@@ -194,13 +193,14 @@ class Account_holder:
         return self.account.transfer(transaction)
     def withdraw(self, transaction):
         return self.account.withdraw(transaction)
-    def close_out(self):
-        inferred_withdraw = self.account.last_branch().txn.infer_withdraw()
+    def close_out(self, end_timestamp):
+        inferred_withdraw = self.account.last_branch().txn.inferred_withdraw(end_timestamp)
         return self.account.withdraw(inferred_withdraw)
 
-def process(txn,accts_dict,txn_categ,timeformat,resolution_limit,infer=True):
+def process(txn,accts_dict,txn_categ,begin_timestamp,timeformat,resolution_limit,infer=True):
     global min_branch_amt
     min_branch_amt = resolution_limit
+    begin_timestamp = datetime.strptime(begin_timestamp,timeformat)
     # make sure both the sender and recipient are account_holders with accounts
     accts_dict.setdefault(txn['src_ID'],Account_holder(LIFO_account(txn['src_ID'])))
     accts_dict.setdefault(txn['tgt_ID'],Account_holder(LIFO_account(txn['tgt_ID'])))
@@ -210,20 +210,20 @@ def process(txn,accts_dict,txn_categ,timeformat,resolution_limit,infer=True):
     if txn_categ[txn.type] == 'deposit':
         return txn.tgt_acct.deposit(txn)
     if txn_categ[txn.type] == 'transfer':
-        if infer and not txn.src_acct.balance_check(txn): txn.infer_deposit()
+        if infer and not txn.src_acct.balance_check(txn): txn.src_acct.deposit(txn.inferred_deposit(begin_timestamp))
         return txn.src_acct.transfer(txn)
     if txn_categ[txn.type] == 'withdraw':
-        if infer and not txn.src_acct.balance_check(txn): txn.infer_deposit()
+        if infer and not txn.src_acct.balance_check(txn): txn.src_acct.deposit(txn.inferred_deposit(begin_timestamp))
         return txn.src_acct.withdraw(txn)
 
-def process_remaining_funds(accts_dict,resolution_limit,infer=True):
+def process_remaining_funds(accts_dict,end_timestamp,timeformat,resolution_limit,infer=True):
     global min_branch_amt
     min_branch_amt = resolution_limit
-    remaining_amt = 0
+    end_timestamp = datetime.strptime(end_timestamp,timeformat)
     # loop through all accounts, and note the amount remaining as inferred withdraws
     for acct in accts_dict:
         if accts_dict[acct].account.balance > resolution_limit:
-            moneyflows = accts_dict[acct].close_out()
+            moneyflows = accts_dict[acct].close_out(end_timestamp)
             for moneyflow in moneyflows:
                 yield moneyflow
 

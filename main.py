@@ -14,11 +14,13 @@ if __name__ == '__main__':
     import ftm as ftm
 
     ################ Defines the files to use and create #################
-    prefix = '/examples/ex4_'
+    prefix = '/examples/ex3_'
     path = os.path.dirname(os.path.realpath(__file__))
     transaction_file = path+prefix+'input.csv'
     transaction_header = ['txn_ID','src_ID','tgt_ID','timestamp','txn_type','amt','rev']
     timeformat = '%Y-%m-%d %H:%M:%S'
+    begin_timestamp = '2014-11-01 00:00:00'
+    end_timestamp   = '2014-11-01 03:00:00'
     moneyflow_file = path+prefix+'output.csv'
     moneyflow_header = ['flow_txn_IDs','flow_txn_types','flow_acct_IDs','flow_amt','flow_rev','flow_frac_root','flow_timestamp','flow_duration','flow_durations','flow_tux','flow_tux_wrev']
     issues_file = path+prefix+'issues.csv'
@@ -51,12 +53,12 @@ if __name__ == '__main__':
         moneyflow_writer.writerow(moneyflow_header)
         for transaction in transaction_reader:
             try:
-                moneyflows = ftm.process(transaction,accounts,transaction_category,timeformat,resolution_limit)
+                moneyflows = ftm.process(transaction,accounts,transaction_category,begin_timestamp,timeformat,resolution_limit)
                 if moneyflows:
                     for moneyflow in moneyflows:
                         moneyflow_writer.writerow(moneyflow.to_print())
             except:
                 issue_writer.writerow([transaction[x] for x in transaction_header]+[traceback.format_exc()])
-        moneyflows = ftm.process_remaining_funds(accounts,resolution_limit)
+        moneyflows = ftm.process_remaining_funds(accounts,end_timestamp,timeformat,resolution_limit)
         for moneyflow in moneyflows:
                 moneyflow_writer.writerow(moneyflow.to_print())
