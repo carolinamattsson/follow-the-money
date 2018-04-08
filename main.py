@@ -14,7 +14,7 @@ if __name__ == '__main__':
     import ftm as ftm
 
     ################ Defines the files to use and create #################
-    prefix = '/examples/ex2_'
+    prefix = '/examples/ex4_'
     path = os.path.dirname(os.path.realpath(__file__))
     transaction_file = path+prefix+'input.csv'
     transaction_header = ['txn_ID','src_ID','tgt_ID','timestamp','txn_type','amt','rev']
@@ -57,3 +57,6 @@ if __name__ == '__main__':
                         moneyflow_writer.writerow(moneyflow.to_print())
             except:
                 issue_writer.writerow([transaction[x] for x in transaction_header]+[traceback.format_exc()])
+        moneyflows = ftm.process_remaining_funds(accounts,resolution_limit)
+        for moneyflow in moneyflows:
+                moneyflow_writer.writerow(moneyflow.to_print())

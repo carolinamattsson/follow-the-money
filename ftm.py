@@ -22,6 +22,7 @@ class Transaction:
     def infer_deposit(self):
         inf_txn = copy.copy(self)
         inf_txn.txn_ID    = 'i'
+        #inf_txn.timestamp = begin_timestamp
         inf_txn.type      = 'inferred'
         inf_txn.tgt_acct  = self.src_acct
         inf_txn.amt       = self.amt-self.src_acct.balance
@@ -29,6 +30,16 @@ class Transaction:
         inf_txn.rev_ratio = 0
         self.src_acct.deposit(inf_txn)
         return None
+    def infer_withdraw(self):
+        inf_txn = copy.copy(self)
+        inf_txn.txn_ID    = 'i'
+        #inf_txn.timestamp = end_timestamp
+        inf_txn.type      = 'inferred'
+        inf_txn.src_acct  = self.tgt_acct
+        inf_txn.amt       = self.tgt_acct.balance
+        inf_txn.rev       = 0
+        inf_txn.rev_ratio = 0
+        return inf_txn
 
 class Branch:
     # this class allows for chaining together transactions, or parts of those transactions
@@ -104,6 +115,9 @@ class LIFO_account:
     def balance_check(self, txn):
         # this returns True if there is enough in the account to process the transaction and False if not
         return True if txn.amt <= self.balance else False
+    def last_branch(self):
+        # this returns the latest incoming transaction
+        return self.stack[-1]
     def add_branch(self, branch):
         # according to the LIFO heuristic, incoming transactions mean "branches" get added to the end of the account.stack
         self.stack.append(branch)
@@ -118,9 +132,11 @@ class LIFO_account:
             if branch.amt <= amt:
                 branches.append(self.stack.pop())
                 amt = amt - branch.amt
+                self.balance = self.balance - branch.amt
             else:
                 # If the last "branch" is larger than the amount to be removed from the account, it is split into two: one remains in this account and the other is sent along
                 branches.append(Branch(branch.prev,branch.txn,amt))
+                self.balance = self.balance - amt
                 branch.decrement(amt)
                 amt = 0
         return reversed(branches) # this list is reversed to preserve the newest branches at the end
@@ -178,6 +194,9 @@ class Account_holder:
         return self.account.transfer(transaction)
     def withdraw(self, transaction):
         return self.account.withdraw(transaction)
+    def close_out(self):
+        inferred_withdraw = self.account.last_branch().txn.infer_withdraw()
+        return self.account.withdraw(inferred_withdraw)
 
 def process(txn,accts_dict,txn_categ,timeformat,resolution_limit,infer=True):
     global min_branch_amt
@@ -196,6 +215,17 @@ def process(txn,accts_dict,txn_categ,timeformat,resolution_limit,infer=True):
     if txn_categ[txn.type] == 'withdraw':
         if infer and not txn.src_acct.balance_check(txn): txn.infer_deposit()
         return txn.src_acct.withdraw(txn)
+
+def process_remaining_funds(accts_dict,resolution_limit,infer=True):
+    global min_branch_amt
+    min_branch_amt = resolution_limit
+    remaining_amt = 0
+    # loop through all accounts, and note the amount remaining as inferred withdraws
+    for acct in accts_dict:
+        if accts_dict[acct].account.balance > resolution_limit:
+            moneyflows = accts_dict[acct].close_out()
+            for moneyflow in moneyflows:
+                yield moneyflow
 
 if __name__ == '__main__':
     print("Please run main.py, this file only keeps the classes and functions.")
