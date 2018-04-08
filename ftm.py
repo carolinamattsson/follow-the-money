@@ -25,7 +25,7 @@ class Transaction:
         inf_txn.timestamp = begin_timestamp
         inf_txn.type      = 'inferred'
         inf_txn.tgt_acct  = self.src_acct
-        inf_txn.amt       = self.amt-self.src_acct.balance
+        inf_txn.amt       = self.amt+self.rev-self.src_acct.balance
         inf_txn.rev       = 0
         inf_txn.rev_ratio = 0
         return inf_txn
@@ -113,7 +113,7 @@ class LIFO_account:
         self.balance = 0
     def balance_check(self, txn):
         # this returns True if there is enough in the account to process the transaction and False if not
-        return True if txn.amt <= self.balance else False
+        return True if txn.amt+txn.rev <= self.balance else False
     def last_branch(self):
         # this returns the latest incoming transaction
         return self.stack[-1]
