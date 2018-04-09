@@ -180,7 +180,7 @@ class Account_holder:
     # this class defines accounts in the dataset and holds features of them
     def __init__(self, account):
         self.account = account
-        self.type    = 'user'
+        self.type    = set()
         #self.txns    = 0      # in the future, this class will hold optional metrics calculated
         #self.amt     = 0      #                in an ongoing manner that can be retrieved system-wide
         #self.volume  = 0      #                at specified intervals
@@ -194,25 +194,67 @@ class Account_holder:
     def withdraw(self, transaction):
         return self.account.withdraw(transaction)
     def close_out(self, end_timestamp):
+        # this function infers a transaction that would bring the account down to zero, then withdraws it
         inferred_withdraw = self.account.last_branch().txn.inferred_withdraw(end_timestamp)
         return self.account.withdraw(inferred_withdraw)
+    def update_type(self, acct_types, src_tgt, txn_type):
+        if txn_type in acct_types[src_tgt]:
+            self.type.add(acct_types[src_tgt][txn_type])
+        return None
 
-def process(txn,accts_dict,txn_categ,begin_timestamp,timeformat,resolution_limit,infer=True):
+def process(txn,accts_dict,txn_categ,begin_timestamp,timeformat,resolution_limit,infer=True,acct_types=None):
     global min_branch_amt
     min_branch_amt = resolution_limit
     begin_timestamp = datetime.strptime(begin_timestamp,timeformat)
     # make sure both the sender and recipient are account_holders with accounts
     accts_dict.setdefault(txn['src_ID'],Account_holder(LIFO_account(txn['src_ID'])))
     accts_dict.setdefault(txn['tgt_ID'],Account_holder(LIFO_account(txn['tgt_ID'])))
+    # if we're keeping track of account types, update those now
+    if acct_types:
+        accts_dict[txn['src_ID']].update_type(acct_types,'src',txn['txn_type'])
+        accts_dict[txn['tgt_ID']].update_type(acct_types,'tgt',txn['txn_type'])
     # convert the transaction into its type, passing the transaction and the accounts involved
     txn = Transaction(txn,accts_dict,timeformat)
     # process the transaction!
     if txn_categ[txn.type] == 'deposit':
         return txn.tgt_acct.deposit(txn)
-    if txn_categ[txn.type] == 'transfer':
+    elif txn_categ[txn.type] == 'transfer':
         if infer and not txn.src_acct.balance_check(txn): txn.src_acct.deposit(txn.inferred_deposit(begin_timestamp))
         return txn.src_acct.transfer(txn)
-    if txn_categ[txn.type] == 'withdraw':
+    elif txn_categ[txn.type] == 'withdraw':
+        if infer and not txn.src_acct.balance_check(txn): txn.src_acct.deposit(txn.inferred_deposit(begin_timestamp))
+        return txn.src_acct.withdraw(txn)
+
+def read_acct_types(acct_types_file):
+    import csv
+    acct_types = {'src':{},'tgt':{}}
+    with open(acct_types_file,'r') as acct_types_file:
+        acct_type_reader = csv.DictReader(acct_types_file,['txn_type','src_tgt','acct_type'],delimiter=",",quotechar="'",escapechar="%")
+        for acct_type in acct_type_reader:
+            acct_types[acct_type['src_tgt']][acct_type['txn_type']] = acct_type['acct_type']
+    return acct_types
+
+def process_by_acct_type(txn,accts_dict,acct_types,following,begin_timestamp,timeformat,resolution_limit,infer=True):
+    global min_branch_amt
+    min_branch_amt = resolution_limit
+    begin_timestamp = datetime.strptime(begin_timestamp,timeformat)
+    # make sure both the sender and recipient are account_holders with accounts
+    accts_dict.setdefault(txn['src_ID'],Account_holder(LIFO_account(txn['src_ID'])))
+    accts_dict.setdefault(txn['tgt_ID'],Account_holder(LIFO_account(txn['tgt_ID'])))
+    # we ARE keeping track of account types, update those now
+    accts_dict[txn['src_ID']].update_type(acct_types,'src',txn['txn_type'])
+    accts_dict[txn['tgt_ID']].update_type(acct_types,'tgt',txn['txn_type'])
+    src_follow = accts_dict[txn['src_ID']].type.issubset(following)
+    tgt_follow = accts_dict[txn['tgt_ID']].type.issubset(following)
+    # convert the transaction into its type, passing the transaction and the accounts involved
+    txn = Transaction(txn,accts_dict,timeformat)
+    # process the transaction!
+    if not src_follow and tgt_follow:
+        return txn.tgt_acct.deposit(txn)
+    elif src_follow and tgt_follow:
+        if infer and not txn.src_acct.balance_check(txn): txn.src_acct.deposit(txn.inferred_deposit(begin_timestamp))
+        return txn.src_acct.transfer(txn)
+    elif src_follow and not tgt_follow:
         if infer and not txn.src_acct.balance_check(txn): txn.src_acct.deposit(txn.inferred_deposit(begin_timestamp))
         return txn.src_acct.withdraw(txn)
 
