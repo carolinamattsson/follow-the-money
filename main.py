@@ -14,7 +14,7 @@ if __name__ == '__main__':
     import ftm as ftm
 
     ################ Defines the files to use and create #################
-    prefix = '/examples/ex3_'
+    prefix = '/examples/ex4_'
     path = os.path.dirname(os.path.realpath(__file__))
     transaction_file = path+prefix+'input.csv'
     transaction_header = ['txn_ID','src_ID','tgt_ID','timestamp','txn_type','amt','rev']
@@ -22,7 +22,7 @@ if __name__ == '__main__':
     begin_timestamp = '2014-11-01 00:00:00'
     end_timestamp   = '2014-11-01 03:00:00'
     moneyflow_file = path+prefix+'output.csv'
-    moneyflow_header = ['flow_txn_IDs','flow_txn_types','flow_acct_IDs','flow_amt','flow_rev','flow_frac_root','flow_timestamp','flow_duration','flow_durations','flow_tux','flow_tux_wrev']
+    moneyflow_header = ['flow_txn_IDs','flow_txn_types','flow_txn_timestamps','flow_acct_IDs','flow_amt','flow_rev','flow_frac_root','flow_duration','flow_durations','flow_tux','flow_tux_wrev']
     issues_file = path+prefix+'issues.csv'
     #copyfile(os.path.realpath(__file__), path+prefix+'code.py')
     ######################################################################

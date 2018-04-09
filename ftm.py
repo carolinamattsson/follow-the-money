@@ -76,11 +76,11 @@ class Flow:
         # when aggregating over "money flows", they can be weighted by their size or by their root transactions using flow.frac_root
         self.txn_IDs   = [branch.txn.txn_ID]
         self.txn_types = [branch.txn.type]
+        self.timestamps= [branch.txn.timestamp]
         self.acct_IDs  = [branch.txn.src_acct.acct_ID,branch.txn.tgt_acct.acct_ID]
         self.amt       = amt+rev
         self.rev       = rev
         self.frac_root = (amt+rev)/(branch.txn.amt+branch.txn.rev)
-        self.timestamp = branch.txn.timestamp
         self.duration  = timedelta(0)
         self.durations = []
         self.tux       = 0  # "Transactions Until eXit" - deposited money begins at step 0, and any subsequent transaction adds 1 to this measure
@@ -91,6 +91,7 @@ class Flow:
         self.txn_IDs.append(branch.txn.txn_ID)
         self.acct_IDs.append(branch.txn.tgt_acct.acct_ID)
         self.txn_types.append(branch.txn.type)
+        self.timestamps.append(branch.txn.timestamp)
         self.rev       += rev
         branch_duration = branch.txn.timestamp - branch.prev.txn.timestamp
         self.duration  += branch_duration
@@ -99,7 +100,7 @@ class Flow:
         self.tux_wrev  += amt/self.amt
     def to_print(self):
         # this returns a version of this class that can be exported to a file using writer.writerow()
-        return [str(self.txn_IDs),str(self.txn_types),str(self.acct_IDs),self.amt,self.rev,self.frac_root,str(self.timestamp),str(self.duration),str([str(dur) for dur in self.durations]),self.tux,self.tux_wrev]
+        return [str(self.txn_IDs),str(self.txn_types),str([str(time) for time in self.timestamps]),str(self.acct_IDs),self.amt,self.rev,self.frac_root,str(self.duration),str([str(dur) for dur in self.durations]),self.tux,self.tux_wrev]
 
 class LIFO_account:
     # this class keeps track of transactions within an account holder's account
