@@ -74,6 +74,7 @@ class Flow:
         # "money flows" have a size (flow.amt), a length (flow.tux), and a duration of time that they remained in the system (flow.duration)
         # the specific trajectory is described by a list of transactions, through a list of accounts, where the money stayed for a list of durations
         # when aggregating over "money flows", they can be weighted by their size or by their root transactions using flow.frac_root
+        self.timestamp = branch.txn.timestamp
         self.txn_IDs   = [branch.txn.txn_ID]
         self.txn_types = [branch.txn.type]
         self.timestamps= [branch.txn.timestamp]
@@ -100,7 +101,9 @@ class Flow:
         self.tux_wrev  += amt/self.amt
     def to_print(self):
         # this returns a version of this class that can be exported to a file using writer.writerow()
-        return [str(self.txn_IDs),str(self.txn_types),str([str(time) for time in self.timestamps]),str(self.acct_IDs),self.amt,self.rev,self.frac_root,str(self.duration),str([str(dur) for dur in self.durations]),self.tux,self.tux_wrev]
+        return [str(self.timestamp),'['+','.join(id for id in self.acct_IDs)+']','['+','.join(id for id in self.txn_IDs)+']','['+','.join(type for type in self.txn_types)+']',\
+                '['+','.join(str(time) for time in self.timestamps)+']','['+','.join(str(dur.total_seconds()/3600.0) for dur in self.durations)+']',\
+                self.amt,self.rev,self.frac_root,self.tux,self.tux_wrev,self.duration.total_seconds()/3600.0]
 
 class LIFO_account:
     # this class keeps track of transactions within an account holder's account
@@ -203,9 +206,7 @@ class Account_holder:
             self.type.add(acct_types[src_tgt][txn_type])
         return None
 
-def process(txn,accts_dict,txn_categ,begin_timestamp,timeformat,resolution_limit,infer=True,acct_types=None):
-    global min_branch_amt
-    min_branch_amt = resolution_limit
+def process(txn,accts_dict,txn_categ,begin_timestamp,timeformat,infer=True,acct_types=None):
     begin_timestamp = datetime.strptime(begin_timestamp,timeformat)
     # make sure both the sender and recipient are account_holders with accounts
     accts_dict.setdefault(txn['src_ID'],Account_holder(LIFO_account(txn['src_ID'])))
@@ -229,15 +230,13 @@ def process(txn,accts_dict,txn_categ,begin_timestamp,timeformat,resolution_limit
 def read_acct_types(acct_types_file):
     import csv
     acct_types = {'src':{},'tgt':{}}
-    with open(acct_types_file,'r') as acct_types_file:
+    with open(acct_types_file,'rU') as acct_types_file:
         acct_type_reader = csv.DictReader(acct_types_file,['txn_type','src_tgt','acct_type'],delimiter=",",quotechar="'",escapechar="%")
         for acct_type in acct_type_reader:
             acct_types[acct_type['src_tgt']][acct_type['txn_type']] = acct_type['acct_type']
     return acct_types
 
-def process_by_acct_type(txn,accts_dict,acct_types,following,begin_timestamp,timeformat,resolution_limit,infer=True):
-    global min_branch_amt
-    min_branch_amt = resolution_limit
+def process_by_acct_type(txn,accts_dict,acct_types,following,begin_timestamp,timeformat,infer=True):
     begin_timestamp = datetime.strptime(begin_timestamp,timeformat)
     # make sure both the sender and recipient are account_holders with accounts
     accts_dict.setdefault(txn['src_ID'],Account_holder(LIFO_account(txn['src_ID'])))
@@ -260,8 +259,6 @@ def process_by_acct_type(txn,accts_dict,acct_types,following,begin_timestamp,tim
         return txn.src_acct.withdraw(txn)
 
 def process_remaining_funds(accts_dict,end_timestamp,timeformat,resolution_limit,infer=True):
-    global min_branch_amt
-    min_branch_amt = resolution_limit
     end_timestamp = datetime.strptime(end_timestamp,timeformat)
     # loop through all accounts, and note the amount remaining as inferred withdraws
     for acct in accts_dict:
@@ -270,5 +267,61 @@ def process_remaining_funds(accts_dict,end_timestamp,timeformat,resolution_limit
             for moneyflow in moneyflows:
                 yield moneyflow
 
+def run(txn_file,txn_header,flow_file,issues_file,modifier_func,txn_categ,begin_timestamp,end_timestamp,timeformat,resolution_limit):
+    import traceback
+    import csv
+    # this dictionary holds all of the accounts
+    accounts = {}
+    # the resolution limit is global, defining the smalles branch we deign to track
+    global min_branch_amt
+    min_branch_amt = resolution_limit
+    # the flow header aligns with the flow.to_print() function
+    flow_header = ['flow_timestamp','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_txn_timestamps','flow_durations','flow_amt','flow_rev','flow_frac_root','flow_tux','flow_tux_wrev','flow_duration']
+    with open(txn_file,'rU') as txn_file, open(flow_file,'w') as flow_file, open(issues_file,'w') as issues_file:
+        txn_reader   = csv.DictReader(txn_file,txn_header,delimiter=",",quotechar="'",escapechar="%")
+        flow_writer  = csv.writer(flow_file,delimiter=",",quotechar="'")
+        issue_writer = csv.writer(issues_file,delimiter=",",quotechar="'")
+        flow_writer.writerow(flow_header)
+        for txn in txn_reader:
+            try:
+                txn = modifier_func(txn)
+                flows = process(txn,accounts,txn_categ,begin_timestamp,timeformat)
+                if flows:
+                    for flow in flows:
+                        flow_writer.writerow(flow.to_print())
+            except:
+                issue_writer.writerow([txn[x] for x in txn_header]+[traceback.format_exc()])
+        moneyflows = process_remaining_funds(accounts,end_timestamp,timeformat,resolution_limit)
+        for moneyflow in moneyflows:
+                flow_writer.writerow(flow.to_print())
+
+def run_by_acct(txn_file,txn_header,flow_file,issues_file,modifier_func,acct_categ,following,begin_timestamp,end_timestamp,timeformat,resolution_limit):
+    import traceback
+    import csv
+    # this dictionary holds all of the accounts
+    accounts = {}
+    # the resolution limit globally defines the smalles branch we deign to track
+    global min_branch_amt
+    min_branch_amt = resolution_limit
+    # the flow header aligns with the flow.to_print() function
+    flow_header = ['flow_timestamp','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_txn_timestamps','flow_durations','flow_amt','flow_rev','flow_frac_root','flow_tux','flow_tux_wrev','flow_duration']
+    with open(txn_file,'rU') as txn_file, open(flow_file,'w') as flow_file, open(issues_file,'w') as issues_file:
+        txn_reader   = csv.DictReader(txn_file,txn_header,delimiter=",",quotechar="'",escapechar="%")
+        flow_writer  = csv.writer(flow_file,delimiter=",",quotechar="'")
+        issue_writer = csv.writer(issues_file,delimiter=",",quotechar="'")
+        flow_writer.writerow(flow_header)
+        for txn in txn_reader:
+            try:
+                txn = modifier_func(txn)
+                flows = process_by_acct_type(txn,accounts,acct_categ,following,begin_timestamp,timeformat)
+                if flows:
+                    for flow in flows:
+                        flow_writer.writerow(flow.to_print())
+            except:
+                issue_writer.writerow([txn[x] for x in txn_header]+[traceback.format_exc()])
+        moneyflows = process_remaining_funds(accounts,end_timestamp,timeformat,resolution_limit)
+        for moneyflow in moneyflows:
+                flow_writer.writerow(flow.to_print())
+
 if __name__ == '__main__':
-    print("Please run main.py, this file only keeps the classes and functions.")
+    print("Please run main.py, this file keeps the classes and functions.")
