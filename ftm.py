@@ -116,7 +116,7 @@ class LIFO_account:
     # this heuristic -- last in first out (LIFO) -- has the pleasing property of preserving local patterns
     def __init__(self, acct_ID):
         # this account initialization ensures there will always be a "root branch" in an account - useful for handling finite data - will be further developed using inferred deposit transactions
-        self.stack   = [Branch(None, None, float('inf'))]
+        self.stack   = []
         self.acct_ID = acct_ID
         self.balance = 0
     def balance_check(self, txn):
@@ -125,12 +125,13 @@ class LIFO_account:
     def last_branch(self):
         # this returns the latest incoming transaction
         return self.stack[-1]
-    def add_branch(self, branch):
+    def add_branches(self, branches):
         # according to the LIFO heuristic, incoming transactions mean "branches" get added to the end of the account.stack
-        self.stack.append(branch)
-        self.balance += branch.amt
-    def pop_branches(self, amt):
+        self.stack.extend(branches)
+        self.balance += sum(branch.amt for branch in branches)
+    def pop_branches(self, this_txn):
         # according to the LIFO heuristic, outgoing transactions mean "branches" are removed from the end of the account.stack
+        amt = this_txn.amt+this_txn.rev
         if amt > self.balance: pass # raise accounting exception - to be implemented in the future
         branches = []
         while amt > 0:
@@ -146,39 +147,28 @@ class LIFO_account:
                 self.balance = self.balance - amt
                 branch.decrement(amt)
                 amt = 0
-        return reversed(branches) # this list is reversed to preserve the newest branches at the end
+        new_branches = [Branch(branch, this_txn, branch.amt/(1.0+this_txn.rev_ratio)) for branch in reversed(branches) if branch.amt >= min_branch_amt] # the list is reversed to preserve the newest branches at the end
+        return new_branches
     def deposit(self, this_txn):
         # accounts process deposit transactions by adding a new "root branch" to the end of their account.stack
-        self.add_branch(Branch(None,this_txn,this_txn.amt))
+        self.add_branches([Branch(None,this_txn,this_txn.amt)])
     def transfer(self, this_txn):
         # accounts process transfer transactions by:
         #     - removing branches up to the amount of the transaction from this account.stack
         #     - creating the subsequent "branches" (extending the "tree")
         #     - adding these "branches" to the end of the account.stack of the account receiving the transaction
-        amt_to_follow = this_txn.amt+this_txn.rev
-        for prev_branch in self.pop_branches(amt_to_follow):
-            if prev_branch.amt < min_branch_amt:
-                del prev_branch
-                continue
-            this_branch = Branch(prev_branch, this_txn, prev_branch.amt/(1.0+this_txn.rev_ratio))
-            this_txn.tgt_acct.add_branch(this_branch)
+        new_branches = self.pop_branches(this_txn)
+        this_txn.tgt_acct.add_branches(new_branches)
     def withdraw(self, this_txn):
         # accounts process withdraw transactions by:
         #     - removing branches up to the amount of the transaction from this account.stack
         #     - creating the subsequent "leaf branches"
         #     - returning the "money flows" that end because of this withdraw transaction (by calling branch.follow_back() on the "leaf branches")
         #     - removing the "leaf branches" from memory
-        amt_to_follow = this_txn.amt+this_txn.rev
-        flows = []
-        for prev_branch in self.pop_branches(amt_to_follow):
-            if prev_branch.amt < min_branch_amt:
-                del prev_branch # floating point errors etc. can lead to teeny tiny branches that we will ignore
-                continue
-            this_branch = Branch(prev_branch, this_txn, prev_branch.amt/(1.0+this_txn.rev_ratio))
-            flows.append(this_branch.follow_back(this_branch.amt))
-            del this_branch
-            # branches will disappear when there are no accounts who still reference their upstream branches
-            # transactions will disappear when there are no branches left that reference them
+        new_branches = self.pop_branches(this_txn)
+        flows = [branch.follow_back(branch.amt) for branch in new_branches]
+        del new_branches # branches will disappear when there are no accounts who still reference their upstream branches
+                         # transactions will disappear when there are no branches left that reference them
         return flows
 
 class Mixing_account:
@@ -207,10 +197,10 @@ class Mixing_account:
         # if the resulting branches are less than the minimum we're tracking, they are ignored
         split_factor = this_txn.amt/self.balance
         new_pool     = [Branch(branch, this_txn, split_factor*branch.amt) for branch in self.pool if split_factor*branch.amt >= min_branch_amt]
+        self.balance = self.balance-this_txn.amt-this_txn.rev
         stay_factor  = (self.balance-this_txn.amt-this_txn.rev)/self.balance
         for branch in self.pool:
             branch.depreciate(stay_factor)
-        self.balance = self.balance-this_txn.amt-this_txn.rev
         return new_pool
     def transfer(self, this_txn):
         print(self.acct_ID, self.balance, self.pool)
@@ -226,9 +216,9 @@ class Mixing_account:
         #     - adding the new pool to the account.pool of the account receiving the transaction
         new_pool = self.split_pool(this_txn)
         flows = [branch.follow_back(branch.amt) for branch in new_pool]
-        return flows
         del new_pool # branches will disappear when there are no accounts who still reference their upstream branches
                      # transactions will disappear when there are no branches left that reference them
+        return flows
 
 class Account_holder:
     # this class defines accounts in the dataset and holds features of them
@@ -259,8 +249,8 @@ class Account_holder:
 def process(txn,accts_dict,txn_categ,begin_timestamp,timeformat,infer=True,acct_types=None):
     begin_timestamp = datetime.strptime(begin_timestamp,timeformat)
     # make sure both the sender and recipient are account_holders with accounts
-    accts_dict.setdefault(txn['src_ID'],Account_holder(Mixing_account(txn['src_ID'])))
-    accts_dict.setdefault(txn['tgt_ID'],Account_holder(Mixing_account(txn['tgt_ID'])))
+    accts_dict.setdefault(txn['src_ID'],Account_holder(LIFO_account(txn['src_ID'])))
+    accts_dict.setdefault(txn['tgt_ID'],Account_holder(LIFO_account(txn['tgt_ID'])))
     # if we're keeping track of account types, update those now
     if acct_types:
         accts_dict[txn['src_ID']].update_type(acct_types,'src',txn['txn_type'])
@@ -289,8 +279,8 @@ def read_acct_types(acct_types_file):
 def process_by_acct_type(txn,accts_dict,acct_types,following,begin_timestamp,timeformat,infer=True):
     begin_timestamp = datetime.strptime(begin_timestamp,timeformat)
     # make sure both the sender and recipient are account_holders with accounts
-    accts_dict.setdefault(txn['src_ID'],Account_holder(Mixing_account(txn['src_ID'])))
-    accts_dict.setdefault(txn['tgt_ID'],Account_holder(Mixing_account(txn['tgt_ID'])))
+    accts_dict.setdefault(txn['src_ID'],Account_holder(LIFO_account(txn['src_ID'])))
+    accts_dict.setdefault(txn['tgt_ID'],Account_holder(LIFO_account(txn['tgt_ID'])))
     # we ARE keeping track of account types, update those now
     accts_dict[txn['src_ID']].update_type(acct_types,'src',txn['txn_type'])
     accts_dict[txn['tgt_ID']].update_type(acct_types,'tgt',txn['txn_type'])
