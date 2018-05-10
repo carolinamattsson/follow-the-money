@@ -11,7 +11,7 @@ if __name__ == '__main__':
     import ftm as ftm
 
     ################ Defines the files to use and create #################
-    prefix = '/examples/ex1_'
+    prefix = '/tests/ex4_'
     path = os.path.dirname(os.path.realpath(__file__))
     transaction_file = path+prefix+'input.csv'
     transaction_header = ['txn_ID','src_ID','tgt_ID','timestamp','txn_type','amt','rev']
@@ -47,7 +47,7 @@ if __name__ == '__main__':
     #################################################
 
     ########## Read in the file and go! #############
-    #ftm.run(transaction_file,transaction_header,moneyflow_file,issues_file,modify_transaction,transaction_category,begin_timestamp,end_timestamp,timeformat,resolution_limit)
+    ftm.run(transaction_file,transaction_header,moneyflow_file,issues_file,modify_transaction,transaction_category,begin_timestamp,end_timestamp,timeformat,resolution_limit)
     ################### OR ##########################
     ftm.run_by_acct(transaction_file,transaction_header,moneyflow_file,issues_file,modify_transaction,account_types,following,begin_timestamp,end_timestamp,timeformat,resolution_limit)
     #################################################

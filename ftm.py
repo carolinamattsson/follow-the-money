@@ -54,6 +54,10 @@ class Branch:
         if amt > self.amt: # raise accounting exception - to be implemented in the future
             pass
         self.amt  = self.amt - amt
+    def depreciate(self, factor):
+        if factor > 1 or factor < 0: # raise accounting exception - to be implemented in the future
+            pass
+        self.amt  = factor * self.amt
     def follow_back(self, amt):
         # this function takes a chain of "branches", beginning with a "leaf branch", and works its way back to the "root branch"
         # on its way back, this builds a "money flow" that represents a unique trajectory that money followed through the system
@@ -177,8 +181,54 @@ class LIFO_account:
             # transactions will disappear when there are no branches left that reference them
         return flows
 
-#class MaxEntropy_account:
-#  other account classes, that reflect different money-tracking heuristics, are possible and this one will be implemented in the future
+class Mixing_account:
+    # this class keeps track of transactions within an account holder's account
+    # it chains outgoing transactions (well, parts of those transactions) to earlier incoming ones
+    # specifically, it chains outgoing transactions to *an equal fraction of all remaining* incoming transactions
+    # this heuristic -- the well-mixed or max-entropy heuristic -- takes the perfectly fungible nature of money seriously
+    def __init__(self, acct_ID):
+        self.pool    = []
+        self.acct_ID = acct_ID
+        self.balance = 0
+    def balance_check(self, txn):
+        # this returns True if there is enough in the account to process the transaction and False if not
+        return True if txn.amt+txn.rev <= self.balance else False
+    def add_pool(self, new_pool):
+        self.pool.extend(new_pool)
+        self.balance += sum(branch.amt for branch in new_pool)
+    def deposit(self, this_txn):
+        print(self.acct_ID, self.balance, self.pool)
+        # accounts process deposit transactions by adding a new "root branch" to their account.pool
+        self.add_pool([Branch(None,this_txn,this_txn.amt)])
+    def split_pool(self, this_txn):
+        # this splits the entire pool of incoming transaction into two, with (balance-(amt+rev)) remaining and (amt) returned
+        # the old pool becomes of size balance-(amt+rev) with all the same branches
+        # the new pool is of size (amt) and has all new "branches" in it, extending all the "trees" in the old pool
+        # if the resulting branches are less than the minimum we're tracking, they are ignored
+        split_factor = this_txn.amt/self.balance
+        new_pool     = [Branch(branch, this_txn, split_factor*branch.amt) for branch in self.pool if split_factor*branch.amt >= min_branch_amt]
+        stay_factor  = (self.balance-this_txn.amt-this_txn.rev)/self.balance
+        for branch in self.pool:
+            branch.depreciate(stay_factor)
+        self.balance = self.balance-this_txn.amt-this_txn.rev
+        return new_pool
+    def transfer(self, this_txn):
+        print(self.acct_ID, self.balance, self.pool)
+        # accounts process transfer transactions by:
+        #     - splitting the existing pool of incoming transactions into a pool that stays and another that goes
+        #     - adding the new pool to the account.pool of the account receiving the transaction
+        new_pool = self.split_pool(this_txn)
+        this_txn.tgt_acct.add_pool(new_pool)
+    def withdraw(self, this_txn):
+        print(self.acct_ID, self.balance, self.pool)
+        # accounts process transfer transactions by:
+        #     - splitting the existing pool of incoming transactions into a pool that stays and another that goes
+        #     - adding the new pool to the account.pool of the account receiving the transaction
+        new_pool = self.split_pool(this_txn)
+        flows = [branch.follow_back(branch.amt) for branch in new_pool]
+        return flows
+        del new_pool # branches will disappear when there are no accounts who still reference their upstream branches
+                     # transactions will disappear when there are no branches left that reference them
 
 class Account_holder:
     # this class defines accounts in the dataset and holds features of them
@@ -209,8 +259,8 @@ class Account_holder:
 def process(txn,accts_dict,txn_categ,begin_timestamp,timeformat,infer=True,acct_types=None):
     begin_timestamp = datetime.strptime(begin_timestamp,timeformat)
     # make sure both the sender and recipient are account_holders with accounts
-    accts_dict.setdefault(txn['src_ID'],Account_holder(LIFO_account(txn['src_ID'])))
-    accts_dict.setdefault(txn['tgt_ID'],Account_holder(LIFO_account(txn['tgt_ID'])))
+    accts_dict.setdefault(txn['src_ID'],Account_holder(Mixing_account(txn['src_ID'])))
+    accts_dict.setdefault(txn['tgt_ID'],Account_holder(Mixing_account(txn['tgt_ID'])))
     # if we're keeping track of account types, update those now
     if acct_types:
         accts_dict[txn['src_ID']].update_type(acct_types,'src',txn['txn_type'])
@@ -239,8 +289,8 @@ def read_acct_types(acct_types_file):
 def process_by_acct_type(txn,accts_dict,acct_types,following,begin_timestamp,timeformat,infer=True):
     begin_timestamp = datetime.strptime(begin_timestamp,timeformat)
     # make sure both the sender and recipient are account_holders with accounts
-    accts_dict.setdefault(txn['src_ID'],Account_holder(LIFO_account(txn['src_ID'])))
-    accts_dict.setdefault(txn['tgt_ID'],Account_holder(LIFO_account(txn['tgt_ID'])))
+    accts_dict.setdefault(txn['src_ID'],Account_holder(Mixing_account(txn['src_ID'])))
+    accts_dict.setdefault(txn['tgt_ID'],Account_holder(Mixing_account(txn['tgt_ID'])))
     # we ARE keeping track of account types, update those now
     accts_dict[txn['src_ID']].update_type(acct_types,'src',txn['txn_type'])
     accts_dict[txn['tgt_ID']].update_type(acct_types,'tgt',txn['txn_type'])
