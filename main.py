@@ -43,22 +43,22 @@ if __name__ == '__main__':
     ####################################################
 
     ######## Defines how money is processed #########
-    follow_heuristic = "greedy"
+    #follow_heuristic = "greedy"
     ################### OR ##########################
-    #follow_heuristic = "well-mixed"
+    follow_heuristic = "well-mixed"
     #################################################
 
     ######### Defines what a *user* is ##############
     boundary_type = "transactions"
     transaction_categories_file = path+'/examples/transaction_categories.csv'
     transaction_categories = read_transaction_categories(transaction_categories_file)
-    setup = ftm.setup(header,timeformat,follow_heuristic,boundary_type,transaction_categories,timewindow=timewindow)
+    setup = ftm.setup(header,timeformat,boundary_type,transaction_categories,timewindow=timewindow)
     ################### OR ##########################
     #boundary_type = "accounts"
     #account_categories_file = path+'/examples/account_categories.csv'
     #account_categories = read_account_categories(account_categories_file)
     #following_set = set(["user"])
-    #setup = ftm.setup(header,timeformat,follow_heuristic,boundary_type,account_categories,following=following_set,timewindow=timewindow)
+    #setup = ftm.setup(header,timeformat,boundary_type,account_categories,following=following_set,timewindow=timewindow)
     #################################################
 
     ######### Defines any last-minute edits #########
@@ -67,5 +67,5 @@ if __name__ == '__main__':
     #################################################
 
     ########## Read in the file and go! #############
-    ftm.run(transaction_file,moneyflow_file,issues_file,setup,modify_transaction,resolution_limit=0.99999,discover_account_categories=False)
+    ftm.run(transaction_file,moneyflow_file,issues_file,follow_heuristic,setup,modify_transaction,resolution_limit=0.99999,discover_account_categories=False)
     #################################################

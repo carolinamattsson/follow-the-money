@@ -247,13 +247,10 @@ class Account_holder:
     # also the account categories
     acct_categs = None
     follow_set = set()
-    # also what heuritic we're using to "follow" money through accounts
-    follow_heuristic = "greedy"
-    acct_Class = LIFO_account
 
-    def __init__(self, acct_ID):
+    def __init__(self, acct_ID, acct_Class):
         self.acct_ID = acct_ID
-        self.account = self.acct_Class(acct_ID)
+        self.account = acct_Class(acct_ID)
         self.categ   = set()
         #self.txns    = 0      # in the future, this class will hold optional metrics calculated
         #self.amt     = 0      #                in an ongoing manner that can be retrieved system-wide
@@ -314,10 +311,10 @@ def process_remaining_funds(accts_dict,resolution_limit=0.01,infer=True):
             for moneyflow in moneyflows:
                 yield moneyflow
 
-def update_accounts(Account_holder,txn,accts_dict,discover_acct_categs):
+def update_accounts(Account_holder,txn,accts_dict,acct_Class,discover_acct_categs):
     # make sure both the sender and recipient are account_holders with accounts
-    accts_dict.setdefault(txn['src_ID'],Account_holder(txn['src_ID']))
-    accts_dict.setdefault(txn['tgt_ID'],Account_holder(txn['tgt_ID']))
+    accts_dict.setdefault(txn['src_ID'],Account_holder(txn['src_ID'],acct_Class))
+    accts_dict.setdefault(txn['tgt_ID'],Account_holder(txn['tgt_ID'],acct_Class))
     # if we are keeping track of account categories, update those now
     if Account_holder.acct_categs:
         accts_dict[txn['src_ID']].update_categ('src',txn['txn_type'])
@@ -328,23 +325,14 @@ def update_accounts(Account_holder,txn,accts_dict,discover_acct_categs):
         pass
     return accts_dict
 
-def setup(header,timeformat,follow_heuristic,boundary_type,boundary_categories,following=None,timewindow=None):
+def setup(header,timeformat,boundary_type,boundary_categories,following=None,timewindow=None):
     ################### SETUP! #########################
     # Set class variables for the Transaction class
     Transaction.header          = header
     Transaction.timeformat      = timeformat
     Transaction.begin_timestamp = datetime.strptime(timewindow[0],timeformat) if timewindow else None
     Transaction.end_timestamp   = datetime.strptime(timewindow[1],timeformat) if timewindow else None
-    # Set class variables for the Account_holder class -- heuristic
-    if follow_heuristic == "greedy":
-        Account_holder.follow_heuristic = "greedy"
-        Account_holder.acct_Class = LIFO_account
-    elif follow_heuristic == "well-mixed":
-        Account_holder.follow_heuristic = "well-mixed"
-        Account_holder.acct_Class = Mixing_account
-    else:
-        print("Please define a valid follow_heuristic -- options are: 'greedy' and 'well-mixed'")
-    # Set class variables for the Account_holder class -- boundary
+    # Set class variables for the Account_holder class regarding the boundary of the network
     if boundary_type == "transactions":
         Account_holder.boundary_type = "transactions"
         Account_holder.txn_categs = boundary_categories
@@ -358,11 +346,19 @@ def setup(header,timeformat,follow_heuristic,boundary_type,boundary_categories,f
         print("Please define a valid boundary_type -- options are: 'transactions' and 'accounts'")
     return Transaction, Account_holder
 
-def run(txn_file,moneyflow_file,issues_file,setup_func,modifier_func,resolution_limit=0.01,infer_deposits=True,infer_withdraw=True,discover_account_categories=False):
+def run(txn_file,moneyflow_file,issues_file,follow_heuristic,setup_func,modifier_func,resolution_limit=0.01,infer_deposits=True,infer_withdraw=True,discover_account_categories=False):
     import traceback
     import csv
 
     Transaction, Account_holder = setup_func
+
+    # Based on the follow_heuristic, define the type of account we're giving our account_holders
+    if follow_heuristic == "greedy":
+        acct_Class = LIFO_account
+    elif follow_heuristic == "well-mixed":
+        acct_Class = Mixing_account
+    else:
+        print("Please define a valid follow_heuristic -- options are: 'greedy' and 'well-mixed'")
 
     if Account_holder.boundary_type == "transactions":
         process = process_by_txn_categ
@@ -382,7 +378,7 @@ def run(txn_file,moneyflow_file,issues_file,setup_func,modifier_func,resolution_
         for txn in txn_reader:
             try:
                 txn = modifier_func(txn)
-                accounts = update_accounts(Account_holder,txn,accounts,discover_account_categories)
+                accounts = update_accounts(Account_holder,txn,accounts,acct_Class,discover_account_categories)
                 moneyflows = process(Transaction,txn,accounts,resolution_limit,infer_deposits)
                 if moneyflows:
                     for moneyflow in moneyflows:
