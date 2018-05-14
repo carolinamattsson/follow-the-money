@@ -28,7 +28,7 @@ if __name__ == '__main__':
     import ftm as ftm
 
     ################## Defines the files to read #########################
-    prefix = '/tests/ex3_'
+    prefix = '/tests/ex4_'
     path = os.path.dirname(os.path.realpath(__file__))
     transaction_file = path+prefix+'input.csv'
     moneyflow_file = path+prefix+'output.csv'
@@ -43,9 +43,9 @@ if __name__ == '__main__':
     ####################################################
 
     ######## Defines how money is processed #########
-    #follow_heuristic = "greedy"
+    follow_heuristic = "greedy"
     ################### OR ##########################
-    follow_heuristic = "well-mixed"
+    #follow_heuristic = "well-mixed"
     #################################################
 
     ######### Defines what a *user* is ##############
