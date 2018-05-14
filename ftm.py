@@ -16,6 +16,8 @@ class Transaction:
     timeformat = "%Y-%m-%d %H:%M:%S"
     begin_timestamp = '2000-01-01 00:00:00'
     end_timestamp   = '2020-01-01 00:00:00'
+    # class variable for the possible transaction categories ('deposit','transfer','withdraw')
+    txn_categs = None
 
     def __init__(self, txn_ID, timestamp, categ, src_acct, tgt_acct, amt, rev=0, type=None):
         self.txn_ID    = txn_ID
@@ -33,6 +35,9 @@ class Transaction:
         timestamp = datetime.strftime(self.timestamp,self.timeformat)
         return self.txn_ID+","+src_ID+","+tgt_ID+","+timestamp+","+self.type+","+str(self.amt)+","+str(self.rev)
     @classmethod
+    def get_txn_categ(cls,txn):
+        return cls.txn_categs[txn['txn_type']]
+    @classmethod
     def inferred_deposit(cls,txn):
         inferred_ID  = 'i'
         inferred_amt = txn.amt+txn.rev-txn.src_acct.balance
@@ -43,10 +48,8 @@ class Transaction:
         inferred_amt = acct.balance
         return cls(inferred_ID,cls.end_timestamp,'withdraw',acct,acct,inferred_amt,rev=0,type='inferred')
     @classmethod
-    def from_file(cls,txn,categ,accts_dict):
+    def from_file(cls,txn,categ,src_acct,tgt_acct):
         timestamp = datetime.strptime(txn['timestamp'],cls.timeformat)
-        src_acct  = accts_dict[txn['src_ID']].account
-        tgt_acct  = accts_dict[txn['tgt_ID']].account
         amt       = float(txn['amt'])
         rev       = float(txn['rev'])
         return cls(txn['txn_ID'],timestamp,categ,src_acct,tgt_acct,amt,rev=rev,type=txn['txn_type'])
@@ -241,10 +244,7 @@ class Mixing_account:
 class Account_holder:
     # this class defines accounts in the dataset and holds features of them
 
-    # class variable define what account holders' transactions are being "followed" and how
-    boundary_type = "transactions"
-    txn_categs = {"deposit":"deposit","transfer":"transfer","withdraw":"withdraw"}
-    # also the account categories
+    # class variable defining the possible account categories, and those being 'followed'
     acct_categs = None
     follow_set = set()
 
@@ -268,16 +268,11 @@ class Account_holder:
         return None
     @classmethod
     def get_txn_categ(cls,txn,accts_dict):
-        if cls.boundary_type == "none":
-            return 'transfer'
-        if cls.boundary_type == "transactions":
-            return cls.txn_categs[txn['txn_type']] if txn['txn_type'] in cls.txn_categs else 'withdraw'
-        if cls.boundary_type == "accounts":
-            src_follow = accts_dict[txn['src_ID']].categ.issubset(cls.follow_set)
-            tgt_follow = accts_dict[txn['tgt_ID']].categ.issubset(cls.follow_set)
-            if not src_follow and tgt_follow: return 'deposit'
-            if src_follow and tgt_follow:     return 'transfer'
-            if src_follow and not tgt_follow: return 'withdraw'
+        src_follow = accts_dict[txn['src_ID']].categ.issubset(cls.follow_set)
+        tgt_follow = accts_dict[txn['tgt_ID']].categ.issubset(cls.follow_set)
+        if not src_follow and tgt_follow: return 'deposit'
+        if src_follow and tgt_follow:     return 'transfer'
+        if src_follow and not tgt_follow: return 'withdraw'
     @classmethod
     def update_accounts(cls,txn,accts_dict,acct_Class,discover_acct_categs=None):
         # make sure both the sender and recipient are account_holders with accounts
@@ -287,8 +282,40 @@ class Account_holder:
         if cls.acct_categs or discover_acct_categs:
             accts_dict[txn['src_ID']].update_categ('src',txn['txn_type'],generate=True)
             accts_dict[txn['tgt_ID']].update_categ('tgt',txn['txn_type'],generate=True)
-        txn_categ = cls.get_txn_categ(txn,accts_dict)
-        return accts_dict, txn_categ
+        return accts_dict[txn['src_ID']].account, accts_dict[txn['tgt_ID']].account
+
+def setup(header,timeformat,transaction_categories=None,account_categories=None,following=None,timewindow=None):
+    ################### SETUP! #########################
+    # Set class variables for the Transaction class
+    Transaction.header          = header
+    Transaction.timeformat      = timeformat
+    Transaction.begin_timestamp = datetime.strptime(timewindow[0],timeformat) if timewindow else None
+    Transaction.end_timestamp   = datetime.strptime(timewindow[1],timeformat) if timewindow else None
+    Transaction.txn_categs      = transaction_categories
+    # Set class variables for the Account_holder class
+    Account_holder.acct_categs  = account_categories
+    Account_holder.follow_set   = following
+    return Transaction, Account_holder
+
+def get_acct_Class(follow_heuristic):
+    # Based on the follow_heuristic, define the type of account we're giving our account_holders
+    if follow_heuristic == "greedy":
+        return LIFO_account
+    elif follow_heuristic == "well-mixed":
+        return Mixing_account
+    else:
+        print("Please define a valid follow_heuristic -- options are: 'greedy' and 'well-mixed'")
+
+def get_txn_categ(boundary_type,txn,Transaction,accts_dict,Account_holder):
+    # Based on the boundary type, define where to look for the transaction category
+    if boundary_type == "none":
+        return 'transfer'
+    elif boundary_type == "transactions":
+        return Transaction.get_txn_categ(txn)
+    elif boundary_type == "accounts":
+        return Account_holder.get_txn_categ(txn,accts_dict)
+    else:
+        print("Please define a valid boundary_type -- options are: 'none', 'transactions', and 'accounts'")
 
 def process(txn,resolution_limit=0.01,infer_deposits=True):
     # process the transaction!
@@ -309,44 +336,11 @@ def process_remaining_funds(accts_dict,resolution_limit=0.01,infer=True):
             for moneyflow in moneyflows:
                 yield moneyflow
 
-def setup(header,timeformat,boundary_type,boundary_categories,following=None,timewindow=None):
-    ################### SETUP! #########################
-    # Set class variables for the Transaction class
-    Transaction.header          = header
-    Transaction.timeformat      = timeformat
-    Transaction.begin_timestamp = datetime.strptime(timewindow[0],timeformat) if timewindow else None
-    Transaction.end_timestamp   = datetime.strptime(timewindow[1],timeformat) if timewindow else None
-    # Set class variables for the Account_holder class regarding the boundary of the network
-    if boundary_type == "none":
-        Account_holder.boundary_type = "none"
-        Account_holder.txn_categs = None
-        Account_holder.acct_categs = None # for now
-    if boundary_type == "transactions":
-        Account_holder.boundary_type = "transactions"
-        Account_holder.txn_categs = boundary_categories
-        Account_holder.acct_categs = None # for now
-    elif boundary_type == "accounts":
-        Account_holder.boundary_type = "accounts"
-        Account_holder.txn_categs = None # for now
-        Account_holder.acct_categs = boundary_categories
-        Account_holder.follow_set = following
-    else:
-        print("Please define a valid boundary_type -- options are: 'none', 'transactions', and 'accounts'")
-    return Transaction, Account_holder
-
-def run(txn_file,moneyflow_file,issues_file,follow_heuristic,setup_func,modifier_func,resolution_limit=0.01,infer_deposits=True,infer_withdraw=True,discover_account_categories=False):
+def run(txn_file,moneyflow_file,issues_file,follow_heuristic,boundary_type,setup_func,modifier_func,resolution_limit=0.01,infer_deposits=True,infer_withdraw=True,discover_account_categories=False):
     import traceback
     import csv
-
+    #################### SETUP! #########################
     Transaction, Account_holder = setup_func
-
-    # Based on the follow_heuristic, define the type of account we're giving our account_holders
-    if follow_heuristic == "greedy":
-        acct_Class = LIFO_account
-    elif follow_heuristic == "well-mixed":
-        acct_Class = Mixing_account
-    else:
-        print("Please define a valid follow_heuristic -- options are: 'greedy' and 'well-mixed'")
     ##################### RUN! ##########################
     # now we can open the transaction and output files!!
     with open(txn_file,'rU') as txn_file, open(moneyflow_file,'w') as moneyflow_file, open(issues_file,'w') as issues_file:
@@ -356,15 +350,14 @@ def run(txn_file,moneyflow_file,issues_file,follow_heuristic,setup_func,modifier
         moneyflow_writer.writerow(Flow.header)
         # this dictionary holds all of the accounts
         accounts = {}
-        # if we're discovering account categories, we need a dict to hold them
-        discover_account_categories = {} if discover_account_categories else None
         # now we loop through all the transactions and process them!
         for txn in txn_reader:
             txn = modifier_func(txn)
             try:
-                accounts, txn_categ = Account_holder.update_accounts(txn,accounts,acct_Class,discover_account_categories)
+                src_acct, tgt_acct = Account_holder.update_accounts(txn,accounts,get_acct_Class(follow_heuristic),discover_account_categories)
+                txn_categ = get_txn_categ(boundary_type,txn,Transaction,accounts,Account_holder)
                 # if we are imposing a delta_t, update those now (this will return flows! ok, do later, in own step)
-                txn = Transaction.from_file(txn,txn_categ,accounts)
+                txn = Transaction.from_file(txn,txn_categ,src_acct,tgt_acct)
                 moneyflows = process(txn,resolution_limit,infer_deposits)
                 if moneyflows:
                     for moneyflow in moneyflows:
