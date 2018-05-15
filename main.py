@@ -43,9 +43,9 @@ if __name__ == '__main__':
     ####################################################
 
     ######## Defines how money is processed #########
-    follow_heuristic = "greedy"
+    #follow_heuristic = "greedy"
     ################### OR ##########################
-    #follow_heuristic = "well-mixed"
+    follow_heuristic = "well-mixed"
     #################################################
 
     ######### Defines what a *user* is ##############
@@ -70,5 +70,5 @@ if __name__ == '__main__':
     #################################################
 
     ########## Read in the file and go! #############
-    ftm.run(transaction_file,moneyflow_file,issues_file,follow_heuristic,boundary_type,setup,modify_transaction,resolution_limit=0.99999,discover_account_categories=False)
+    ftm.run(transaction_file,moneyflow_file,issues_file,follow_heuristic,boundary_type,setup,modify_transaction,resolution_limit=0.99999,infer_deposits=False,infer_withdraw=True,discover_account_categories=False)
     #################################################

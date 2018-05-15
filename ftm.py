@@ -138,36 +138,40 @@ class LIFO_account:
         self.stack   = []
         self.acct_ID = acct_ID
         self.balance = 0
+        self.tracked = 0
     def balance_check(self, txn):
         # this returns True if there is enough in the account to process the transaction and False if not
         return True if txn.amt+txn.rev <= self.balance else False
     def add_branches(self, branches):
         # according to the LIFO heuristic, incoming transactions mean "branches" get added to the end of the account.stack
         self.stack.extend(branches)
-        self.balance += sum(branch.amt for branch in branches)
+        self.tracked += sum(branch.amt for branch in branches)
     def pop_branches(self,this_txn,resolution_limit=0.01):
         # according to the LIFO heuristic, outgoing transactions mean "branches" are removed from the end of the account.stack
-        amt = this_txn.amt+this_txn.rev
-        if amt > self.balance: pass # raise accounting exception - to be implemented in the future
+        amt = min(this_txn.amt+this_txn.rev,self.tracked)
+        amt_missing = this_txn.amt+this_txn.rev-self.tracked if this_txn.amt+this_txn.rev>self.tracked else None
         branches = []
-        while amt > 0:
+        while amt > resolution_limit:
             # "branches" are removed from the end of the account.stack until the amount of the transaction is reached
             branch = self.stack[-1]
             if branch.amt <= amt:
                 branches.append(self.stack.pop())
                 amt = amt - branch.amt
-                self.balance = self.balance - branch.amt
+                self.tracked = self.tracked - branch.amt
             else:
                 # If the last "branch" is larger than the amount to be removed from the account, it is split into two: one remains in this account and the other is sent along
                 branches.append(Branch(branch.prev,branch.txn,amt))
-                self.balance = self.balance - amt
+                self.tracked = self.tracked - amt
                 branch.decrement(amt)
                 amt = 0
-        new_branches = [Branch(branch, this_txn, branch.amt/(1.0+this_txn.rev_ratio)) for branch in reversed(branches) if branch.amt >= resolution_limit] # the list is reversed to preserve the newest branches at the end
-        return new_branches
+        new_stack   = [Branch(branch, this_txn, branch.amt/(1.0+this_txn.rev_ratio)) for branch in reversed(branches) if branch.amt > resolution_limit] # the list is reversed to preserve the newest branches at the end
+        if amt_missing and amt_missing > resolution_limit: new_stack.append(Branch(None,this_txn,amt_missing/(1.0+this_txn.rev_ratio)))
+        return new_stack
     def deposit(self,this_txn):
         # accounts process deposit transactions by adding a new "root branch" to the end of their account.stack
         self.add_branches([Branch(None,this_txn,this_txn.amt)])
+        self.balance += this_txn.amt                             # adjust the overall balance
+        print('deposit:',this_txn.amt,'   balance:',self.balance,self.tracked)
     def transfer(self,this_txn,resolution_limit=0.01):
         # accounts process transfer transactions by:
         #     - removing branches up to the amount of the transaction from this account.stack
@@ -175,6 +179,9 @@ class LIFO_account:
         #     - adding these "branches" to the end of the account.stack of the account receiving the transaction
         new_branches = self.pop_branches(this_txn,resolution_limit)
         this_txn.tgt_acct.add_branches(new_branches)
+        self.balance = self.balance-this_txn.amt-this_txn.rev    # adjust the overall balance
+        this_txn.tgt_acct.balance += this_txn.amt
+        print('transfer:',this_txn.amt,'   balance:',self.balance,self.tracked,this_txn.tgt_acct.balance,this_txn.tgt_acct.tracked)
     def withdraw(self,this_txn,resolution_limit=0.01):
         # accounts process withdraw transactions by:
         #     - removing branches up to the amount of the transaction from this account.stack
@@ -185,6 +192,8 @@ class LIFO_account:
         flows = [branch.follow_back(branch.amt) for branch in new_branches]
         del new_branches # branches will disappear when there are no accounts who still reference their upstream branches
                          # transactions will disappear when there are no branches left that reference them
+        self.balance = self.balance-this_txn.amt-this_txn.rev   # adjust the overall balance
+        print('withdraw:',this_txn.amt,'   balance:',self.balance,self.tracked)
         return flows
 
 class Mixing_account:
@@ -197,40 +206,48 @@ class Mixing_account:
         self.pool    = []
         self.acct_ID = acct_ID
         self.balance = 0
+        self.tracked = 0
     def balance_check(self, txn):
         # this returns True if there is enough in the account to process the transaction and False if not
         return True if txn.amt+txn.rev <= self.balance else False
     def add_pool(self, new_pool):
         self.pool.extend(new_pool)
-        self.balance += sum(branch.amt for branch in new_pool)
-    def deposit(self, this_txn):
-        # accounts process deposit transactions by adding a new "root branch" to their account.pool
-        self.add_pool([Branch(None,this_txn,this_txn.amt)])
+        self.tracked += sum(branch.amt for branch in new_pool)
     def split_pool(self,this_txn,resolution_limit=0.01):
-        # this splits the entire pool of incoming transaction into two, with (balance-(amt+rev)) remaining and (amt) returned
-        # the old pool becomes of size balance-(amt+rev) with all the same branches
-        # the new pool is of size (amt) and has all new "branches" in it, extending all the "trees" in the old pool
-        # if the resulting branches are less than the minimum we're tracking, they are ignored
-        if this_txn.amt > self.balance:
-            pass # raise accounting exception - to be implemented in the future
-        elif (self.balance-this_txn.amt) < resolution_limit:
-            new_pool     = [Branch(branch, this_txn, branch.amt) for branch in self.pool]
+        # this splits the entire pool of incoming transaction into two, with a fraction remaining and (amt) returned
+        # the old pool becomes a fraction (balance-amt-rev)/balance smaller with all the same branches
+        # the new pool is of size (amt) and has all new "branches" in it, extending all the "trees" in the old pool and creating new "roots" if need be
+        # note that if any resulting branches are less than the minimum we're tracking, they are not extended
+        # build the new pool
+        split_factor = this_txn.amt/self.balance
+        new_pool     = [Branch(branch, this_txn, split_factor*branch.amt) for branch in self.pool if split_factor*branch.amt >= resolution_limit]
+        amt_tracked  = sum(branch.amt for branch in new_pool)
+        if (this_txn.amt-amt_tracked) > resolution_limit:
+            new_pool.append(Branch(None,this_txn,(this_txn.amt-amt_tracked)))
+        # shrink the old pool
+        if (self.tracked-amt_tracked) < resolution_limit:
             self.pool    = []
-            self.balance = 0
+            self.tracked = 0
         else:
-            split_factor = this_txn.amt/self.balance
-            new_pool     = [Branch(branch, this_txn, split_factor*branch.amt) for branch in self.pool if split_factor*branch.amt >= resolution_limit]
             stay_factor  = (self.balance-this_txn.amt-this_txn.rev)/self.balance
             for branch in self.pool:
                 branch.depreciate(stay_factor)
-            self.balance = self.balance-this_txn.amt-this_txn.rev
+            self.tracked = stay_factor*self.tracked
         return new_pool
+    def deposit(self, this_txn):
+        # accounts process deposit transactions by adding a new "root branch" to their account.pool
+        self.add_pool([Branch(None,this_txn,this_txn.amt)])
+        self.balance += this_txn.amt                             # adjust the overall balance
+        print('deposit:',this_txn.amt,'   balance:',self.balance,self.tracked)
     def transfer(self,this_txn,resolution_limit=0.01):
         # accounts process transfer transactions by:
         #     - splitting the existing pool of incoming transactions into a pool that stays and another that goes
         #     - adding the new pool to the account.pool of the account receiving the transaction
         new_pool = self.split_pool(this_txn,resolution_limit)
         this_txn.tgt_acct.add_pool(new_pool)
+        self.balance = self.balance-this_txn.amt-this_txn.rev    # adjust the overall balance
+        this_txn.tgt_acct.balance += this_txn.amt
+        print('transfer:',this_txn.amt,'   balance:',self.balance,self.tracked,this_txn.tgt_acct.balance,this_txn.tgt_acct.tracked)
     def withdraw(self,this_txn,resolution_limit=0.01):
         # accounts process transfer transactions by:
         #     - splitting the existing pool of incoming transactions into a pool that stays and another that goes
@@ -239,6 +256,8 @@ class Mixing_account:
         flows = [branch.follow_back(branch.amt) for branch in new_pool]
         del new_pool # branches will disappear when there are no accounts who still reference their upstream branches
                      # transactions will disappear when there are no branches left that reference them
+        self.balance = self.balance-this_txn.amt-this_txn.rev   # adjust the overall balance
+        print('withdraw:',this_txn.amt,'   balance:',self.balance,self.tracked)
         return flows
 
 class Account_holder:
@@ -256,6 +275,7 @@ class Account_holder:
         #self.amt     = 0      #                in an ongoing manner that can be retrieved system-wide
         #self.volume  = 0      #                at specified intervals
         #self.active  = 0
+        self.starting_balance = 0 # in the future, this will be used to loop through *twice* with the Mixing_account version - once to calculate starting_balance and once to "follow" money
     def close_out(self):
         # this function infers a transaction that would bring the account down to zero, then withdraws it
         inferred_withdraw = Transaction.inferred_withdraw(self.account)
@@ -265,7 +285,11 @@ class Account_holder:
             self.categ.add(self.acct_categs[src_tgt][txn_type])
         elif generate:
             self.categ.add(src_tgt+'~'+txn_type)
-        return None
+    def infer_balance(self,txn):
+        # this function adds balance to the account enough to cover the outgoing transaction (but does not infer the transaction itself)
+        amt = txn.amt+txn.rev
+        self.starting_balance += amt
+        self.account.balance   = amt
     @classmethod
     def get_txn_categ(cls,txn,accts_dict):
         src_follow = accts_dict[txn['src_ID']].categ.issubset(cls.follow_set)
@@ -317,15 +341,22 @@ def get_txn_categ(boundary_type,txn,Transaction,accts_dict,Account_holder):
     else:
         print("Please define a valid boundary_type -- options are: 'none', 'transactions', and 'accounts'")
 
-def process(txn,resolution_limit=0.01,infer_deposits=True):
+def adjust_balance(txn,accounts,infer_deposits=True):
+    if not txn.src_acct.balance_check(txn):
+        if infer_deposits:
+            txn.src_acct.deposit(txn.inferred_deposit(txn))
+        else:
+            accounts[txn.src_acct.acct_ID].infer_balance(txn)
+
+def process(txn,accounts,resolution_limit=0.01,infer_deposits=True):
     # process the transaction!
     if txn.categ == 'deposit':
         return txn.tgt_acct.deposit(txn)
     elif txn.categ == 'transfer':
-        if infer_deposits and not txn.src_acct.balance_check(txn): txn.src_acct.deposit(txn.inferred_deposit(txn))
+        adjust_balance(txn,accounts,infer_deposits)
         return txn.src_acct.transfer(txn,resolution_limit)
     elif txn.categ == 'withdraw':
-        if infer_deposits and not txn.src_acct.balance_check(txn): txn.src_acct.deposit(txn.inferred_deposit(txn))
+        adjust_balance(txn,accounts,infer_deposits)
         return txn.src_acct.withdraw(txn,resolution_limit)
 
 def process_remaining_funds(accts_dict,resolution_limit=0.01,infer=True):
@@ -355,10 +386,10 @@ def run(txn_file,moneyflow_file,issues_file,follow_heuristic,boundary_type,setup
             txn = modifier_func(txn)
             try:
                 src_acct, tgt_acct = Account_holder.update_accounts(txn,accounts,get_acct_Class(follow_heuristic),discover_account_categories)
-                txn_categ = get_txn_categ(boundary_type,txn,Transaction,accounts,Account_holder)
                 # if we are imposing a delta_t, update those now (this will return flows! ok, do later, in own step)
+                txn_categ = get_txn_categ(boundary_type,txn,Transaction,accounts,Account_holder)
                 txn = Transaction.from_file(txn,txn_categ,src_acct,tgt_acct)
-                moneyflows = process(txn,resolution_limit,infer_deposits)
+                moneyflows = process(txn,accounts,resolution_limit,infer_deposits)
                 if moneyflows:
                     for moneyflow in moneyflows:
                         moneyflow_writer.writerow(moneyflow.to_print())
