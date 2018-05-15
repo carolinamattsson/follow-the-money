@@ -195,6 +195,12 @@ class LIFO_account:
         self.balance = self.balance-this_txn.amt-this_txn.rev   # adjust the overall balance
         print('withdraw:',this_txn.amt,'   balance:',self.balance,self.tracked)
         return flows
+    def drain(self):
+        flows = [branch.follow_back(branch.amt) for branch in self.stack]
+        self.stack = []
+        self.balance = 0
+        self.tracked = 0
+        return flows
 
 class Mixing_account:
     # this class keeps track of transactions within an account holder's account
@@ -259,6 +265,12 @@ class Mixing_account:
         self.balance = self.balance-this_txn.amt-this_txn.rev   # adjust the overall balance
         print('withdraw:',this_txn.amt,'   balance:',self.balance,self.tracked)
         return flows
+    def drain(self):
+        flows = [branch.follow_back(branch.amt) for branch in self.pool]
+        self.pool = []
+        self.balance = 0
+        self.tracked = 0
+        return flows
 
 class Account_holder:
     # this class defines accounts in the dataset and holds features of them
@@ -276,10 +288,15 @@ class Account_holder:
         #self.volume  = 0      #                at specified intervals
         #self.active  = 0
         self.starting_balance = 0 # in the future, this will be used to loop through *twice* with the Mixing_account version - once to calculate starting_balance and once to "follow" money
-    def close_out(self):
-        # this function infers a transaction that would bring the account down to zero, then withdraws it
-        inferred_withdraw = Transaction.inferred_withdraw(self.account)
-        return self.account.withdraw(inferred_withdraw)
+    def close_out(self,infer_withdraw):
+        if infer_withdraw:
+            # this function infers a transaction that would bring the account down to zero, then withdraws it
+            inferred_withdraw = Transaction.inferred_withdraw(self.account)
+            return self.account.withdraw(inferred_withdraw)
+            del self.account
+        else:
+            return self.account.drain()
+            del self.account
     def update_categ(self, src_tgt, txn_type, generate=False):
         if txn_type in self.acct_categs[src_tgt]:
             self.categ.add(self.acct_categs[src_tgt][txn_type])
@@ -359,11 +376,11 @@ def process(txn,accounts,resolution_limit=0.01,infer_deposits=True):
         adjust_balance(txn,accounts,infer_deposits)
         return txn.src_acct.withdraw(txn,resolution_limit)
 
-def process_remaining_funds(accts_dict,resolution_limit=0.01,infer=True):
-    # loop through all accounts, and note the amount remaining as inferred withdraws
+def process_remaining_funds(accts_dict,resolution_limit=0.01,infer_withdraw=True):
+    # loop through all accounts, and note the amount remaining
     for acct in accts_dict:
         if accts_dict[acct].account.balance > resolution_limit:
-            moneyflows = accts_dict[acct].close_out()
+            moneyflows = accts_dict[acct].close_out(infer_withdraw)
             for moneyflow in moneyflows:
                 yield moneyflow
 
@@ -395,7 +412,7 @@ def run(txn_file,moneyflow_file,issues_file,follow_heuristic,boundary_type,setup
                         moneyflow_writer.writerow(moneyflow.to_print())
             except:
                 issue_writer.writerow([str(txn)]+[traceback.format_exc()])
-        moneyflows = process_remaining_funds(accounts,resolution_limit)
+        moneyflows = process_remaining_funds(accounts,resolution_limit,infer_withdraw)
         for moneyflow in moneyflows:
             moneyflow_writer.writerow(moneyflow.to_print())
 

@@ -43,25 +43,25 @@ if __name__ == '__main__':
     ####################################################
 
     ######## Defines how money is processed #########
-    #follow_heuristic = "greedy"
+    follow_heuristic = "greedy"
     ################### OR ##########################
-    follow_heuristic = "well-mixed"
+    #follow_heuristic = "well-mixed"
     #################################################
 
     ######### Defines what a *user* is ##############
-    boundary_type = "none"
-    setup = ftm.setup(header,timeformat,timewindow=timewindow)
+    #boundary_type = "none"
+    #setup = ftm.setup(header,timeformat,timewindow=timewindow)
     ################### OR ##########################
     #boundary_type = "transactions"
     #transaction_categories_file = path+'/examples/transaction_categories.csv'
     #transaction_categories = read_transaction_categories(transaction_categories_file)
     #setup = ftm.setup(header,timeformat,transaction_categories=transaction_categories,timewindow=timewindow)
     ################### OR ##########################
-    #boundary_type = "accounts"
-    #account_categories_file = path+'/examples/account_categories.csv'
-    #account_categories = read_account_categories(account_categories_file)
-    #following = set(["user"])
-    #setup = ftm.setup(header,timeformat,account_categories=account_categories,following=following,timewindow=timewindow)
+    boundary_type = "accounts"
+    account_categories_file = path+'/examples/account_categories.csv'
+    account_categories = read_account_categories(account_categories_file)
+    following = set(["user"])
+    setup = ftm.setup(header,timeformat,account_categories=account_categories,following=following,timewindow=timewindow)
     #################################################
 
     ######### Defines any last-minute edits #########
@@ -70,5 +70,5 @@ if __name__ == '__main__':
     #################################################
 
     ########## Read in the file and go! #############
-    ftm.run(transaction_file,moneyflow_file,issues_file,follow_heuristic,boundary_type,setup,modify_transaction,resolution_limit=0.99999,infer_deposits=False,infer_withdraw=True,discover_account_categories=False)
+    ftm.run(transaction_file,moneyflow_file,issues_file,follow_heuristic,boundary_type,setup,modify_transaction,resolution_limit=0.99999,infer_deposits=True,infer_withdraw=False,discover_account_categories=False)
     #################################################
