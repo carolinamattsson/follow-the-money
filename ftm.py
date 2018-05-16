@@ -115,8 +115,8 @@ class Flow:
         self.frac_root = (amt+rev)/(branch.txn.amt+branch.txn.rev)
         self.duration  = timedelta(0)
         self.durations = []
-        self.tux       = 0 if branch.categ == 'deposit' else 1                                              # "Transactions Until eXit" - deposited money begins at step 0, and any subsequent transaction adds 1 to this measure
-        self.tux_wrev  = 0 if branch.categ == 'deposit' else branch.txn.amt/(branch.txn.amt+branch.txn.rev) #                           - strictly speaking, this measure aught to be adjusted by any revenue/fees incurred at each step
+        self.tux       = 0 if branch.txn.categ == 'deposit' else 1                                              # "Transactions Until eXit" - deposited money begins at step 0, and any subsequent transaction adds 1 to this measure
+        self.tux_wrev  = 0 if branch.txn.categ == 'deposit' else branch.txn.amt/(branch.txn.amt+branch.txn.rev) #                           - strictly speaking, this measure aught to be adjusted by any revenue/fees incurred at each step
     def extend(self, branch, amt, rev):
         # this funciton builds up a "money flow" by incorporating the information in a subsequent "branch"
         # this is called inside the recursive function branch.follow_back(amt)
@@ -128,8 +128,8 @@ class Flow:
         branch_duration = branch.txn.timestamp - branch.prev.txn.timestamp
         self.duration  += branch_duration
         self.durations.append(branch_duration)
-        self.tux       += 1
-        self.tux_wrev  += amt/self.amt
+        self.tux       += 0 if branch.txn.categ == 'withdraw' else 1             # the eXit transaction itself is not included in the "Transactions Until eXit" measure
+        self.tux_wrev  += 0 if branch.txn.categ == 'withdraw' else amt/self.amt
     def to_print(self):
         # this returns a version of this class that can be exported to a file using writer.writerow()
         return [str(self.timestamp),'['+','.join(id for id in self.acct_IDs)+']','['+','.join(id for id in self.txn_IDs)+']','['+','.join(type for type in self.txn_types)+']',\
