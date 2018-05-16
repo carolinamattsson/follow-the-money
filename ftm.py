@@ -35,20 +35,29 @@ class Transaction:
         timestamp = datetime.strftime(self.timestamp,self.timeformat)
         return self.txn_ID+","+src_ID+","+tgt_ID+","+timestamp+","+self.type+","+str(self.amt)+","+str(self.rev)
     @classmethod
+    def from_file(cls,txn,accts_dict):
+        timestamp = datetime.strptime(txn['timestamp'],cls.timeformat)
+        categ     = cls.get_txn_categ(txn)
+        src_acct  = accts_dict[txn['src_ID']].account
+        tgt_acct  = accts_dict[txn['tgt_ID']].account
+        amt       = float(txn['amt'])
+        rev       = float(txn['rev'])
+        return cls(txn['txn_ID'],timestamp,categ,src_acct,tgt_acct,amt,rev=rev,type=txn['txn_type'])
+    @classmethod
     def get_txn_categ(cls,txn):
         return cls.txn_categs[txn['txn_type']]
     @classmethod
-    def inferred_deposit(cls,txn):
+    def infer_deposit(cls,txn):
         inferred_ID  = 'i'
         inferred_amt = txn.amt+txn.rev-txn.src_acct.balance
         return cls(inferred_ID,cls.begin_timestamp,'deposit',txn.src_acct,txn.src_acct,inferred_amt,rev=0,type='inferred')
     @classmethod
-    def inferred_withdraw(cls,acct):
+    def infer_withdraw(cls,acct):
         inferred_ID = 'i'
         inferred_amt = acct.balance
         return cls(inferred_ID,cls.end_timestamp,'withdraw',acct,acct,inferred_amt,rev=0,type='inferred')
     @classmethod
-    def from_file(cls,txn,categ,src_acct,tgt_acct):
+    def new(cls,txn,categ,src_acct,tgt_acct):
         timestamp = datetime.strptime(txn['timestamp'],cls.timeformat)
         amt       = float(txn['amt'])
         rev       = float(txn['rev'])
@@ -128,7 +137,7 @@ class Flow:
                 self.amt,self.rev,self.frac_root,self.tux,self.tux_wrev,self.duration.total_seconds()/3600.0]
 
 class Account(list):
-    account_type = "basic"
+    type = "basic"
     def __init__(self, acct_ID):
         self.acct_ID = acct_ID
         self.balance = 0
@@ -155,10 +164,18 @@ class Account(list):
         flows = [branch.follow_back(branch.amt) for branch in new_branches]
         self.balance = self.balance-this_txn.amt-this_txn.rev   # adjust the overall balance
         return flows
-    def drain(self):
-        flows = [branch.follow_back(branch.amt) for branch in self]
-        self[:]      = []
-        self.tracked = 0
+    def stop_tracking(self,timestamp=None,time_cutoff=None):
+        if timestamp and time_cutoff:
+            flows = []
+            for branch in self:
+                if (timestamp-branch.txn.timestamp)>time_cutoff:
+                    flows.append(branch.follow_back(branch.amt))
+                    self.remove(branch)
+                    self.tracked -= branch.amt
+        else:
+            flows        = [branch.follow_back(branch.amt) for branch in self]
+            self[:]      = []
+            self.tracked = 0
         return flows
 
 class LIFO_account(Account):
@@ -166,7 +183,7 @@ class LIFO_account(Account):
     # it chains outgoing transactions (well, parts of those transactions) to earlier incoming ones
     # specifically, it chains outgoing transactions to the *most recent* incoming transactions
     # this heuristic -- last in first out (LIFO) -- has the pleasing property of preserving local patterns
-    account_type = "LIFO_account"
+    type = "LIFO_account"
     def get_branches(self,this_txn,resolution_limit=0.01):
         # according to the LIFO heuristic, outgoing transactions mean "branches" are removed from the end of the account.stack
         amt = min(this_txn.amt+this_txn.rev,self.tracked)
@@ -194,7 +211,7 @@ class Mixing_account(Account):
     # it chains outgoing transactions (well, parts of those transactions) to earlier incoming ones
     # specifically, it chains outgoing transactions to *an equal fraction of all remaining* incoming transactions
     # this heuristic -- the well-mixed or max-entropy heuristic -- takes the perfectly fungible nature of money seriously
-    account_type = "Mixing_account"
+    type = "Mixing_account"
     def get_branches(self,this_txn,resolution_limit=0.01):
         # this splits the entire pool of incoming transaction into two, with a fraction remaining and (amt) returned
         # the old pool becomes a fraction (balance-amt-rev)/balance smaller with all the same branches
@@ -232,16 +249,10 @@ class Account_holder:
         #self.amt     = 0      #                in an ongoing manner that can be retrieved system-wide
         #self.volume  = 0      #                at specified intervals
         #self.active  = 0
+        self.discover = False
         self.starting_balance = 0 # in the future, this will be used to loop through *twice* with the Mixing_account version - once to calculate starting_balance and once to "follow" money
-    def close_out(self,infer_withdraw):
-        if infer_withdraw:
-            # this function infers a transaction that would bring the account down to zero, then withdraws it
-            inferred_withdraw = Transaction.inferred_withdraw(self.account)
-            return self.account.withdraw(inferred_withdraw)
-            del self.account
-        else:
-            return self.account.drain()
-            del self.account
+    def close_out(self):
+        del self.account
     def update_categ(self, src_tgt, txn_type, generate=False):
         if txn_type in self.acct_categs[src_tgt]:
             self.categ.add(self.acct_categs[src_tgt][txn_type])
@@ -291,7 +302,7 @@ def get_txn_categ(boundary_type,txn,Transaction,accts_dict,Account_holder):
     else:
         print("Please define a valid boundary_type -- options are: 'none', 'transactions', and 'accounts'")
 
-def setup(follow_heuristic,boundary_type,header,timeformat,transaction_categories=None,account_categories=None,following=None,timewindow=None):
+def setup(follow_heuristic,boundary_type,header,timeformat,transaction_categories=None,account_categories=None,following=None,discover_account_categories=False,timewindow=None):
     ################### SETUP! #########################
     # Set class variables for the Transaction class
     Transaction.header          = header
@@ -302,42 +313,49 @@ def setup(follow_heuristic,boundary_type,header,timeformat,transaction_categorie
     # Set class variables for the Account_holder class
     Account_holder.acct_categs  = account_categories
     Account_holder.follow_set   = following
+    Account_holder.discover     = discover_account_categories
     acct_Class                  = get_acct_Class(follow_heuristic)
     return boundary_type, acct_Class, Transaction, Account_holder
 
 def adjust_balance(txn,accounts,infer_deposits=True):
     if not txn.src_acct.balance_check(txn):
         if infer_deposits:
-            txn.src_acct.deposit(txn.inferred_deposit(txn))
+            txn.src_acct.deposit(txn.infer_deposit(txn))
         else:
             accounts[txn.src_acct.acct_ID].set_balance(txn.amt+txn.rev,infer=True)
-
-#def adjust_tracked(account,time_cutoff):
-#    if not account.tracked_check(time_cutoff):
-#        if infer_deposits:
-#            txn.src_acct.deposit(txn.inferred_deposit(txn))
 
 def process(txn,accounts,time_cutoff,resolution_limit=0.01,infer_deposits=True):
     # process the transaction!
     if txn.categ == 'deposit':
-        return txn.tgt_acct.deposit(txn)
+        flows = txn.tgt_acct.stop_tracking(txn.timestamp,time_cutoff)
+        txn.tgt_acct.deposit(txn)
     elif txn.categ == 'transfer':
-        #adjust_tracked(txn.src_acct,time_cutoff)
         adjust_balance(txn,accounts,infer_deposits)
-        return txn.src_acct.transfer(txn,resolution_limit)
+        flows = txn.src_acct.stop_tracking(txn.timestamp,time_cutoff) + txn.tgt_acct.stop_tracking(txn.timestamp,time_cutoff)
+        txn.src_acct.transfer(txn,resolution_limit)
     elif txn.categ == 'withdraw':
-        #adjust_tracked(txn.src_acct,time_cutoff)
         adjust_balance(txn,accounts,infer_deposits)
-        return txn.src_acct.withdraw(txn,resolution_limit)
+        flows = txn.src_acct.stop_tracking(txn.timestamp,time_cutoff)
+        flows = flows + txn.src_acct.withdraw(txn,resolution_limit)
+    else:
+        flows = []
+    return flows
 
-def process_remaining_funds(accts_dict,resolution_limit=0.01,infer_withdraw=True):
+def process_remaining_funds(accts_dict,infer_withdraw=False,resolution_limit=0.01,txn_Class=None):
     # loop through all accounts, and note the amount remaining
-    for acct in accts_dict:
-        moneyflows = accts_dict[acct].close_out(infer_withdraw)
+    for acct_ID in accts_dict:
+        moneyflows = []
+        acct = accts_dict[acct_ID].account
+        if infer_withdraw and acct.balance > resolution_limit:
+            inferred_withdraw = txn_Class.infer_withdraw(acct)
+            moneyflows.extend(acct.withdraw(inferred_withdraw))
+        elif acct.tracked > resolution_limit:
+            moneyflows.extend(acct.stop_tracking())
+        accts_dict[acct_ID].close_out()
         for moneyflow in moneyflows:
             yield moneyflow
 
-def run(txn_file,moneyflow_file,issues_file,setup_func,time_cutoff=None,modifier_func=None,resolution_limit=0.01,infer_deposits=True,infer_withdraw=True,discover_account_categories=False):
+def run(txn_file,moneyflow_file,issues_file,setup_func,time_cutoff=timedelta.max,modifier_func=None,resolution_limit=0.01,infer_deposits=False,infer_withdraw=False,discover_account_categories=False,discover_file=None):
     import traceback
     import csv
     #################### SETUP! #########################
@@ -357,14 +375,14 @@ def run(txn_file,moneyflow_file,issues_file,setup_func,time_cutoff=None,modifier
             try:
                 src_acct, tgt_acct = Account_holder.update_accounts(txn,accounts,acct_Class,discover_account_categories)
                 txn_categ = get_txn_categ(boundary_type,txn,Transaction,accounts,Account_holder)
-                txn = Transaction.from_file(txn,txn_categ,src_acct,tgt_acct)
+                txn = Transaction.new(txn,txn_categ,src_acct,tgt_acct)
                 moneyflows = process(txn,accounts,time_cutoff,resolution_limit,infer_deposits)
                 if moneyflows:
                     for moneyflow in moneyflows:
                         moneyflow_writer.writerow(moneyflow.to_print())
             except:
                 issue_writer.writerow([str(txn)]+[traceback.format_exc()])
-        moneyflows = process_remaining_funds(accounts,resolution_limit,infer_withdraw)
+        moneyflows = process_remaining_funds(accounts,infer_withdraw,resolution_limit,Transaction)
         for moneyflow in moneyflows:
             moneyflow_writer.writerow(moneyflow.to_print())
 

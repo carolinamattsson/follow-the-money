@@ -28,7 +28,7 @@ if __name__ == '__main__':
     import ftm as ftm
 
     ################## Defines the files to read #########################
-    prefix = '/tests/ex1_'
+    prefix = '/tests/ex3_'
     path = os.path.dirname(os.path.realpath(__file__))
     transaction_file = path+prefix+'input.csv'
     moneyflow_file = path+prefix+'output.csv'
@@ -42,10 +42,10 @@ if __name__ == '__main__':
     timewindow = ('2014-11-01 00:00:00','2014-11-01 03:00:00')
     ####################################################
 
-    ######## Defines how money is processed #########
-    follow_heuristic = "none"
+    ######### Defines how money is tracked ##########
+    #follow_heuristic = "none"
     ################### OR ##########################
-    #follow_heuristic = "greedy"
+    follow_heuristic = "greedy"
     ################### OR ##########################
     #follow_heuristic = "well-mixed"
     #################################################
@@ -72,5 +72,5 @@ if __name__ == '__main__':
     #################################################
 
     ########## Read in the file and go! #############
-    ftm.run(transaction_file,moneyflow_file,issues_file,setup,modify_transaction,resolution_limit=0.99999,infer_deposits=False,infer_withdraw=False,discover_account_categories=False)
+    ftm.run(transaction_file,moneyflow_file,issues_file,setup,infer_deposits=True,infer_withdraw=True,resolution_limit=0.99999,modifier_func=modify_transaction)
     #################################################
