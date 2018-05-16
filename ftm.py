@@ -19,7 +19,7 @@ class Transaction:
     # class variable for the possible transaction categories ('deposit','transfer','withdraw')
     txn_categs = None
 
-    def __init__(self, txn_ID, timestamp, categ, src_acct, tgt_acct, amt, rev=0, type=None):
+    def __init__(self, txn_ID, timestamp, src_acct, tgt_acct, amt, rev=0, type=None, categ=None):
         self.txn_ID    = txn_ID
         self.timestamp = timestamp
         self.categ     = categ
@@ -35,33 +35,26 @@ class Transaction:
         timestamp = datetime.strftime(self.timestamp,self.timeformat)
         return self.txn_ID+","+src_ID+","+tgt_ID+","+timestamp+","+self.type+","+str(self.amt)+","+str(self.rev)
     @classmethod
-    def from_file(cls,txn,accts_dict):
+    def create(cls,txn,src_acct,tgt_acct):
         timestamp = datetime.strptime(txn['timestamp'],cls.timeformat)
-        categ     = cls.get_txn_categ(txn)
-        src_acct  = accts_dict[txn['src_ID']].account
-        tgt_acct  = accts_dict[txn['tgt_ID']].account
+        src_acct  = src_acct
+        tgt_acct  = tgt_acct
         amt       = float(txn['amt'])
         rev       = float(txn['rev'])
-        return cls(txn['txn_ID'],timestamp,categ,src_acct,tgt_acct,amt,rev=rev,type=txn['txn_type'])
+        return cls(txn['txn_ID'],timestamp,src_acct,tgt_acct,amt,rev=rev,type=txn['txn_type'])
     @classmethod
     def get_txn_categ(cls,txn):
-        return cls.txn_categs[txn['txn_type']]
+        return cls.txn_categs[txn.type]
     @classmethod
     def infer_deposit(cls,txn):
         inferred_ID  = 'i'
         inferred_amt = txn.amt+txn.rev-txn.src_acct.balance
-        return cls(inferred_ID,cls.begin_timestamp,'deposit',txn.src_acct,txn.src_acct,inferred_amt,rev=0,type='inferred')
+        return cls(inferred_ID,cls.begin_timestamp,txn.src_acct,txn.src_acct,inferred_amt,rev=0,type='inferred',categ='deposit')
     @classmethod
     def infer_withdraw(cls,acct):
         inferred_ID = 'i'
         inferred_amt = acct.balance
-        return cls(inferred_ID,cls.end_timestamp,'withdraw',acct,acct,inferred_amt,rev=0,type='inferred')
-    @classmethod
-    def new(cls,txn,categ,src_acct,tgt_acct):
-        timestamp = datetime.strptime(txn['timestamp'],cls.timeformat)
-        amt       = float(txn['amt'])
-        rev       = float(txn['rev'])
-        return cls(txn['txn_ID'],timestamp,categ,src_acct,tgt_acct,amt,rev=rev,type=txn['txn_type'])
+        return cls(inferred_ID,cls.end_timestamp,acct,acct,inferred_amt,rev=0,type='inferred',categ='withdraw')
 
 class Branch:
     # this class allows for chaining together transactions, or parts of those transactions
@@ -138,13 +131,19 @@ class Flow:
 
 class Account(list):
     type = "basic"
-    def __init__(self, acct_ID):
+    def __init__(self, holder, acct_ID, starting_balance=0):
+        self.holder  = holder
         self.acct_ID = acct_ID
-        self.balance = 0
+        self.starting_balance = starting_balance
+        self.balance = starting_balance
         self.tracked = 0
     def balance_check(self, txn):
         # this returns True if there is enough in the account to process the transaction and False if not
         return True if txn.amt+txn.rev <= self.balance else False
+    def set_balance(self,amt,infer=True):
+        # this function infers a notional balance on the account, recording the inferred starting balance if directed
+        if infer: self.starting_balance += amt
+        self.balance = amt
     def add_branches(self, branches):
         self.extend(branches)
         self.tracked += sum(branch.amt for branch in branches)
@@ -238,44 +237,39 @@ class Account_holder:
     # this class defines accounts in the dataset and holds features of them
 
     # class variable defining the possible account categories, and those being 'followed'
-    acct_categs = None
+    holder_categs = None
     follow_set = set()
 
-    def __init__(self, acct_ID, acct_Class):
-        self.acct_ID = acct_ID
-        self.account = acct_Class(acct_ID)
+    def __init__(self, user_ID, acct_Class):
+        self.user_ID = user_ID
+        self.account = acct_Class(self,user_ID)
         self.categ   = set()
         #self.txns    = 0      # in the future, this class will hold optional metrics calculated
         #self.amt     = 0      #                in an ongoing manner that can be retrieved system-wide
         #self.volume  = 0      #                at specified intervals
         #self.active  = 0
         self.discover = False
-        self.starting_balance = 0 # in the future, this will be used to loop through *twice* with the Mixing_account version - once to calculate starting_balance and once to "follow" money
     def close_out(self):
         del self.account
     def update_categ(self, src_tgt, txn_type, generate=False):
-        if txn_type in self.acct_categs[src_tgt]:
-            self.categ.add(self.acct_categs[src_tgt][txn_type])
+        if txn_type in self.holder_categs[src_tgt]:
+            self.categ.add(self.holder_categs[src_tgt][txn_type])
         elif generate:
             self.categ.add(src_tgt+'~'+txn_type)
-    def set_balance(self,amt,infer=True):
-        # this function infers a notional balance on the account, recording the inferred starting balance if directed
-        if infer: self.starting_balance += amt
-        self.account.balance   = amt
     @classmethod
-    def get_txn_categ(cls,txn,accts_dict):
-        src_follow = accts_dict[txn['src_ID']].categ.issubset(cls.follow_set)
-        tgt_follow = accts_dict[txn['tgt_ID']].categ.issubset(cls.follow_set)
+    def get_txn_categ(cls,src_acct_holder,tgt_acct_holder):
+        src_follow = src_acct_holder.categ.issubset(cls.follow_set)
+        tgt_follow = tgt_acct_holder.categ.issubset(cls.follow_set)
         if not src_follow and tgt_follow: return 'deposit'
         if src_follow and tgt_follow:     return 'transfer'
         if src_follow and not tgt_follow: return 'withdraw'
     @classmethod
-    def update_accounts(cls,txn,accts_dict,acct_Class,discover_acct_categs=None):
+    def update_accounts(cls,txn,accts_dict,acct_Class,discover=None):
         # make sure both the sender and recipient are account_holders with accounts
         accts_dict.setdefault(txn['src_ID'],Account_holder(txn['src_ID'],acct_Class))
         accts_dict.setdefault(txn['tgt_ID'],Account_holder(txn['tgt_ID'],acct_Class))
-        # if we are keeping track of account categories, update those now
-        if cls.acct_categs or discover_acct_categs:
+        # if we are keeping track of account holder categories, update those now
+        if cls.holder_categs or discover:
             accts_dict[txn['src_ID']].update_categ('src',txn['txn_type'],generate=True)
             accts_dict[txn['tgt_ID']].update_categ('tgt',txn['txn_type'],generate=True)
         return accts_dict[txn['src_ID']].account, accts_dict[txn['tgt_ID']].account
@@ -291,71 +285,67 @@ def get_acct_Class(follow_heuristic):
     else:
         print("Please define a valid follow_heuristic -- options are: 'none', 'greedy', and 'well-mixed'")
 
-def get_txn_categ(boundary_type,txn,Transaction,accts_dict,Account_holder):
+def get_txn_categ(txn,boundary_type):
     # Based on the boundary type, define where to look for the transaction category
     if boundary_type == "none":
         return 'transfer'
     elif boundary_type == "transactions":
-        return Transaction.get_txn_categ(txn)
+        return txn.get_txn_categ(txn)
     elif boundary_type == "accounts":
-        return Account_holder.get_txn_categ(txn,accts_dict)
+        return txn.src_acct.holder.get_txn_categ(txn.src_acct.holder,txn.tgt_acct.holder)
     else:
         print("Please define a valid boundary_type -- options are: 'none', 'transactions', and 'accounts'")
 
-def setup(follow_heuristic,boundary_type,header,timeformat,transaction_categories=None,account_categories=None,following=None,discover_account_categories=False,timewindow=None):
+def setup(follow_heuristic,boundary_type,header,timeformat,transaction_categories=None,account_categories=None,following=None,discover=False,timewindow=None):
     ################### SETUP! #########################
     # Set class variables for the Transaction class
-    Transaction.header          = header
-    Transaction.timeformat      = timeformat
-    Transaction.begin_timestamp = datetime.strptime(timewindow[0],timeformat) if timewindow else None
-    Transaction.end_timestamp   = datetime.strptime(timewindow[1],timeformat) if timewindow else None
-    Transaction.txn_categs      = transaction_categories
+    Transaction.header           = header
+    Transaction.timeformat       = timeformat
+    Transaction.begin_timestamp  = datetime.strptime(timewindow[0],timeformat) if timewindow else None
+    Transaction.end_timestamp    = datetime.strptime(timewindow[1],timeformat) if timewindow else None
+    Transaction.txn_categs       = transaction_categories
     # Set class variables for the Account_holder class
-    Account_holder.acct_categs  = account_categories
-    Account_holder.follow_set   = following
-    Account_holder.discover     = discover_account_categories
-    acct_Class                  = get_acct_Class(follow_heuristic)
+    Account_holder.holder_categs = account_categories
+    Account_holder.follow_set    = following
+    Account_holder.discover      = discover
+    acct_Class                   = get_acct_Class(follow_heuristic)
     return boundary_type, acct_Class, Transaction, Account_holder
 
-def adjust_balance(txn,accounts,infer_deposits=True):
+def adjust_balance(txn,infer_deposits=True):
     if not txn.src_acct.balance_check(txn):
         if infer_deposits:
             txn.src_acct.deposit(txn.infer_deposit(txn))
         else:
-            accounts[txn.src_acct.acct_ID].set_balance(txn.amt+txn.rev,infer=True)
+            txn.src_acct.set_balance(txn.amt+txn.rev,infer=True)
 
-def process(txn,accounts,time_cutoff,resolution_limit=0.01,infer_deposits=True):
+def process(txn,time_cutoff,resolution_limit=0.01,infer_deposits=True):
     # process the transaction!
     if txn.categ == 'deposit':
         flows = txn.tgt_acct.stop_tracking(txn.timestamp,time_cutoff)
         txn.tgt_acct.deposit(txn)
     elif txn.categ == 'transfer':
-        adjust_balance(txn,accounts,infer_deposits)
+        adjust_balance(txn,infer_deposits)
         flows = txn.src_acct.stop_tracking(txn.timestamp,time_cutoff) + txn.tgt_acct.stop_tracking(txn.timestamp,time_cutoff)
         txn.src_acct.transfer(txn,resolution_limit)
     elif txn.categ == 'withdraw':
-        adjust_balance(txn,accounts,infer_deposits)
+        adjust_balance(txn,infer_deposits)
         flows = txn.src_acct.stop_tracking(txn.timestamp,time_cutoff)
         flows = flows + txn.src_acct.withdraw(txn,resolution_limit)
     else:
         flows = []
     return flows
 
-def process_remaining_funds(accts_dict,infer_withdraw=False,resolution_limit=0.01,txn_Class=None):
-    # loop through all accounts, and note the amount remaining
-    for acct_ID in accts_dict:
-        moneyflows = []
-        acct = accts_dict[acct_ID].account
-        if infer_withdraw and acct.balance > resolution_limit:
-            inferred_withdraw = txn_Class.infer_withdraw(acct)
-            moneyflows.extend(acct.withdraw(inferred_withdraw))
-        elif acct.tracked > resolution_limit:
-            moneyflows.extend(acct.stop_tracking())
-        accts_dict[acct_ID].close_out()
-        for moneyflow in moneyflows:
-            yield moneyflow
+def process_remaining_funds(acct,infer_withdraw=False,resolution_limit=0.01,txn_Class=None):
+    moneyflows = []
+    if infer_withdraw and acct.balance > resolution_limit:
+        inferred_withdraw = txn_Class.infer_withdraw(acct)
+        moneyflows.extend(acct.withdraw(inferred_withdraw))
+    elif acct.tracked > resolution_limit:
+        moneyflows.extend(acct.stop_tracking())
+    for moneyflow in moneyflows:
+        yield moneyflow
 
-def run(txn_file,moneyflow_file,issues_file,setup_func,time_cutoff=timedelta.max,modifier_func=None,resolution_limit=0.01,infer_deposits=False,infer_withdraw=False,discover_account_categories=False,discover_file=None):
+def run(txn_file,moneyflow_file,issues_file,setup_func,time_cutoff=timedelta.max,modifier_func=None,resolution_limit=0.01,infer_deposits=False,infer_withdraw=False,discover=False,discover_file=None):
     import traceback
     import csv
     #################### SETUP! #########################
@@ -367,24 +357,27 @@ def run(txn_file,moneyflow_file,issues_file,setup_func,time_cutoff=timedelta.max
         moneyflow_writer  = csv.writer(moneyflow_file,delimiter=",",quotechar="'")
         issue_writer = csv.writer(issues_file,delimiter=",",quotechar="'")
         moneyflow_writer.writerow(Flow.header)
-        # this dictionary holds all of the accounts
+        # we use a dictionary to keep track of all the account holders in the system
         accounts = {}
         # now we loop through all the transactions and process them!
         for txn in txn_reader:
             txn = modifier_func(txn) if modifier_func else txn
             try:
-                src_acct, tgt_acct = Account_holder.update_accounts(txn,accounts,acct_Class,discover_account_categories)
-                txn_categ = get_txn_categ(boundary_type,txn,Transaction,accounts,Account_holder)
-                txn = Transaction.new(txn,txn_categ,src_acct,tgt_acct)
-                moneyflows = process(txn,accounts,time_cutoff,resolution_limit,infer_deposits)
+                src_acct, tgt_acct = Account_holder.update_accounts(txn,accounts,acct_Class,discover)
+                txn = Transaction.create(txn,src_acct,tgt_acct)
+                txn.categ = get_txn_categ(txn,boundary_type)
+                moneyflows = process(txn,time_cutoff,resolution_limit,infer_deposits)
                 if moneyflows:
                     for moneyflow in moneyflows:
                         moneyflow_writer.writerow(moneyflow.to_print())
             except:
                 issue_writer.writerow([str(txn)]+[traceback.format_exc()])
-        moneyflows = process_remaining_funds(accounts,infer_withdraw,resolution_limit,Transaction)
-        for moneyflow in moneyflows:
-            moneyflow_writer.writerow(moneyflow.to_print())
+        # loop through all accounts, and process the remaining funds
+        for acct_ID,acct_holder in accounts.items():
+            moneyflows = process_remaining_funds(acct_holder.account,infer_withdraw,resolution_limit,Transaction)
+            for moneyflow in moneyflows:
+                moneyflow_writer.writerow(moneyflow.to_print())
+            acct_holder.close_out()
 
 if __name__ == '__main__':
     print("Please run main.py, this file keeps the classes and functions.")
