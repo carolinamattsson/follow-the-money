@@ -115,8 +115,8 @@ class Flow:
         self.frac_root = (amt+rev)/(branch.txn.amt+branch.txn.rev)
         self.duration  = timedelta(0)
         self.durations = []
-        self.tux       = 0  # "Transactions Until eXit" - deposited money begins at step 0, and any subsequent transaction adds 1 to this measure
-        self.tux_wrev  = 0  #                           - strictly speaking, this measure aught to be adjusted by any revenue/fees incurred at each step
+        self.tux       = 0 if branch.categ == 'deposit' else 1                                              # "Transactions Until eXit" - deposited money begins at step 0, and any subsequent transaction adds 1 to this measure
+        self.tux_wrev  = 0 if branch.categ == 'deposit' else branch.txn.amt/(branch.txn.amt+branch.txn.rev) #                           - strictly speaking, this measure aught to be adjusted by any revenue/fees incurred at each step
     def extend(self, branch, amt, rev):
         # this funciton builds up a "money flow" by incorporating the information in a subsequent "branch"
         # this is called inside the recursive function branch.follow_back(amt)
