@@ -11,10 +11,11 @@ import copy
 class Transaction:
     # contains the basic features of a transaction, creating references to the source and target accounts
 
-    # Class variables for the file header, timeformat, begin_timestamp, and end_timestamp
-    # These are modified using the setup() function
-    header = ['txn_ID','src_ID','tgt_ID','timestamp','txn_type','amt','rev']
-    timeformat = "%Y-%m-%d %H:%M:%S"
+    # Class variables for the file, file header, timeformat, begin_timestamp, and end_timestamp
+    # These are modified using the setup_data() function
+    file            = None
+    header          = ['txn_ID','src_ID','tgt_ID','timestamp','txn_type','amt','rev']
+    timeformat      = "%Y-%m-%d %H:%M:%S"
     begin_timestamp = '2000-01-01 00:00:00'
     end_timestamp   = '2020-01-01 00:00:00'
     # Class variable for the mapping that delineates the network boundary when it is defined by transactions of a specific type
@@ -53,14 +54,6 @@ class Transaction:
     @classmethod
     def get_txn_categ(cls,txn):
         return cls.txn_categs[txn.type]
-    @classmethod
-    def infer_deposit(cls,acct,inferred_amt):
-        # This method creates an inferred Transaction object given an account and an ammount
-        return cls('i',cls.begin_timestamp,acct,acct,inferred_amt,rev=0,type='inferred',categ='deposit')
-    @classmethod
-    def infer_withdraw(cls,acct,inferred_amt):
-        # This method created an inferred Transaction object given an account and an ammount
-        return cls('i',cls.end_timestamp,acct,acct,inferred_amt,rev=0,type='inferred',categ='withdraw')
 
 class Branch:
     # this class allows for chaining together transactions, or parts of those transactions
@@ -144,6 +137,7 @@ class Account(list):
     type = "basic"
     time_cutoff = timedelta.max
     resolution_limit = 0.01
+    txn_Class = None
 
     def __init__(self, holder, acct_ID, starting_balance=0):
         # Accounts are initialized to reference:
@@ -193,6 +187,9 @@ class Account(list):
         #    it adjusts the account balance accordingly and begins to track a "root branch" that corresponds directly to the deposit transaction
         self.add_branches([Branch(None,this_txn,this_txn.amt)])
         self.balance += this_txn.amt                             # adjust the overall balance
+    def infer_deposit(self,amt):
+        # this function creates an inferred Transaction object and deposits it onto the account
+        self.deposit(self.txn_Class('i',self.txn_Class.begin_timestamp,self,self,amt,rev=0,type='inferred',categ='deposit'))
     def transfer(self,this_txn):
         # this function processes an outgoing transaction from this account onto a receiving account
         #    it adjusts both account balances accordingly, extends the branches in the account by this transaction, and adds these new branches onto the receiving account
@@ -207,6 +204,9 @@ class Account(list):
         flows = [branch.follow_back(branch.amt) for branch in new_branches]
         self.balance = self.balance-this_txn.amt-this_txn.rev   # adjust the overall balance
         return flows
+    def infer_withdraw(self,amt):
+        # this function creates an inferred Transaction object and withdraws it from the account
+        return self.withdraw(self.txn_Class('i',self.txn_Class.end_timestamp,self,self,amt,rev=0,type='inferred',categ='deposit'))
 
 class LIFO_account(Account):
     type = "LIFO_account"
@@ -334,34 +334,40 @@ def get_txn_categ(txn,boundary_type):
     else:
         print("Please define a valid boundary_type -- options are: 'none', 'transactions', and 'accounts'")
 
-def setup(header,timeformat,follow_heuristic,boundary_type='none',transaction_categories=None,account_categories=None,following=None,time_cutoff=timedelta.max,resolution_limit=0.01,timewindow=None):
-    ################### SETUP! #########################
-    # Set class variables for the Transaction class
-    Transaction.header           = header
-    Transaction.timeformat       = timeformat
-    Transaction.begin_timestamp  = datetime.strptime(timewindow[0],timeformat) if timewindow else None
-    Transaction.end_timestamp    = datetime.strptime(timewindow[1],timeformat) if timewindow else None
+def setup_data(txn_file,txn_header,timeformat,boundary_type="none",transaction_categories=None,account_categories=None,following=None,timewindow=None,modifier_func=None):
+    #################### Basics ########################
+    Transaction.file            = txn_file
+    Transaction.header          = txn_header
+    Transaction.timeformat      = timeformat
+    Transaction.begin_timestamp = datetime.strptime(timewindow[0],timeformat) if timewindow else None
+    Transaction.end_timestamp   = datetime.strptime(timewindow[1],timeformat) if timewindow else None
+    #################### Boundary ######################
+    # Payment processing systems already have the boundary terminology we need: "deposit", "transfer", "withdraw"
+    #     "deposit"      transactions add money to the public-facing system, crossing the network boundary
+    #     "transfer"     transactions move money within the system itself
+    #     "withdraw"     transactions remove money from the public-facing system, crossing the network boundary
+    # To define the network boundary we must determine what transactions are "deposits", "transfers", and "withdraws"
+    #     "none"         by default we assume that we see only "transfers" and thus all transactions are within the system
+    #     "transactions" for some systems the transaction records themselves include the category -- the mapping is then a property of the Transaction class
+    #     "accounts"     for other systems it is the nature of the account holders that determines the category (ie. accounts are "users", "agents", "tellers", or "atms")
+    #                                                                                             -- the mapping is then a property of the Account Holder class
     Transaction.txn_categs       = transaction_categories
-    # Set class variables for the Account_holder class
     Account_holder.holder_categs = account_categories
     Account_holder.follow_set    = following
-    Account                      = get_acct_Class(follow_heuristic)
-    Account.time_cutoff          = time_cutoff
-    Account.resolution_limit     = resolution_limit
-    return boundary_type, Transaction, Account, Account_holder
+    return boundary_type, modifier_func, Transaction, Account_holder
 
-def check_balance(txn,infer_deposit):
+def check_balance(txn,infer_deposit=False):
     # When the balance in an account is insufficient to cover it, we need to do something about it
     # If we are inferring deposit transations we do so now, and if not we assume that the account actually *does* have enough balance we just didn't know it (they carried a starting_balance at the beginning of our data)
     # TODO - add a condition for whether the starting_balance was defined or is being inferred, if it was defined and we still enter this function the program should thrown an accounting exception
     if not txn.src_acct.balance_check(txn):
         balance_missing = txn.amt+txn.rev-txn.src_acct.balance
         if infer_deposit:
-            txn.src_acct.deposit(infer_deposit(txn.src_acct,balance_missing))
+            txn.src_acct.infer_deposit(balance_missing)
         else:
             txn.src_acct.add_balance(balance_missing)
 
-def process(txn,infer_deposit=None):
+def process(txn,infer_deposit=False):
     # This function processes a transaction! There are three steps:
     #    1) We ensure that the account has enough balance to process the transaction
     #    2) We let the account forget where sufficiently old money came from
@@ -382,30 +388,33 @@ def process(txn,infer_deposit=None):
         flows = []
     return flows
 
-def process_remaining_funds(acct,infer_withdraw):
+def process_remaining_funds(acct,infer_withdraw=False):
     # This function removes all the remaining money from the account, either by inferring a withdraw that brings the balance down to zero or by letting the account forget everything
     moneyflows = []
     if infer_withdraw and acct.balance > acct.resolution_limit:
-        moneyflows = acct.withdraw(infer_withdraw(acct,acct.balance))
+        moneyflows = acct.stop_tracking(acct.txn_Class.end_timestamp) + acct.infer_withdraw(acct.balance)
     elif acct.tracked > acct.resolution_limit:
         moneyflows = acct.stop_tracking()
     for moneyflow in moneyflows:
         yield moneyflow
 
-def run(txn_file,moneyflow_file,issues_file,setup_func,modifier_func=None,infer_deposits=False,infer_withdraws=False):
+def run(input_data,follow_heuristic,moneyflow_file,issues_file,time_cutoff=None,infer_deposits=False,infer_withdraws=False,resolution_limit=0.01):
     import traceback
     import csv
-    #################### SETUP! #########################
-    boundary_type, Transaction, Account, Account_holder = setup_func
-    ################## FINITE DATA? #####################
-    infer_deposit  = Transaction.infer_deposit if infer_deposits else None
-    infer_withdraw = Transaction.infer_withdraw if infer_withdraws else None
-    ##################### RUN! ##########################
+    ###################### DATA! ########################
+    boundary_type, modifier_func, Transaction, Account_holder = input_data
+    ##################### SYSTEM! #######################
+    # The follow heuristic determines which Account Class will populate the system, the length of time we track funds and the smallest ammount we track are properties of the Account class
+    Account                      = get_acct_Class(follow_heuristic)
+    Account.time_cutoff          = timedelta(hours=float(time_cutoff)) if time_cutoff and time_cutoff!='none' else timedelta.max
+    Account.resolution_limit     = resolution_limit
+    Account.txn_Class            = Transaction
+    ###################### RUN! #########################
     # now we can open the transaction and output files!!
-    with open(txn_file,'rU') as txn_file, open(moneyflow_file,'w') as moneyflow_file, open(issues_file,'w') as issues_file:
-        txn_reader   = csv.DictReader(txn_file,Transaction.header,delimiter=",",quotechar="'",escapechar="%")
-        moneyflow_writer  = csv.writer(moneyflow_file,delimiter=",",quotechar="'")
-        issue_writer = csv.writer(issues_file,delimiter=",",quotechar="'")
+    with open(Transaction.file,'rU') as transaction_file, open(moneyflow_file,'w') as moneyflow_file, open(issues_file,'w') as issues_file:
+        txn_reader       = csv.DictReader(transaction_file,Transaction.header,delimiter=",",quotechar="'",escapechar="%")
+        moneyflow_writer = csv.writer(moneyflow_file,delimiter=",",quotechar="'")
+        issue_writer     = csv.writer(issues_file,delimiter=",",quotechar="'")
         moneyflow_writer.writerow(Flow.header)
         # we use a dictionary to keep track of all the account holders in the system
         accounts = {}
@@ -416,7 +425,7 @@ def run(txn_file,moneyflow_file,issues_file,setup_func,modifier_func=None,infer_
                 src_acct, tgt_acct = Account_holder.update_accounts(txn,accounts,Account)
                 txn = Transaction.create(txn,src_acct,tgt_acct)
                 txn.categ = get_txn_categ(txn,boundary_type)
-                moneyflows = process(txn,infer_deposit)
+                moneyflows = process(txn,infer_deposits)
                 if moneyflows:
                     for moneyflow in moneyflows:
                         moneyflow_writer.writerow(moneyflow.to_print())
@@ -424,7 +433,7 @@ def run(txn_file,moneyflow_file,issues_file,setup_func,modifier_func=None,infer_
                 issue_writer.writerow([str(txn)]+[traceback.format_exc()])
         # loop through all accounts, and process the remaining funds
         for acct_ID,acct_holder in accounts.items():
-            moneyflows = process_remaining_funds(acct_holder.account,infer_withdraw)
+            moneyflows = process_remaining_funds(acct_holder.account,infer_withdraws)
             for moneyflow in moneyflows:
                 moneyflow_writer.writerow(moneyflow.to_print())
             acct_holder.close_out()
