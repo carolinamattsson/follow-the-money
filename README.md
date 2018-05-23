@@ -6,7 +6,7 @@ ftm.py contains the classes and functions that 'follow' money through the system
 
 main.py illustrates the required inputs and parameters, highlighting three possible definitions of the system's boundaries
 
-main.py runs the program in batch mode given the run parameters as arguments (main.py <transaction file> <output prefix> <follow_heuristic> <time_cutoff> <infer>) the file itself must still contain the inputs required to parse the input file, but these do not generally change between runs.
+main.py runs the program in batch mode given the run parameters as arguments (main.py transaction_file output_prefix follow_heuristic time_cutoff infer) the file itself must still contain the inputs required to parse the input file, but these do not generally change between runs.
 
 examples/ contains several example files:
 
