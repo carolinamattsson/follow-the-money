@@ -248,19 +248,20 @@ class Mixing_account(Account):
     def extend_branches(self,this_txn):
         # according to the well-mixed heuristic, all the "branches" in an account are to be extended, and this depreciates their remaining value
         # the tracked balance is adjusted accordingly
-        split_factor = this_txn.amt/self.balance
+        split_factor = this_txn.amt/self.balance                               # note that this_txn.rev/self.balance dissappears into the ether...
+        stay_factor  = (self.balance-this_txn.amt-this_txn.rev)/self.balance
         # all the "branches" in an account are extended by the outgoing transaction, note that if any resulting branches are less than the minimum we're tracking, they are not extended
         new_pool     = [Branch(branch, this_txn, split_factor*branch.amt) for branch in self if split_factor*branch.amt >= self.resolution_limit]
-        # if not all of the balance is being tracked by this account, a new "root branch" is created that corresponds to the transaction itself and the untracked amount (not including the untracked fee/revenue)
-        amt_tracked  = sum(branch.amt for branch in new_pool)
-        if (this_txn.amt-amt_tracked) > self.resolution_limit:
-            new_pool.append(Branch(None,this_txn,(this_txn.amt-amt_tracked)))
+        # when there is untracked money also in the account this new_pool will not cover the amount of the transaction - the transaction also sends untracked money!
+        # so, a new "root branch" is created with the balance that references this transaction itself begins to re-track this untracked money again - this branch corresponds to the transaction itself and the newly tracked amount
+        amt_untracked = this_txn.amt-sum(branch.amt for branch in new_pool)
+        if amt_untracked > self.resolution_limit:
+            new_pool.append(Branch(None,this_txn,amt_untracked))
         # the old pool is emptied or shrunk to reflect the amount removed
-        if (self.tracked-amt_tracked) < self.resolution_limit:
+        if stay_factor*self.tracked < self.resolution_limit:
             self[:]      = []
             self.tracked = 0
         else:
-            stay_factor  = (self.balance-this_txn.amt-this_txn.rev)/self.balance
             for branch in self:
                 branch.depreciate(stay_factor)
             self.tracked = stay_factor*self.tracked
@@ -430,12 +431,15 @@ def run(input_data,follow_heuristic,moneyflow_file,issues_file,time_cutoff=None,
                     for moneyflow in moneyflows:
                         moneyflow_writer.writerow(moneyflow.to_print())
             except:
-                issue_writer.writerow([str(txn)]+[traceback.format_exc()])
+                issue_writer.writerow(["ISSUE W/ PROCESSING",str(txn)]+[traceback.format_exc()])
         # loop through all accounts, and process the remaining funds
         for acct_ID,acct_holder in accounts.items():
-            moneyflows = process_remaining_funds(acct_holder.account,infer_withdraws)
-            for moneyflow in moneyflows:
-                moneyflow_writer.writerow(moneyflow.to_print())
+            try:
+                moneyflows = process_remaining_funds(acct_holder.account,infer_withdraws)
+                for moneyflow in moneyflows:
+                    moneyflow_writer.writerow(moneyflow.to_print())
+            except:
+                issue_writer.writerow(["ISSUE W/ REMAINING FUNDS",acct_ID,acct_holder]+[traceback.format_exc()])
             acct_holder.close_out()
 
 if __name__ == '__main__':
