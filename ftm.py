@@ -139,20 +139,19 @@ class Account(list):
     resolution_limit = 0.01
     txn_Class = None
 
-    def __init__(self, holder, acct_ID, starting_balance=0):
+    def __init__(self, holder, acct_ID):
         # Accounts are initialized to reference:
         self.holder  = holder                     # The Account_holder instance that owns them
         self.acct_ID = acct_ID                    # An account number (unique ID)
-        self.starting_balance = starting_balance  # The balance that an account had the first time we see it - this can be defined if we know it at initialization, and is inferred if we do not
-        self.balance = starting_balance           # The running balance on the account
+        self.balance = holder.starting_balance    # The running balance on the account
         self.tracked = 0                          # The amount of money currently being tracked - this is at most equal to the running balance
     def balance_check(self, txn):
         # this returns True if there is enough in the account to process the outgoing transaction and False if not
         return True if txn.amt+txn.rev <= self.balance else False
-    def add_balance(self,amt):
-        # this function sets the running balance in the account, also updating the inferred starting balance
+    def infer_balance(self,amt):
+        # this function ups the running balance in the account, also updating the inferred starting balance of the account_holder
         self.balance += amt
-        self.starting_balance += amt
+        self.holder.starting_balance += amt
     def add_branches(self, branches):
         # this function adds a list of branches to the account, and updates the tracked balance accordingly
         self.extend(branches)
@@ -274,24 +273,24 @@ class Account_holder:
     holder_categs = None
     follow_set = set()
 
-    def __init__(self, user_ID, acct_Class, starting_balance=0):
-        self.user_ID = user_ID
-        self.account = acct_Class(self,user_ID,starting_balance)
-        self.categ   = set()
-        #self.txns    = 0      # in the future, this class will hold optional metrics calculated
-        #self.amt     = 0      #                in an ongoing manner that can be retrieved system-wide
-        #self.volume  = 0      #                at specified intervals
-        #self.active  = 0
-        self.discover = False
+    def __init__(self, user_ID, acct_Class, starting_balance = None):
+        self.user_ID  = user_ID
+        self.starting_balance = starting_balance if starting_balance else 0     # The balance that an account had the first time we see it - this can be defined if we know it at initialization, and is inferred if we do not
+        self.account  = acct_Class(self,user_ID)
+        self.categ    = set()
+        #self.txns    = 0          # in the future, this class will hold optional metrics calculated
+        #self.amt     = 0          #                in an ongoing manner that can be retrieved system-wide
+        #self.last_seen  = None    #                at specified intervals
+        #self.active_balance = 0        
     def close_out(self):
         # this removes the top-down reference to the actual account
         del self.account
-    def update_categ(self, src_tgt, txn_type, generate=False):
+    def update_categ(self, src_tgt, txn_type, discover):
         # this collects the categories of account holder we've seen this user be
         # if categories are not externally defined it can be told to remember what side of what transaction this holder has been on - helpful exploratory analysis
         if txn_type in self.holder_categs[src_tgt]:
             self.categ.add(self.holder_categs[src_tgt][txn_type])
-        elif generate:
+        elif discover:
             self.categ.add(src_tgt+'~'+txn_type)
     @classmethod
     def get_txn_categ(cls,src_acct_holder,tgt_acct_holder):
@@ -303,14 +302,14 @@ class Account_holder:
         if src_follow and tgt_follow:     return 'transfer'
         if src_follow and not tgt_follow: return 'withdraw'
     @classmethod
-    def update_accounts(cls,txn,accts_dict,acct_Class,discover=None):
+    def update_accounts(cls,txn,accts_dict,acct_Class,discover=False):
         # make sure both the sender and recipient are account_holders with accounts
         accts_dict.setdefault(txn['src_ID'],Account_holder(txn['src_ID'],acct_Class))
         accts_dict.setdefault(txn['tgt_ID'],Account_holder(txn['tgt_ID'],acct_Class))
         # if we are keeping track of account holder categories, update those now
         if cls.holder_categs or discover:
-            accts_dict[txn['src_ID']].update_categ('src',txn['txn_type'],generate=True)
-            accts_dict[txn['tgt_ID']].update_categ('tgt',txn['txn_type'],generate=True)
+            accts_dict[txn['src_ID']].update_categ('src',txn['txn_type'],discover)
+            accts_dict[txn['tgt_ID']].update_categ('tgt',txn['txn_type'],discover)
         return accts_dict[txn['src_ID']].account, accts_dict[txn['tgt_ID']].account
 
 def get_acct_Class(follow_heuristic):
@@ -366,7 +365,7 @@ def check_balance(txn,infer_deposit=False):
         if infer_deposit:
             txn.src_acct.infer_deposit(balance_missing)
         else:
-            txn.src_acct.add_balance(balance_missing)
+            txn.src_acct.infer_balance(balance_missing)
 
 def process(txn,infer_deposit=False):
     # This function processes a transaction! There are three steps:
