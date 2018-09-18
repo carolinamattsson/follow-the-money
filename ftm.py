@@ -278,10 +278,6 @@ class Account_holder:
         self.starting_balance = starting_balance if starting_balance else 0     # The balance that an account had the first time we see it - this can be defined if we know it at initialization, and is inferred if we do not
         self.account  = acct_Class(self,user_ID)
         self.categ    = set()
-        #self.txns    = 0          # in the future, this class will hold optional metrics calculated
-        #self.amt     = 0          #                in an ongoing manner that can be retrieved system-wide
-        #self.last_seen  = None    #                at specified intervals
-        #self.active_balance = 0        
     def close_out(self):
         # this removes the top-down reference to the actual account
         del self.account
