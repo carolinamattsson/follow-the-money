@@ -39,7 +39,7 @@ class Branch:
         if self.prev:
             # this is recursive... regular "branches" asks their previous "branch" for its flow, of a given amount, then adds its own
             flow = self.prev.follow_back(amt+rev)
-            flow.extend(self, amt, rev)
+            flow.extend(self, amt)
         else:
             # "root branches" begin building the flow with the amount given to it
             flow = Flow(self, amt, rev)
@@ -50,42 +50,40 @@ class Flow:
     # These "money flows" allow for useful aggregations at the system level where monetary units are never double-counted
 
     # Class variable defines what flow.to_print() currently outputs
-    header = ['flow_timestamp','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_txn_timestamps','flow_durations','flow_amt','flow_rev','flow_frac_root','flow_tux','flow_tux_wrev','flow_duration']
+    header = ['flow_timestamp','flow_amt','flow_frac_root','flow_length','flow_length_wrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_durations','flow_rev_fracs']
 
     def __init__(self, branch, amt, rev):
         # "money flows" have a size (flow.amt), a length within the system (flow.tux), and a duration of time that they remained in the system (flow.duration)
         # the specific trajectory is described by a list of transactions, through a list of accounts, where the money stayed for a list of durations
         # when aggregating over "money flows", they can be weighted by their size or by their root transactions using flow.frac_root
-        self.timestamp = branch.txn.timestamp
+        self.timestamp = datetime.strftime(branch.txn.timestamp,branch.txn.system.timeformat)
         self.txn_IDs   = [branch.txn.txn_ID]
         self.txn_types = [branch.txn.type]
-        self.timestamps= [branch.txn.timestamp]
         self.acct_IDs  = [branch.txn.src.acct_ID,branch.txn.tgt.acct_ID]
         self.amt       = amt+rev
-        self.rev       = rev
+        self.rev_fracs = [rev/(amt+rev)]
         self.frac_root = (amt+rev)/(branch.txn.amt+branch.txn.rev)
         self.duration  = timedelta(0)
         self.durations = []
-        self.tux       = 1 if branch.txn.categ == 'transfer' else 0                                              # "Transfers Until eXit" - deposited money begins at step 0, and any subsequent 'transfer' adds 1 to this measure
-        self.tux_wrev  = branch.txn.amt/(branch.txn.amt+branch.txn.rev) if branch.txn.categ == 'transfer' else 0 #                        - strictly speaking, this measure aught to be adjusted by any revenue/fees incurred at each step
-    def extend(self, branch, amt, rev):
+        self.length    = 1 if branch.txn.categ == 'transfer' else 0                                              # "Transfers Until eXit" - deposited money begins at step 0, and any subsequent 'transfer' adds 1 to this measure
+        self.length_wrev = branch.txn.amt/(branch.txn.amt+branch.txn.rev) if branch.txn.categ == 'transfer' else 0 #                        - strictly speaking, this measure aught to be adjusted by any revenue/fees incurred at each step
+    def extend(self, branch, amt):
         # this funciton builds up a "money flow" by incorporating the information in a subsequent "branch"
         # this is called inside the recursive function branch.follow_back(amt)
         self.txn_IDs.append(branch.txn.txn_ID)
         self.acct_IDs.append(branch.txn.tgt.acct_ID)
         self.txn_types.append(branch.txn.type)
-        self.timestamps.append(branch.txn.timestamp)
-        self.rev       += rev
+        self.rev_fracs.append(1-(amt/self.amt))
         branch_duration = branch.txn.timestamp - branch.prev.txn.timestamp
-        self.duration  += branch_duration
+        self.duration += branch_duration
         self.durations.append(branch_duration)
-        self.tux       += 1 if branch.txn.categ == 'transfer' else 0             # neither 'deposit' nor 'withdraw' transactions are included in the "Transfer Until eXit" measure, only transaction within the system itself
-        self.tux_wrev  += amt/self.amt if branch.txn.categ == 'transfer' else 0
+        self.length += 1 if branch.txn.categ == 'transfer' else 0             # neither 'deposit' nor 'withdraw' transactions are included in the "Transfer Until eXit" measure, only transaction within the system itself
+        self.length_wrev += amt/self.amt if branch.txn.categ == 'transfer' else 0
     def to_print(self):
         # this returns a version of this class that can be exported to a file using writer.writerow()
-        return [str(self.timestamp),'['+','.join(id for id in self.acct_IDs)+']','['+','.join(id for id in self.txn_IDs)+']','['+','.join(type for type in self.txn_types)+']',\
-                '['+','.join(str(time) for time in self.timestamps)+']','['+','.join(str(dur.total_seconds()/3600.0) for dur in self.durations)+']',\
-                self.amt,self.rev,self.frac_root,self.tux,self.tux_wrev,self.duration.total_seconds()/3600.0]
+        return [self.timestamp,self.amt,self.frac_root,self.length,self.length_wrev,self.duration.total_seconds()/3600.0,\
+                '['+','.join(id for id in self.acct_IDs)+']','['+','.join(id for id in self.txn_IDs)+']','['+','.join(type for type in self.txn_types)+']',\
+                '['+','.join(str(dur.total_seconds()/3600.0) for dur in self.durations)+']','['+','.join(str(rev_frac) for rev_frac in self.rev_fracs)+']']
 
 class Tracker(list):
     # Contains the basic features of an account that keeps track of transactions moving through it
