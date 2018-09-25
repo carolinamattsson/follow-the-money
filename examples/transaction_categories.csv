@@ -1,7 +1,0 @@
-check_deposit,deposit
-cash_deposit,deposit
-direct_deposit,deposit
-p2p_transfer,transfer
-bill_payment,withdraw
-card_payment,withdraw
-cash_withdraw,withdraw
