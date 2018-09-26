@@ -50,7 +50,7 @@ class Flow:
     # These "money flows" allow for useful aggregations at the system level where monetary units are never double-counted
 
     # Class variable defines what flow.to_print() currently outputs
-    header = ['flow_timestamp','flow_amt','flow_frac_root','flow_length','flow_length_wrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_durations','flow_rev_fracs']
+    header = ['flow_timestamp','flow_amt','flow_frac_root','flow_length','flow_length_wrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_durations','flow_rev_fracs','flow_categs']
 
     def __init__(self, branch, amt, rev):
         # "money flows" have a size (flow.amt), a length within the system (flow.tux), and a duration of time that they remained in the system (flow.duration)
@@ -59,6 +59,8 @@ class Flow:
         self.timestamp = datetime.strftime(branch.txn.timestamp,branch.txn.system.timeformat)
         self.txn_IDs   = [branch.txn.txn_ID]
         self.txn_types = [branch.txn.type]
+        self.beg_categ = branch.txn.categ
+        self.end_categ = branch.txn.categ
         self.acct_IDs  = [branch.txn.src.acct_ID,branch.txn.tgt.acct_ID]
         self.amt       = amt+rev
         self.rev_fracs = [rev/(amt+rev)]
@@ -73,6 +75,7 @@ class Flow:
         self.txn_IDs.append(branch.txn.txn_ID)
         self.acct_IDs.append(branch.txn.tgt.acct_ID)
         self.txn_types.append(branch.txn.type)
+        self.end_categ = branch.txn.categ
         self.rev_fracs.append(1-(amt/self.amt))
         branch_duration = branch.txn.timestamp - branch.prev.txn.timestamp
         self.duration += branch_duration
@@ -83,7 +86,8 @@ class Flow:
         # this returns a version of this class that can be exported to a file using writer.writerow()
         return [self.timestamp,self.amt,self.frac_root,self.length,self.length_wrev,self.duration.total_seconds()/3600.0,\
                 '['+','.join(id for id in self.acct_IDs)+']','['+','.join(id for id in self.txn_IDs)+']','['+','.join(type for type in self.txn_types)+']',\
-                '['+','.join(str(dur.total_seconds()/3600.0) for dur in self.durations)+']','['+','.join(str(rev_frac) for rev_frac in self.rev_fracs)+']']
+                '['+','.join(str(dur.total_seconds()/3600.0) for dur in self.durations)+']','['+','.join(str(rev_frac) for rev_frac in self.rev_fracs)+']',\
+                '('+','.join([self.beg_categ,self.end_categ])+')']
 
 class Tracker(list):
     # Contains the basic features of an account that keeps track of transactions moving through it
