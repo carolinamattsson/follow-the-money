@@ -300,7 +300,7 @@ def run(system,transaction_filename,wflow_filename,report_filename,follow_heuris
     Tracker = define_tracker(follow_heuristic,cutoff,smallest,infer)
     ###################### RUN! #########################
     with open(transaction_filename,'r') as txn_file, open(wflow_filename,'w') as wflow_file, open(report_filename,'a') as report_file:
-        txn_reader  = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar="'",escapechar="%")
+        txn_reader  = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
         wflow_writer = csv.writer(wflow_file,delimiter=",",quotechar='"')
         wflow_writer.writerow(Flow.header)
         # loop through all transactions, and initialize in reference to the system
