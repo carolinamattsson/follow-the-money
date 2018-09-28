@@ -24,8 +24,8 @@ if __name__ == '__main__':
     parser.add_argument('--greedy', action="store_true", default=False, help='Track the using the "greedy" heuristic')
     parser.add_argument('--well_mixed', action="store_true", default=False, help='Track the using the "well-mixed" heuristic')
     parser.add_argument('--no_tracking', action="store_true", default=False, help='Track the using the baseline "no-tracking" heuristic')
-    parser.add_argument('--cutoff', metavar='hours', nargs=1, type=int, default=None, help='Stop tracking funds after this number of hours')
-    parser.add_argument('--smallest', metavar='value', nargs=1, type=int, default=0.01, help='Stop tracking funds with a value below this threshold')
+    parser.add_argument('--cutoff', metavar='hours', type=int, default=None, help='Stop tracking funds after this number of hours')
+    parser.add_argument('--smallest', metavar='value', type=int, default=0.01, help='Stop tracking funds with a value below this threshold')
     parser.add_argument('--infer', action="store_true", default=False, help='Record inferred deposits and withdrawals as transactions')
     parser.add_argument('--balance', action="store_true", default=False, help='Before running, infer the starting balance of all accounts')
     #parser.add_argument('--read_balance', nargs=3, type=str, default=None, help='Read balance information from these columns of the transaction file, either as the "starting" or "ending" balance')
@@ -66,14 +66,18 @@ if __name__ == '__main__':
     #################### OUTPUT ########################
     report_filename = os.path.join(args.output_directory,args.prefix+"wflows_report.txt")
     follow.start_report(report_filename,args)
+    ####################################################
+    file_ending = ".csv"
+    if args.infer:  file_ending = "_inf"+file_ending
+    if args.cutoff: file_ending = "_"+str(args.cutoff)+"hr"+file_ending
     ############### Alright, let's go! #################
     if args.greedy:
-        greedy_filename = os.path.join(args.output_directory,args.prefix+"wflows_greedy.csv")
-        follow.run(system,transaction_filename,greedy_filename,report_filename,'greedy',args.cutoff,args.smallest,args.infer)
+        filename = os.path.join(args.output_directory,args.prefix+"wflows_greedy"+file_ending)
+        follow.run(system,transaction_filename,filename,report_filename,'greedy',args.cutoff,args.smallest,args.infer)
     if args.well_mixed:
-        well_mixed_filename = os.path.join(args.output_directory,args.prefix+"wflows_well-mixed.csv")
-        follow.run(system,transaction_filename,well_mixed_filename,report_filename,'well-mixed',args.cutoff,args.smallest,args.infer)
+        filename = os.path.join(args.output_directory,args.prefix+"wflows_well-mixed"+file_ending)
+        follow.run(system,transaction_filename,filename,report_filename,'well-mixed',args.cutoff,args.smallest,args.infer)
     if args.no_tracking:
-        no_tracking_filename = os.path.join(args.output_directory,args.prefix+"wflows_no-tracking.csv")
-        follow.run(system,transaction_filename,no_tracking_filename,report_filename,'no-tracking',args.cutoff,args.smallest,args.infer)
+        filename = os.path.join(args.output_directory,args.prefix+"wflows_no-tracking"+file_ending)
+        follow.run(system,transaction_filename,filename,report_filename,'no-tracking',args.cutoff,args.smallest,args.infer)
     ####################################################

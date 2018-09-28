@@ -275,7 +275,7 @@ def track_remaining_funds(system,report_file):
 
 def start_report(report_filename,args):
     import os
-    with open(report_filename,'w') as report_file:
+    with open(report_filename,'a') as report_file:
         report_file.write("Running 'follow the money' for: "+os.path.abspath(args.input_file)+"\n")
         report_file.write("Using the configuration file: "+os.path.abspath(args.config_file)+"\n")
         report_file.write("Output is going here:"+os.path.join(os.path.abspath(args.output_directory),args.prefix)+"\n")
