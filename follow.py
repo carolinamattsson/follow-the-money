@@ -135,7 +135,7 @@ class Tracker(list):
     def infer_deposit(self,amt):
         # this function creates an inferred Transaction object and deposits it onto the account
         if amt > self.resolution_limit:
-            self.deposit(self.Transaction('i',self.account.system.timewindow[0],self.account,self.account,amt,rev=0,type='inferred',categ='deposit'))
+            self.deposit(self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.system.timewindow[0],"amt":amt,"rev":0,"type":'inferred',"categ":'deposit'}))
     def transfer(self,this_txn):
         # this function processes an outgoing transaction from this account onto a receiving account
         #    it extends the branches in the account by this transaction, and adds these new branches onto the receiving account
@@ -150,14 +150,14 @@ class Tracker(list):
     def infer_withdraw(self,amt):
         # this function creates an inferred Transaction object and withdraws it from the account
         if amt > self.resolution_limit:
-            return self.withdraw(self.Transaction('i',self.account.system.timewindow[1],self.account,self.account,amt,rev=0,type='inferred',categ='withdraw'))
+            return self.withdraw(self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.system.timewindow[1],"amt":amt,"rev":0,"type":'inferred',"categ":'withdraw'}))
         else:
             return []
     def pseudo_withdraw(self,txn,amt):
         # this function creates a pseudo-inferred Transaction object and withdraws it from the account
         # useful for when a "deposit" transaction or an uncategorized transaction is actually pulling from tracked funds
         if amt > self.resolution_limit:
-            return self.withdraw(self.Transaction(txn.txn_ID,txn.timestamp,txn.src,txn.tgt,amt,rev=0,type=txn.type,categ='withdraw'))
+            return self.withdraw(self.Transaction(txn.src,txn.tgt,{"txn_ID":txn.txn_ID,"timestamp":txn.timestamp,"amt":amt,"rev":0,"type":txn.type,"categ":'withdraw'}))
         else:
             return []
 

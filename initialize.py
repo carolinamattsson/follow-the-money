@@ -57,18 +57,15 @@ class System():
         if     src_follow and not tgt_follow: return 'withdraw'
         if not src_follow and not tgt_follow: return 'system'
 
-class Transaction():
+class Transaction(object):
     # A transaction, here, contains the basic features of a transaction with references to the source and target accounts
-    def __init__(self, txn_ID, timestamp, src, tgt, amt, rev=0, type=None, categ=None):
-        # define the object properties
-        self.txn_ID    = txn_ID
-        self.timestamp = timestamp
-        self.categ     = categ
-        self.type      = type
-        self.src       = src
-        self.tgt       = tgt
-        self.amt       = amt
-        self.rev       = rev
+    def __init__(self, src, tgt, txn_dict):
+        # reference the accounts the transaction moves between
+        self.src = src
+        self.tgt = tgt
+        # make the transaction attributes object properties
+        for key, value in txn_dict.items():
+            setattr(self, key, value)
         self.rev_ratio = self.rev/self.amt
     def __str__(self):
         # this prints out the basics of the original transaction, which is useful for debugging
@@ -77,15 +74,15 @@ class Transaction():
         timestamp = datetime.strftime(self.timestamp,self.system.timeformat)
         return self.txn_ID+","+src_ID+","+tgt_ID+","+timestamp+","+self.type+","+str(self.amt)+","+str(self.rev)
     @classmethod
-    def create(cls,txn_dict,src,tgt,get_categ):
+    def create(cls,src,tgt,txn_dict,get_categ):
         # This method creates a Transaction object from a dictionary and object references to the source and target accounts
         # The dictionary here is read in from the file, and has System.txn_header as the keys
-        timestamp = datetime.strptime(txn_dict['timestamp'],cls.system.timeformat)
-        amt       = float(txn_dict['amt'])
-        rev       = float(txn_dict['rev'])
-        txn = cls(txn_dict['txn_ID'],timestamp,src,tgt,amt,rev=rev,type=txn_dict['txn_type'])
-        if 'src_categ' in txn_dict: txn.src_categ = txn_dict['src_categ']
-        if 'tgt_categ' in txn_dict: txn.tgt_categ = txn_dict['tgt_categ']
+        txn_dict['timestamp'] = datetime.strptime(txn_dict['timestamp'],cls.system.timeformat)
+        txn_dict['amt']       = float(txn_dict['amt'])
+        txn_dict['rev']       = float(txn_dict['rev'])
+        del txn_dict['src_ID']
+        del txn_dict['tgt_ID']
+        txn = cls(src,tgt,txn_dict)
         if get_categ: txn.categ = cls.system.get_txn_categ(txn)
         return txn
 
@@ -179,7 +176,7 @@ def initialize_transactions(txn_reader,system,report_file,get_categ=False):
             # define the transaction, creating accounts and trackers if needed
             src = system.get_account(txn['src_ID']) if system.has_account(txn['src_ID']) else system.create_account(txn['src_ID'])
             tgt = system.get_account(txn['tgt_ID']) if system.has_account(txn['tgt_ID']) else system.create_account(txn['tgt_ID'])
-            yield Transaction.create(txn,src,tgt,get_categ)
+            yield Transaction.create(src,tgt,txn,get_categ)
         except:
             report_file.write("ISSUE W/ INITIALIZING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
 
@@ -224,74 +221,6 @@ def discover_account_categories(src,tgt,amt,rev=0,basics=None,txn_type=None):
         tgt.basics[txn_type]['amt_in']   += float(amt)
         tgt.basics[txn_type]['alters_in'].add(src.acct_ID)
     return src, tgt
-
-def finalize_basics(acct_holder):   # note, the alters are still sets at this point
-    total = {}
-    for term in ['txns_in','txns_out','amt_in','amt_out','rev','alters_in','alters_out']:
-        total[term] = sum(acct_holder.basics[txn_type][term] for txn_type in acct_holder.basics)
-    acct_holder.basics['total'] = total
-    acct_holder.txns = acct_holder.basics['total']['txns_in']+acct_holder.basics['total']['txns_out']
-    acct_holder.amt  = max(acct_holder.basics['total']['amt_in'],acct_holder.basics['total']['amt_out']+acct_holder.basics['total']['rev'])
-
-def account_properties(
-        transaction_file,transaction_header,issues_file,modifier_func=None,starting_balance=None,
-        account_categories=None,discover_balance=False,account_basics=False,account_file=None):
-    import traceback
-    import csv
-    # now we can open the transaction and output files!!
-    with open(transaction_file,'rU') as transaction_file, open(issues_file,'w') as issues_file:
-        transaction_reader = csv.DictReader(transaction_file,transaction_header,delimiter=",",quotechar="'",escapechar="%")
-        issue_writer       = csv.writer(issues_file,delimiter=",",quotechar="'")
-        # we use a dictionary to keep track of all the account holders in the system
-        accounts = {}
-        # now we loop through all the transactions and discover what's up with this system!
-        for txn in transaction_reader:
-            try:
-                txn = modifier_func(txn) if modifier_func else txn
-                # for every transaction, update the state of the participating accounts
-                Account_holder.create_accounts(
-                    accounts,txn['src_ID'],txn['tgt_ID'],starting_balance=(txn[starting_balance[0]],txn[starting_balance[1]]) if \
-                        starting_balance else (None,None))
-                if discover_balance:
-                    discover_starting_balance(accounts[txn['src_ID']],accounts[txn['tgt_ID']],txn['amt'],rev=txn['rev'] if 'rev' in txn else 0)
-                if not account_categories:
-                    discover_account_categories(accounts[txn['src_ID']],accounts[txn['tgt_ID']],txn['amt'],rev=txn['rev'] if 'rev' in txn else 0,
-                        txn_type=txn['txn_type'] if 'txn_type' in txn else None,basics=account_basics)
-            except:
-                issue_writer.writerow(["ISSUE W/ ACCOUNT DISCOVERY",str(txn)]+[traceback.format_exc()])
-    if account_basics:
-        for acct_holder in accounts.values():
-            acct_holder = finalize_basics(acct_holder)
-    if account_file:
-        with open(account_file,'w') as account_file:
-            accounts_writer = csv.writer(accounts_file,delimiter=",",quotechar="'")
-            # loop through all account holders, record their information, and close out their 'basic' accounts
-            for acct_holder in accounts.values():
-                # update the final overall stats
-                accounts_writer.writerow(acct_holder.to_print())
-    return accounts
-
-def categorize_accounts(accounts,account_categories,order=None):
-    for acct_holder in accounts.values():
-        new_categs = set()
-        for tuple in acct_holder.categs:
-            src_tgt  = tuple.split('~')[0]
-            txn_type = tuple.split('~')[1]
-            new_categs.add(account_categories[src_tgt][txn_type]) if txn_type in account_categories[src_tgt] else new_categs.add("")
-        acct_holder.categs = new_categs
-        if order:
-            for categ in order:
-                if categ in acct_holder.categs:
-                    acct_holder.categ = categ
-                    break
-    return accounts
-
-def reset(accounts):
-    for acct in accounts.values():
-        acct.account = acct.starting_balance
-        acct.last_seen = None
-        acct.active_balance = {}
-    return accounts
 
 if __name__ == '__main__':
     print("Please run main.py, this file keeps classes and functions.")
