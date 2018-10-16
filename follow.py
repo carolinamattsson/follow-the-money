@@ -255,7 +255,7 @@ def track_transactions(txns,Tracker,report_file):
                 if txn.src.tracker.time_cutoff: yield from txn.src.tracker.stop_tracking(txn.timestamp)
                 yield from txn.src.withdraw(txn,track=True)
             else:
-                yield from txn.src.tracker.pseudo_withdraw(txn,min(sum(branch.amt for branch in txn.src.tracker),txn.amt))
+                if txn.src.tracker: yield from txn.src.tracker.pseudo_withdraw(txn,min(sum(branch.amt for branch in txn.src.tracker),txn.amt))
         except:
             report_file.write("ISSUE W/ PROCESSING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
 

@@ -14,16 +14,6 @@ timestamp, txn_type (transaction type),rev (fee/revenue incurred), src/tgt_balan
 from datetime import datetime, timedelta
 import math
 
-def get_txn_categ_accts(txn):
-    # this method determines whether a transaction is a 'deposit', 'transfer', or 'withdraw' in cases where accounts are either provider-facing or public-facing, and only the latter reflect "real" use of the ecosystem
-    # the determination is based on whether the source and target are on the public-facing or provider-facing side of the ecosystem
-    src_follow = txn.src.categ in txn.system.categ_follow
-    tgt_follow = txn.tgt.categ in txn.system.categ_follow
-    if     src_follow and     tgt_follow: return 'transfer'
-    if not src_follow and     tgt_follow: return 'deposit'
-    if     src_follow and not tgt_follow: return 'withdraw'
-    if not src_follow and not tgt_follow: return 'system'
-
 class System():
     # A payment system, here, is little more than a dictionary of accounts that keeps track of its boundaries
     def __init__(self,transaction_header,timeformat,timewindow,boundary_type,transaction_categories=None,account_categories=None,category_order=None,category_follow=None):
@@ -37,10 +27,13 @@ class System():
                 self.txn_categs = transaction_categories
                 self.get_txn_categ = lambda txn: self.txn_categs[txn.type]
             elif boundary_type == "accounts":
+                self.categ_follow = set(category_follow)
+                self.get_txn_categ = lambda txn: self.get_txn_categ_accts(txn.src_categ,txn.tgt_categ)
+            elif boundary_type == "inferred_accounts":
                 self.acct_categs = account_categories
                 self.categ_order = category_order
                 self.categ_follow = set(category_follow)
-                self.get_txn_categ = get_txn_categ_accts
+                self.get_txn_categ = lambda txn: self.get_txn_categ_accts(txn.src.categ,txn.tgt.categ)
         else:
             self.get_txn_categ = lambda txn: "transfer"
     def has_account(self,acct_ID):
@@ -54,6 +47,15 @@ class System():
         for acct_ID,acct in self.accounts.items():
             acct.reset()
         return self
+    def get_txn_categ_accts(self,src_categ,tgt_categ):
+        # this method determines whether a transaction is a 'deposit', 'transfer', or 'withdraw' in cases where accounts are either provider-facing or public-facing, and only the latter reflect "real" use of the ecosystem
+        # the determination is based on whether the source and target are on the public-facing or provider-facing side of the ecosystem
+        src_follow = src_categ in self.categ_follow
+        tgt_follow = tgt_categ in self.categ_follow
+        if     src_follow and     tgt_follow: return 'transfer'
+        if not src_follow and     tgt_follow: return 'deposit'
+        if     src_follow and not tgt_follow: return 'withdraw'
+        if not src_follow and not tgt_follow: return 'system'
 
 class Transaction():
     # A transaction, here, contains the basic features of a transaction with references to the source and target accounts
@@ -82,6 +84,8 @@ class Transaction():
         amt       = float(txn_dict['amt'])
         rev       = float(txn_dict['rev'])
         txn = cls(txn_dict['txn_ID'],timestamp,src,tgt,amt,rev=rev,type=txn_dict['txn_type'])
+        if 'src_categ' in txn_dict: txn.src_categ = txn_dict['src_categ']
+        if 'tgt_categ' in txn_dict: txn.tgt_categ = txn_dict['tgt_categ']
         if get_categ: txn.categ = cls.system.get_txn_categ(txn)
         return txn
 
@@ -146,12 +150,14 @@ class Account(dict):
         self.balance = self.balance-txn.amt-txn.rev
         txn.tgt.balance += txn.amt
 
-def setup_system(transaction_header,timeformat,timewindow,boundary_type=None,transaction_categories=None,account_categories=None,category_order=None,category_follow=None):
+def setup_system(transaction_header,timeformat,timewindow,boundary_type=None,transaction_categories=None,account_columns=None,account_categories=None,category_order=None,category_follow=None):
     ############### Initialize system ##################
     if boundary_type:
         if boundary_type == "transactions":
             system = System(transaction_header,timeformat,timewindow,boundary_type,transaction_categories=transaction_categories)
         elif boundary_type == "accounts":
+            system = System(transaction_header,timeformat,timewindow,boundary_type,category_follow=category_follow)
+        elif boundary_type == "inferred_accounts":
             system = System(transaction_header,timeformat,timewindow,boundary_type,account_categories=account_categories,category_order=category_order,category_follow=category_follow)
     else:
         system = System(transaction_header,timeformat,timewindow,boundary_type,timewindow)

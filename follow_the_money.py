@@ -28,7 +28,7 @@ if __name__ == '__main__':
     parser.add_argument('--smallest', metavar='value', type=int, default=0.01, help='Stop tracking funds with a value below this threshold')
     parser.add_argument('--infer', action="store_true", default=False, help='Record inferred deposits and withdrawals as transactions')
     parser.add_argument('--balance', action="store_true", default=False, help='Before running, infer the starting balance of all accounts')
-    #parser.add_argument('--read_balance', nargs=3, type=str, default=None, help='Read balance information from these columns of the transaction file, either as the "starting" or "ending" balance')
+    #parser.add_argument('--read_balance', action="store_true", type=str, default=None, help='Read balance information from these columns of the transaction file, either as the "starting" or "ending" balance')
 
     args = parser.parse_args()
 
@@ -54,10 +54,12 @@ if __name__ == '__main__':
         if boundary_type == 'transactions':
             system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,transaction_categories=config_data["transaction_categories"])
         elif boundary_type == 'accounts':
+            system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,account_columns=config_data["account_columns"],category_follow=config_data["account_following"])
+        elif boundary_type == 'inferred_accounts':
             system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,account_categories=config_data["account_categories"],category_order=config_data["account_order"],category_follow=config_data["account_following"])
             system = init.get_account_categories(system,transaction_filename,report_filename)
         else:
-            raise ValueError("Check config file -- boundary_type options are 'transactions' and 'accounts'",boundary_type)
+            raise ValueError("Check config file -- boundary_type options are 'transactions', 'accounts', and 'inferred_accounts'",boundary_type)
     else:
         system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type)
     ############## Infer starting balance ##############
