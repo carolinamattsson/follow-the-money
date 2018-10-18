@@ -38,9 +38,9 @@ class System():
     def create_account(self,acct_ID):
         self.accounts[acct_ID] = Account(acct_ID)
         return self.accounts[acct_ID]
-    def reset(self):
+    def reset(self,starting_balance=True):
         for acct_ID,acct in self.accounts.items():
-            acct.reset()
+            acct.reset(starting_balance)
         return self
     def get_txn_categ_accts(self,src_categ,tgt_categ):
         # this method determines whether a transaction is a 'deposit', 'transfer', or 'withdraw' in cases where accounts are either provider-facing or public-facing, and only the latter reflect "real" use of the ecosystem
@@ -104,17 +104,18 @@ class Transaction(object):
 
 class Account(dict):
     # An account, here, contains the most important features of accounts and can contain tracking mechanisms
-    def __init__(self, acct_ID, starting_balance=None):
+    def __init__(self, acct_ID):
         self.acct_ID  = acct_ID
-        self.starting_balance = starting_balance if starting_balance else 0
-        self.balance = self.starting_balance
+        self.starting_balance = 0
+        self.balance = 0
         self.tracker = None
         self.categs = set()
         self.categ = None
     def close_out(self):
         self.balance = 0
         self.tracker = None
-    def reset(self):
+    def reset(self,starting_balance=True):
+        if not starting_balance: self.starting_balance = 0
         self.balance = self.starting_balance
         self.tracker = None
     def update_categ(self, src_tgt, txn_type):
@@ -133,6 +134,7 @@ class Account(dict):
         self.starting_balance += amt
         self.balance += amt
     def add_balance(self,missing):
+        print("add_balance",self.acct_ID,self.balance,missing)
         # When the balance in an account is insufficient to cover it, we need to do something about it
         # If we are inferring deposit transactions we do so now, and if not we assume that the account actually *does* have enough balance we just didn't know it (they carried a starting_balance at the beginning of our data)
         if isinstance(self.tracker,list) and self.tracker.infer:
@@ -194,7 +196,7 @@ def initialize_transactions(txn_reader,system,report_file,get_categ=False):
         except:
             report_file.write("ISSUE W/ INITIALIZING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
 
-def get_account_categories(system,transaction_file,report_filename):
+def infer_account_categories(system,transaction_file,report_filename):
     import csv
     with open(transaction_file,'r') as txn_file, open(report_filename,'w') as report_file:
         txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar="'",escapechar="%")
@@ -209,14 +211,14 @@ def get_account_categories(system,transaction_file,report_filename):
                 break
     return system
 
-def get_starting_balance(system,transaction_file,report_filename,read_balance=None,boundary=False):
+def infer_starting_balance(system,transaction_file,report_filename):
     import csv
     with open(transaction_file,'r') as txn_file, open(report_filename,'a') as report_file:
         txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar="'",escapechar="%")
         transactions = initialize_transactions(txn_reader,system,report_file)
         for txn in transactions:
-            if not txn.system.has_balance(txn,"src"): txn.src.add_balance((txn.amt+txn.rev)-txn.src.balance)
-            txn.src.transfer(txn)
+            if not txn.system.has_balance(txn): txn.src.add_balance((txn.amt+txn.rev)-txn.src.balance)
+            txn.src.transfer(txn,track=False)
     return system
 
 def discover_account_categories(src,tgt,amt,rev=0,basics=None,txn_type=None):

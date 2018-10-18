@@ -27,7 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--cutoff', metavar='hours', type=int, default=None, help='Stop tracking funds after this number of hours')
     parser.add_argument('--smallest', metavar='value', type=int, default=0.01, help='Stop tracking funds with a value below this threshold')
     parser.add_argument('--infer', action="store_true", default=False, help='Record inferred deposits and withdrawals as transactions')
-    parser.add_argument('--no_balance', action="store_true", default=False, help='Ignore initial balances, inferred or otherwise')
+    parser.add_argument('--no_balance', action="store_true", default=False, help='Avoid inferring starting balances before running well-mixed (no effect if balances are given)')
 
     args = parser.parse_args()
 
@@ -56,16 +56,14 @@ if __name__ == '__main__':
             system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,account_columns=config_data["account_columns"],category_follow=config_data["account_following"])
         elif boundary_type == 'inferred_accounts':
             system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,account_categories=config_data["account_categories"],category_order=config_data["account_order"],category_follow=config_data["account_following"])
-            system = init.get_account_categories(system,transaction_filename,report_filename)
+            system = init.infer_account_categories(system,transaction_filename,report_filename)
         else:
             raise ValueError("Check config file -- boundary_type options are 'transactions', 'accounts', and 'inferred_accounts'",boundary_type)
     else:
         system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type)
     ############## Infer starting balance ##############
-    if "balance" in config_data:
-        if config_data["balance"] == "infer":
-            system = init.get_starting_balance(system,transaction_filename,report_filename)
-        system.define_check_balance(config_data["balance"])
+    if "read_balance" in config_data:
+        system.define_has_balance(config_data["balance"])
     #################### OUTPUT ########################
     report_filename = os.path.join(args.output_directory,args.prefix+"wflows_report.txt")
     follow.start_report(report_filename,args)
@@ -78,6 +76,8 @@ if __name__ == '__main__':
         filename = os.path.join(args.output_directory,args.prefix+"wflows_greedy"+file_ending)
         follow.run(system,transaction_filename,filename,report_filename,'greedy',args.cutoff,args.smallest,args.infer)
     if args.well_mixed:
+        if args.greedy and args.no_balance: system.reset(starting_balance=False)
+        if not args.greedy and not args.no_balance: system = init.infer_starting_balance(system,transaction_filename,report_filename)
         filename = os.path.join(args.output_directory,args.prefix+"wflows_well-mixed"+file_ending)
         follow.run(system,transaction_filename,filename,report_filename,'well-mixed',args.cutoff,args.smallest,args.infer)
     if args.no_tracking:

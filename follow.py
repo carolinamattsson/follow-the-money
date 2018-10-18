@@ -99,10 +99,11 @@ class Tracker(list):
     resolution_limit = 0.01
     infer = False
     def __init__(self, account):
-        # Accounts are initialized to reference:
+        # Trackers are initialized to reference:
         self.account = account                    # The Account instance that owns them
-        if self.infer and self.account.balance >= self.resolution_limit:
-            self.infer_deposit(self.account.balance)
+        if self.account.balance >= self.resolution_limit:
+            if self.infer and self.account.balance==self.account.starting_balance:
+                self.infer_deposit(self.account.starting_balance)
     def add_branches(self, branches):
         # this function adds a list of branches to the account
         self.extend(branches)
@@ -274,6 +275,8 @@ def track_transactions(txns,Tracker,report_file):
     # The function also
     for txn in txns:
         try:
+            print(txn.src.balance,txn.tgt.balance)
+            print(txn)
             if txn.categ == 'deposit':
                 yield from check_source(txn,report_file,track=False)
                 yield from check_target(txn,report_file,track=Tracker)
@@ -320,7 +323,7 @@ def start_report(report_filename,args):
         if args.cutoff: report_file.write("    Stop tracking funds after "+str(args.cutoff)+" hours."+"\n")
         if args.smallest: report_file.write("    Stop tracking funds below "+str(args.smallest)+" in value."+"\n")
         if args.infer: report_file.write("    Record inferred deposits and withdrawals as transactions."+"\n")
-        if args.no_balance: report_file.write("    Ignore balance information, inferred or otherwise."+"\n")
+        if args.no_balance: report_file.write("    Ignoring inferred starting balances when running well-mixed (no effect if balances are given)."+"\n")
         #if args.read_balance: report_file.write("    Read balance information from columns of the transaction file."+"\n")
         report_file.write("\n")
         report_file.write("\n")
