@@ -3,12 +3,6 @@ Initialize a payment processing system
 
 Up-to-date code: https://github.com/Carromattsson/follow_the_money
 Copyright (C) 2018 Carolina Mattsson, Northeastern University
-
-Requirements:
-The incoming data needs to be time ordered and have at least these columns:
-txn_ID (unique ID), src_ID (sending account), tgt_ID (receiving account), amt (transaction amount)
-Additional columns that will be analyzed if available are:
-timestamp, txn_type (transaction type),rev (fee/revenue incurred), src/tgt_balance (account balances)
 '''
 
 from datetime import datetime, timedelta
@@ -36,6 +30,7 @@ class System():
                 self.get_txn_categ = lambda txn: self.get_txn_categ_accts(txn.src.categ,txn.tgt.categ)
         else:
             self.get_txn_categ = lambda txn: "transfer"
+        self.has_balance = lambda txn: txn.src.balance>=(txn.amt+txn.rev)
     def has_account(self,acct_ID):
         return acct_ID in self.accounts
     def get_account(self,acct_ID):
@@ -56,6 +51,21 @@ class System():
         if not src_follow and     tgt_follow: return 'deposit'
         if     src_follow and not tgt_follow: return 'withdraw'
         if not src_follow and not tgt_follow: return 'system'
+    def read_balance_pre(self,txn):
+        txn.src.balance = txn.src_balance
+        txn.tgt.balance = txn.tgt_balance
+        return txn.src.balance>=(txn.amt+txn.rev)
+    def read_balance_post(self,txn):
+        txn.src.balance = txn.src_balance+txn.amt+txn.rev
+        txn.tgt.balance = txn.tgt_balance-txn.amt
+        return txn.src.balance>=(txn.amt+txn.rev)
+    def define_has_balance(self,balance_type):
+        if balance_type == "pre":
+            self.has_balance = lambda txn: self.read_balance_pre(txn)
+        elif balance_type == "post":
+            self.has_balance = lambda txn: self.read_balance_post(txn)
+        else:
+            self.has_balance = lambda txn: txn.src.balance>=(txn.amt+txn.rev)
 
 class Transaction(object):
     # A transaction, here, contains the basic features of a transaction with references to the source and target accounts
@@ -66,13 +76,19 @@ class Transaction(object):
         # make the transaction attributes object properties
         for key, value in txn_dict.items():
             setattr(self, key, value)
-        self.rev_ratio = self.rev/self.amt
+        try:
+            self.rev_ratio = self.rev/self.amt
+        except:
+            self.rev = 0
+            self.rev_ratio = 0
     def __str__(self):
         # this prints out the basics of the original transaction, which is useful for debugging
         src_ID    = self.src.acct_ID
         tgt_ID    = self.tgt.acct_ID
         timestamp = datetime.strftime(self.timestamp,self.system.timeformat)
         return self.txn_ID+","+src_ID+","+tgt_ID+","+timestamp+","+self.type+","+str(self.amt)+","+str(self.rev)
+    def to_print(self):
+        return(str(self).split(','))
     @classmethod
     def create(cls,src,tgt,txn_dict,get_categ):
         # This method creates a Transaction object from a dictionary and object references to the source and target accounts
@@ -113,17 +129,15 @@ class Account(dict):
     def track(self,Tracker_Class):
         self.tracker = Tracker_Class(self)
     def infer_balance(self, amt):
-        # this function sets the running balance in the account to the desired level, adjusting the inferred starting balance to compensate
+        # this function upps the running balance in the account, also adjusting the inferred starting balance
         self.starting_balance += amt
         self.balance += amt
-    def check_balance(self,amt):
+    def add_balance(self,missing):
         # When the balance in an account is insufficient to cover it, we need to do something about it
         # If we are inferring deposit transactions we do so now, and if not we assume that the account actually *does* have enough balance we just didn't know it (they carried a starting_balance at the beginning of our data)
-        if self.balance < amt:
-            missing = amt-self.balance
-            if isinstance(self.tracker,list) and self.tracker.infer:
-                self.tracker.infer_deposit(missing)
-            self.infer_balance(missing)
+        if isinstance(self.tracker,list) and self.tracker.infer:
+            self.tracker.infer_deposit(missing)
+        self.infer_balance(missing)
     def deposit(self,txn,track=False):
         # this function deposits a transaction onto the account
         # if the account is tracking, make it happen
@@ -201,7 +215,7 @@ def get_starting_balance(system,transaction_file,report_filename,read_balance=No
         txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar="'",escapechar="%")
         transactions = initialize_transactions(txn_reader,system,report_file)
         for txn in transactions:
-            txn.src.check_balance(txn.amt+txn.rev)
+            if not txn.system.has_balance(txn,"src"): txn.src.add_balance((txn.amt+txn.rev)-txn.src.balance)
             txn.src.transfer(txn)
     return system
 

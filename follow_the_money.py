@@ -1,7 +1,7 @@
 '''
 Follow The Money - main
 This is the script to run a basic "follow the money" data transformation within the specified system boundaries.
-Author: Carolina Mattsson, Northeastern University, April 2018
+Author: Carolina Mattsson, Northeastern University, October 2018
 '''
 
 if __name__ == '__main__':
@@ -27,8 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--cutoff', metavar='hours', type=int, default=None, help='Stop tracking funds after this number of hours')
     parser.add_argument('--smallest', metavar='value', type=int, default=0.01, help='Stop tracking funds with a value below this threshold')
     parser.add_argument('--infer', action="store_true", default=False, help='Record inferred deposits and withdrawals as transactions')
-    parser.add_argument('--balance', action="store_true", default=False, help='Before running, infer the starting balance of all accounts')
-    #parser.add_argument('--read_balance', action="store_true", type=str, default=None, help='Read balance information from these columns of the transaction file, either as the "starting" or "ending" balance')
+    parser.add_argument('--no_balance', action="store_true", default=False, help='Ignore initial balances, inferred or otherwise')
 
     args = parser.parse_args()
 
@@ -63,8 +62,10 @@ if __name__ == '__main__':
     else:
         system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type)
     ############## Infer starting balance ##############
-    if args.balance:
-        system = init.get_starting_balance(system,transaction_filename,report_filename)
+    if "balance" in config_data:
+        if config_data["balance"] == "infer":
+            system = init.get_starting_balance(system,transaction_filename,report_filename)
+        system.define_check_balance(config_data["balance"])
     #################### OUTPUT ########################
     report_filename = os.path.join(args.output_directory,args.prefix+"wflows_report.txt")
     follow.start_report(report_filename,args)

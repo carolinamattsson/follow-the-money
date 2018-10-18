@@ -135,7 +135,7 @@ class Tracker(list):
     def infer_deposit(self,amt):
         # this function creates an inferred Transaction object and deposits it onto the account
         if amt > self.resolution_limit:
-            self.deposit(self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.system.timewindow[0],"amt":amt,"rev":0,"type":'inferred',"categ":'deposit'}))
+            self.deposit(self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.account.system.timewindow[0],"amt":amt,"rev":0,"type":'inferred',"categ":'deposit'}))
     def transfer(self,this_txn):
         # this function processes an outgoing transaction from this account onto a receiving account
         #    it extends the branches in the account by this transaction, and adds these new branches onto the receiving account
@@ -150,16 +150,21 @@ class Tracker(list):
     def infer_withdraw(self,amt):
         # this function creates an inferred Transaction object and withdraws it from the account
         if amt > self.resolution_limit:
-            return self.withdraw(self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.system.timewindow[1],"amt":amt,"rev":0,"type":'inferred',"categ":'withdraw'}))
-        else:
-            return []
-    def pseudo_withdraw(self,txn,amt):
-        # this function creates a pseudo-inferred Transaction object and withdraws it from the account
+            yield from self.account.withdraw(self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.account.system.timewindow[1],"amt":amt,"rev":0,"type":'inferred',"categ":'withdraw'}),track=True)
+    def pseudo_withdraw(self,this_txn):
+        print(str(this_txn))
+        # this function processes what would be a withdrawal from this account, without recording this transaction as such
+        #    it extends the branches in the account by this transaction, builds the "money flows" that end at this transaction *not including itself*, and returns the completed "money flows"
         # useful for when a "deposit" transaction or an uncategorized transaction is actually pulling from tracked funds
-        if amt > self.resolution_limit:
-            return self.withdraw(self.Transaction(txn.src,txn.tgt,{"txn_ID":txn.txn_ID,"timestamp":txn.timestamp,"amt":amt,"rev":0,"type":txn.type,"categ":'withdraw'}))
-        else:
-            return []
+        new_branches = self.extend_branches(this_txn)
+        flows = [branch.prev_branch.follow_back(branch.prev_branch.amt) for branch in new_branches]
+        return flows
+    def is_consistent(self):
+        return sum(branch.amt for branch in self) <= self.account.balance
+    def get_consistent(self):
+        extra = max(sum(branch.amt for branch in self) - self.account.balance,0)
+        if extra > self.resolution_limit:
+            self.pseudo_withdraw(self.Transaction(self.account,self.account,{"amt":extra,"rev":0}))
 
 class Greedy_tracker(Tracker):
     type = "greedy"
@@ -230,47 +235,76 @@ def define_tracker(follow_heuristic,time_cutoff,resolution_limit,infer):
     Tracker_class.infer                = infer
     return Tracker_class
 
+def check_source(txn,report_file,track=False):
+    # Ensure adequeate balance in the source account
+    if track:
+        if not txn.src.has_tracker(): txn.src.track(track)
+        if not txn.system.has_balance(txn): txn.src.add_balance((txn.amt+txn.rev)-txn.src.balance)
+    else:
+        if not txn.system.has_balance(txn): txn.src.infer_balance((txn.amt+txn.rev)-txn.src.balance)
+    if txn.src.tracker:
+        # Let the tracker forget sufficiently old money
+        if txn.src.tracker.time_cutoff: yield from txn.src.tracker.stop_tracking(txn.timestamp)
+        # Enforce consistency in the tracked balance, and in the tracking boundary
+        if not txn.src.tracker.is_consistent():
+            yield from txn.src.tracker.get_consistent()
+            report_file.write("WARNING: INCONSISTENT SOURCE BALANCE: "+str(txn)+"\n"+traceback.format_exc()+"\n")
+        if not track:
+            yield from txn.src.tracker.pseudo_withdraw(txn)
+            report_file.write("WARNING: INCONSISTENT SOURCE BOUNDARY: "+str(txn)+"\n"+traceback.format_exc()+"\n")
+
+def check_target(txn,report_file,track=False):
+    if track:
+        if not txn.tgt.has_tracker(): txn.tgt.track(track)
+    if txn.tgt.tracker:
+        # Let the tracker forget sufficiently old money
+        if txn.tgt.tracker.time_cutoff: yield from txn.tgt.tracker.stop_tracking(txn.timestamp)
+        # Enforce consistency in the tracked balance, and in the tracking boundary
+        if not txn.tgt.tracker.is_consistent():
+            yield from txn.tgt.tracker.get_consistent()
+            report_file.write("WARNING: INCONSISTENT TARGET BALANCE: "+str(txn)+"\n"+traceback.format_exc()+"\n")
+        if not track:
+            report_file.write("WARNING: INCONSISTENT TARGET BOUNDARY: "+str(txn)+"\n"+traceback.format_exc()+"\n")
+
 def track_transactions(txns,Tracker,report_file):
     # Track the transaction. There are three steps:
-    #                               1) Ensure adequeate balance in the source account
-    #                               2) Let the tracker forget sufficiently old money
+    #                               1) Check the source account for balance, tracking, old money, and consistency
+    #                               2) Check the target accoutn for tracking, old money, and consistency
     #                               3) Deposit, transfer, or withdraw the transaction
+    # The function also
     for txn in txns:
         try:
             if txn.categ == 'deposit':
-                if not txn.tgt.has_tracker(): txn.tgt.track(Tracker)
-                if txn.tgt.tracker.time_cutoff: yield from txn.tgt.tracker.stop_tracking(txn.timestamp)
-                if txn.src.tracker: yield from txn.src.tracker.pseudo_withdraw(txn,min(sum(branch.amt for branch in txn.src.tracker),txn.amt))
+                yield from check_source(txn,report_file,track=False)
+                yield from check_target(txn,report_file,track=Tracker)
                 txn.tgt.deposit(txn,track=True)
             elif txn.categ == 'transfer':
-                if not txn.src.has_tracker(): txn.src.track(Tracker)
-                if not txn.tgt.has_tracker(): txn.tgt.track(Tracker)
-                txn.src.check_balance(txn.amt+txn.rev)
-                if txn.src.tracker.time_cutoff: yield from txn.src.tracker.stop_tracking(txn.timestamp)
-                if txn.tgt.tracker.time_cutoff: yield from txn.tgt.tracker.stop_tracking(txn.timestamp)
+                yield from check_source(txn,report_file,track=Tracker)
+                yield from check_target(txn,report_file,track=Tracker)
                 txn.src.transfer(txn,track=True)
             elif txn.categ == 'withdraw':
-                if not txn.src.has_tracker(): txn.src.track(Tracker)
-                txn.src.check_balance(txn.amt+txn.rev)
-                if txn.src.tracker.time_cutoff: yield from txn.src.tracker.stop_tracking(txn.timestamp)
+                yield from check_source(txn,report_file,track=Tracker)
+                yield from check_target(txn,report_file,track=False)
                 yield from txn.src.withdraw(txn,track=True)
             else:
-                if txn.src.tracker: yield from txn.src.tracker.pseudo_withdraw(txn,min(sum(branch.amt for branch in txn.src.tracker),txn.amt))
+                yield from check_source(txn,report_file,track=False)
+                yield from check_target(txn,report_file,track=False)
+                txn.src.transfer(txn,track=False)
         except:
-            report_file.write("ISSUE W/ PROCESSING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
+            report_file.write("FAILED: PROCESSING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
 
 def track_remaining_funds(system,report_file):
     # This function removes all the remaining money from the system, either by inferring a withdraw that brings the balance down to zero or by letting the account forget everything
     for acct_ID,acct in system.accounts.items():
         try:
             if acct.tracker:
-                if acct.tracker.time_cutoff: yield from acct.tracker.stop_tracking(system.timewindow[1])
+                if acct.tracker.time_cutoff: yield from acct.tracker.stop_tracking(acct.system.timewindow[1])
                 if acct.tracker.infer:
                     yield from acct.tracker.infer_withdraw(acct.balance)
                 else:
                     yield from acct.tracker.stop_tracking()
         except:
-            report_file.write("ISSUE W/ REMAINING FUNDS: "+acct_ID+"\n"+traceback.format_exc()+"\n")
+            report_file.write("FAILED: REMAINING FUNDS: "+acct_ID+"\n"+traceback.format_exc()+"\n")
         acct.close_out()
 
 def start_report(report_filename,args):
@@ -286,7 +320,7 @@ def start_report(report_filename,args):
         if args.cutoff: report_file.write("    Stop tracking funds after "+str(args.cutoff)+" hours."+"\n")
         if args.smallest: report_file.write("    Stop tracking funds below "+str(args.smallest)+" in value."+"\n")
         if args.infer: report_file.write("    Record inferred deposits and withdrawals as transactions."+"\n")
-        if args.balance: report_file.write("    Before running, infer the starting balance of all accounts."+"\n")
+        if args.no_balance: report_file.write("    Ignore balance information, inferred or otherwise."+"\n")
         #if args.read_balance: report_file.write("    Read balance information from columns of the transaction file."+"\n")
         report_file.write("\n")
         report_file.write("\n")
