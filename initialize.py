@@ -81,12 +81,12 @@ class Transaction(object):
         except:
             self.rev = 0
             self.rev_ratio = 0
+        try:
+            self.type
+        except:
+            self.type = "-".join([self.src_categ,self.tgt_categ])
     def __str__(self):
-        # this prints out the basics of the original transaction, which is useful for debugging
-        src_ID    = self.src.acct_ID
-        tgt_ID    = self.tgt.acct_ID
-        timestamp = datetime.strftime(self.timestamp,self.system.timeformat)
-        return self.txn_ID+","+src_ID+","+tgt_ID+","+timestamp+","+self.type+","+str(self.amt)+","+str(self.rev)
+        return ",".join(str(self.__dict__[term]) for term in self.system.txn_header)
     def to_print(self):
         return(str(self).split(','))
     @classmethod
@@ -96,8 +96,6 @@ class Transaction(object):
         txn_dict['timestamp'] = datetime.strptime(txn_dict['timestamp'],cls.system.timeformat)
         txn_dict['amt']       = float(txn_dict['amt'])
         txn_dict['rev']       = float(txn_dict['rev'])
-        del txn_dict['src_ID']
-        del txn_dict['tgt_ID']
         txn = cls(src,tgt,txn_dict)
         if get_categ: txn.categ = cls.system.get_txn_categ(txn)
         return txn

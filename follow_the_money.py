@@ -53,9 +53,9 @@ if __name__ == '__main__':
         if boundary_type == 'transactions':
             system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,transaction_categories=config_data["transaction_categories"])
         elif boundary_type == 'accounts':
-            system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,account_columns=config_data["account_columns"],category_follow=config_data["account_following"])
+            system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,category_follow=config_data["account_following"])
         elif boundary_type == 'inferred_accounts':
-            system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,account_categories=config_data["account_categories"],category_order=config_data["account_order"],category_follow=config_data["account_following"])
+            system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,category_follow=config_data["account_following"],account_categories=config_data["account_categories"],category_order=config_data["account_order"])
             system = init.infer_account_categories(system,transaction_filename,report_filename)
         else:
             raise ValueError("Check config file -- boundary_type options are 'transactions', 'accounts', and 'inferred_accounts'",boundary_type)
