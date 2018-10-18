@@ -151,21 +151,14 @@ class Tracker(list):
     def infer_withdraw(self,amt):
         # this function creates an inferred Transaction object and withdraws it from the account
         if amt > self.resolution_limit:
-            yield from self.account.withdraw(self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.account.system.timewindow[1],"amt":amt,"rev":0,"type":'inferred',"categ":'withdraw'}),track=True)
-    def pseudo_withdraw(self,this_txn):
-        print(str(this_txn))
+            yield from self.withdraw(self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.account.system.timewindow[1],"amt":amt,"rev":0,"type":'inferred',"categ":'withdraw'}))
+    def pseudo_withdraw(self,amt):
         # this function processes what would be a withdrawal from this account, without recording this transaction as such
         #    it extends the branches in the account by this transaction, builds the "money flows" that end at this transaction *not including itself*, and returns the completed "money flows"
         # useful for when a "deposit" transaction or an uncategorized transaction is actually pulling from tracked funds
-        new_branches = self.extend_branches(this_txn)
-        flows = [branch.prev_branch.follow_back(branch.prev_branch.amt) for branch in new_branches]
+        new_branches = self.extend_branches(self.Transaction(self.account,self.account,{"amt":amt,"type":"pseudo"}))
+        flows = [branch.prev.follow_back(branch.prev.amt) for branch in new_branches if branch.prev]
         return flows
-    def is_consistent(self):
-        return sum(branch.amt for branch in self) <= self.account.balance
-    def get_consistent(self):
-        extra = max(sum(branch.amt for branch in self) - self.account.balance,0)
-        if extra > self.resolution_limit:
-            self.pseudo_withdraw(self.Transaction(self.account,self.account,{"amt":extra,"rev":0}))
 
 class Greedy_tracker(Tracker):
     type = "greedy"
@@ -236,62 +229,46 @@ def define_tracker(follow_heuristic,time_cutoff,resolution_limit,infer):
     Tracker_class.infer                = infer
     return Tracker_class
 
-def check_source(txn,report_file,track=False):
-    # Ensure adequeate balance in the source account
-    if track:
-        if not txn.src.has_tracker(): txn.src.track(track)
-        if not txn.system.has_balance(txn): txn.src.add_balance((txn.amt+txn.rev)-txn.src.balance)
-    else:
-        if not txn.system.has_balance(txn): txn.src.infer_balance((txn.amt+txn.rev)-txn.src.balance)
-    if txn.src.tracker:
-        # Let the tracker forget sufficiently old money
-        if txn.src.tracker.time_cutoff: yield from txn.src.tracker.stop_tracking(txn.timestamp)
-        # Enforce consistency in the tracked balance, and in the tracking boundary
-        if not txn.src.tracker.is_consistent():
-            yield from txn.src.tracker.get_consistent()
-            report_file.write("WARNING: INCONSISTENT SOURCE BALANCE: "+str(txn)+"\n"+traceback.format_exc()+"\n")
-        if not track:
-            yield from txn.src.tracker.pseudo_withdraw(txn)
-            report_file.write("WARNING: INCONSISTENT SOURCE BOUNDARY: "+str(txn)+"\n"+traceback.format_exc()+"\n")
-
-def check_target(txn,report_file,track=False):
-    if track:
-        if not txn.tgt.has_tracker(): txn.tgt.track(track)
-    if txn.tgt.tracker:
-        # Let the tracker forget sufficiently old money
-        if txn.tgt.tracker.time_cutoff: yield from txn.tgt.tracker.stop_tracking(txn.timestamp)
-        # Enforce consistency in the tracked balance, and in the tracking boundary
-        if not txn.tgt.tracker.is_consistent():
-            yield from txn.tgt.tracker.get_consistent()
-            report_file.write("WARNING: INCONSISTENT TARGET BALANCE: "+str(txn)+"\n"+traceback.format_exc()+"\n")
-        if not track:
-            report_file.write("WARNING: INCONSISTENT TARGET BOUNDARY: "+str(txn)+"\n"+traceback.format_exc()+"\n")
+def check_balance(txn,report_file):
+    src_balance, tgt_balance = txn.system.needs_balance(txn)
+    if src_balance > txn.src.balance:
+        txn.src.adjust_balance_up(src_balance - txn.src.balance)
+    elif src_balance < txn.src.balance:
+        yield from txn.src.adjust_balance_down(txn.src.balance - src_balance)
+    if tgt_balance > txn.tgt.balance:
+        txn.tgt.adjust_balance_up(tgt_balance - txn.tgt.balance)
+    elif tgt_balance < txn.tgt.balance:
+        yield from txn.tgt.adjust_balance_down(txn.tgt.balance - tgt_balance)
 
 def track_transactions(txns,Tracker,report_file):
     # Track the transaction. There are three steps:
-    #                               1) Check the source account for balance, tracking, old money, and consistency
-    #                               2) Check the target accoutn for tracking, old money, and consistency
+    #                               1) Check the accounts for balance consistency
+    #                               2) Check the trackers for old money, and boundary consistency
     #                               3) Deposit, transfer, or withdraw the transaction
     # The function also
     for txn in txns:
         try:
             print(txn.src.balance,txn.tgt.balance)
+            if txn.src.tracker and txn.src.tracker.time_cutoff: yield from txn.src.tracker.stop_tracking(txn.timestamp)
+            if txn.tgt.tracker and txn.tgt.tracker.time_cutoff: yield from txn.tgt.tracker.stop_tracking(txn.timestamp)
+            yield from check_balance(txn,report_file)
+            print(txn.src.balance,txn.tgt.balance)
             print(txn)
             if txn.categ == 'deposit':
-                yield from check_source(txn,report_file,track=False)
-                yield from check_target(txn,report_file,track=Tracker)
+                if     txn.src.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+"-> "+str(txn)+"\n"+traceback.format_exc()+"\n")
+                if not txn.tgt.has_tracker(): txn.tgt.track(Tracker)
                 txn.tgt.deposit(txn,track=True)
             elif txn.categ == 'transfer':
-                yield from check_source(txn,report_file,track=Tracker)
-                yield from check_target(txn,report_file,track=Tracker)
+                if not txn.src.has_tracker(): txn.src.track(Tracker)
+                if not txn.tgt.has_tracker(): txn.tgt.track(Tracker)
                 txn.src.transfer(txn,track=True)
             elif txn.categ == 'withdraw':
-                yield from check_source(txn,report_file,track=Tracker)
-                yield from check_target(txn,report_file,track=False)
+                if not txn.src.has_tracker(): txn.src.track(Tracker)
+                if     txn.tgt.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+"-> "+str(txn)+"\n"+traceback.format_exc()+"\n")
                 yield from txn.src.withdraw(txn,track=True)
             else:
-                yield from check_source(txn,report_file,track=False)
-                yield from check_target(txn,report_file,track=False)
+                if     txn.src.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+"-> "+str(txn)+"\n"+traceback.format_exc()+"\n")
+                if     txn.tgt.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+"-> "+str(txn)+"\n"+traceback.format_exc()+"\n")
                 txn.src.transfer(txn,track=False)
         except:
             report_file.write("FAILED: PROCESSING: "+str(txn)+"\n"+traceback.format_exc()+"\n")

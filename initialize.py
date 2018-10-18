@@ -30,7 +30,7 @@ class System():
                 self.get_txn_categ = lambda txn: self.get_txn_categ_accts(txn.src.categ,txn.tgt.categ)
         else:
             self.get_txn_categ = lambda txn: "transfer"
-        self.has_balance = lambda txn: txn.src.balance>=(txn.amt+txn.rev)
+        self.needs_balance = lambda txn: (max(txn.amt+txn.rev,txn.src.balance),txn.tgt.balance)
     def has_account(self,acct_ID):
         return acct_ID in self.accounts
     def get_account(self,acct_ID):
@@ -51,21 +51,13 @@ class System():
         if not src_follow and     tgt_follow: return 'deposit'
         if     src_follow and not tgt_follow: return 'withdraw'
         if not src_follow and not tgt_follow: return 'system'
-    def read_balance_pre(self,txn):
-        txn.src.balance = txn.src_balance
-        txn.tgt.balance = txn.tgt_balance
-        return txn.src.balance>=(txn.amt+txn.rev)
-    def read_balance_post(self,txn):
-        txn.src.balance = txn.src_balance+txn.amt+txn.rev
-        txn.tgt.balance = txn.tgt_balance-txn.amt
-        return txn.src.balance>=(txn.amt+txn.rev)
-    def define_has_balance(self,balance_type):
+    def define_needs_balance(self,balance_type):
         if balance_type == "pre":
-            self.has_balance = lambda txn: self.read_balance_pre(txn)
+            self.needs_balance = lambda txn: (float(txn.src_balance),float(txn.tgt_balance))
         elif balance_type == "post":
-            self.has_balance = lambda txn: self.read_balance_post(txn)
+            self.needs_balance = lambda txn: (float(txn.src_balance)+txn.amt+txn.rev,float(txn.tgt_balance)-txn.amt)
         else:
-            self.has_balance = lambda txn: txn.src.balance>=(txn.amt+txn.rev)
+            self.needs_balance = lambda txn: (max(txn.amt+txn.rev,txn.src.balance),txn.tgt.balance)
 
 class Transaction(object):
     # A transaction, here, contains the basic features of a transaction with references to the source and target accounts
@@ -131,13 +123,21 @@ class Account(dict):
         # this function upps the running balance in the account, also adjusting the inferred starting balance
         self.starting_balance += amt
         self.balance += amt
-    def add_balance(self,missing):
-        print("add_balance",self.acct_ID,self.balance,missing)
-        # When the balance in an account is insufficient to cover it, we need to do something about it
-        # If we are inferring deposit transactions we do so now, and if not we assume that the account actually *does* have enough balance we just didn't know it (they carried a starting_balance at the beginning of our data)
-        if isinstance(self.tracker,list) and self.tracker.infer:
-            self.tracker.infer_deposit(missing)
+    def remove_balance(self, amt):
+        # this function drops the running balance in the account, also adjusting the inferred starting balance
+        self.balance -= amt
+    def adjust_balance_up(self, missing):
+        if self.has_tracker() and missing > self.tracker.resolution_limit:
+            if self.tracker.infer:
+                self.tracker.infer_deposit(missing)
         self.infer_balance(missing)
+    def adjust_balance_down(self, extra):
+        if self.has_tracker() and extra > self.tracker.resolution_limit:
+            if self.tracker.infer:
+                yield from self.tracker.infer_withdraw(extra)
+            else:
+                yield from self.tracker.pseudo_withdraw(extra)
+        self.remove_balance(extra)
     def deposit(self,txn,track=False):
         # this function deposits a transaction onto the account
         # if the account is tracking, make it happen
@@ -215,7 +215,7 @@ def infer_starting_balance(system,transaction_file,report_filename):
         txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar="'",escapechar="%")
         transactions = initialize_transactions(txn_reader,system,report_file)
         for txn in transactions:
-            if not txn.system.has_balance(txn): txn.src.add_balance((txn.amt+txn.rev)-txn.src.balance)
+            if txn.src.balance < txn.amt+txn.rev: txn.src.infer_balance(txn.amt+txn.rev-txn.src.balance)
             txn.src.transfer(txn,track=False)
     return system
 

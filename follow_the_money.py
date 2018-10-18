@@ -62,8 +62,8 @@ if __name__ == '__main__':
     else:
         system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type)
     ############## Infer starting balance ##############
-    if "read_balance" in config_data:
-        system.define_has_balance(config_data["balance"])
+    if "balance_type" in config_data:
+        system.define_needs_balance(config_data["balance_type"])
     #################### OUTPUT ########################
     report_filename = os.path.join(args.output_directory,args.prefix+"wflows_report.txt")
     follow.start_report(report_filename,args)
@@ -77,7 +77,7 @@ if __name__ == '__main__':
         follow.run(system,transaction_filename,filename,report_filename,'greedy',args.cutoff,args.smallest,args.infer)
     if args.well_mixed:
         if args.greedy and args.no_balance: system.reset(starting_balance=False)
-        if not args.greedy and not args.no_balance: system = init.infer_starting_balance(system,transaction_filename,report_filename)
+        if not args.greedy and not args.no_balance and "balance_type" not in config_data: system = init.infer_starting_balance(system,transaction_filename,report_filename)
         filename = os.path.join(args.output_directory,args.prefix+"wflows_well-mixed"+file_ending)
         follow.run(system,transaction_filename,filename,report_filename,'well-mixed',args.cutoff,args.smallest,args.infer)
     if args.no_tracking:
