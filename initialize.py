@@ -116,7 +116,7 @@ class Account(dict):
         # if categories are not externally defined we can remember what side of what transaction this holder has been on - helpful exploratory analysis
         self.categs.add(src_tgt+'+'+txn_type)
     def has_tracker(self):
-        return True if self.tracker else False
+        return isinstance(self.tracker,list)
     def track(self,Tracker_Class):
         self.tracker = Tracker_Class(self)
     def infer_balance(self, amt):
@@ -127,22 +127,17 @@ class Account(dict):
         # this function drops the running balance in the account, also adjusting the inferred starting balance
         self.balance -= amt
     def adjust_balance_up(self, missing):
-        if self.has_tracker() and missing > self.tracker.resolution_limit:
-            if self.tracker.infer:
-                self.tracker.infer_deposit(missing)
+        print("Hi!", self.has_tracker())
+        if self.has_tracker(): self.tracker.adjust_tracker_up(missing)
         self.infer_balance(missing)
     def adjust_balance_down(self, extra):
-        if self.has_tracker() and extra > self.tracker.resolution_limit:
-            if self.tracker.infer:
-                yield from self.tracker.infer_withdraw(extra)
-            else:
-                yield from self.tracker.pseudo_withdraw(extra)
+        if self.has_tracker(): self.tracker.adjust_tracker_down(extra)
         self.remove_balance(extra)
     def deposit(self,txn,track=False):
         # this function deposits a transaction onto the account
         # if the account is tracking, make it happen
         if track:
-            self.tracker.deposit(txn)
+            yield from self.tracker.deposit(txn)
         # then, adjust the balance accordingly
         txn.src.balance = txn.src.balance-txn.amt-txn.rev
         self.balance += txn.amt

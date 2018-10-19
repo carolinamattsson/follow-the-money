@@ -101,9 +101,8 @@ class Tracker(list):
     def __init__(self, account):
         # Trackers are initialized to reference:
         self.account = account                    # The Account instance that owns them
-        if self.account.balance >= self.resolution_limit:
-            if self.infer and self.account.balance==self.account.starting_balance:
-                self.infer_deposit(self.account.starting_balance)
+        if self.infer and self.account.balance == self.account.starting_balance:
+            self.infer_deposit(self.account.balance)
     def add_branches(self, branches):
         # this function adds a list of branches to the account
         self.extend(branches)
@@ -132,11 +131,12 @@ class Tracker(list):
     def deposit(self,this_txn):
         # this function deposits a transaction onto the account
         #    it begins to track a "root branch" that corresponds directly to the deposit transaction
+        if this_txn.src.has_tracker() and this_txn.type != "inferred": yield from this_txn.src.pseudo_withdraw(this_txn.amt+this_txn.rev)
         self.add_branches([Branch(None,this_txn,this_txn.amt)])
     def infer_deposit(self,amt):
         # this function creates an inferred Transaction object and deposits it onto the account
         if amt > self.resolution_limit:
-            self.deposit(self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.account.system.timewindow[0],"amt":amt,"rev":0,"type":'inferred',"categ":'deposit'}))
+            self.add_branches([Branch(None,self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.account.system.timewindow[0],"amt":amt,"rev":0,"type":'inferred',"categ":'deposit'}),amt)])
     def transfer(self,this_txn):
         # this function processes an outgoing transaction from this account onto a receiving account
         #    it extends the branches in the account by this transaction, and adds these new branches onto the receiving account
@@ -159,6 +159,16 @@ class Tracker(list):
         new_branches = self.extend_branches(self.Transaction(self.account,self.account,{"amt":amt,"type":"pseudo"}))
         flows = [branch.prev.follow_back(branch.prev.amt) for branch in new_branches if branch.prev]
         return flows
+    def adjust_tracker_up(self,amt):
+        print("adjust_tracker_up")
+        if self.infer:
+            self.infer_deposit(amt)
+    def adjust_tracker_down(self,amt):
+        if amt > self.resolution_limit:
+            if self.infer:
+                yield from self.infer_withdraw(amt)
+            else:
+                yield from self.pseudo_withdraw(amt)
 
 class Greedy_tracker(Tracker):
     type = "greedy"
@@ -229,7 +239,18 @@ def define_tracker(follow_heuristic,time_cutoff,resolution_limit,infer):
     Tracker_class.infer                = infer
     return Tracker_class
 
-def check_balance(txn,report_file):
+def check_tracker(txn,Tracker):
+    if txn.categ == 'deposit':
+        if not txn.tgt.has_tracker(): txn.tgt.track(Tracker)
+    elif txn.categ == 'transfer':
+        if not txn.src.has_tracker(): txn.src.track(Tracker)
+        if not txn.tgt.has_tracker(): txn.tgt.track(Tracker)
+    elif txn.categ == 'withdraw':
+        if not txn.src.has_tracker(): txn.src.track(Tracker)
+    if txn.src.tracker and txn.src.tracker.time_cutoff: yield from txn.src.tracker.stop_tracking(txn.timestamp)
+    if txn.tgt.tracker and txn.tgt.tracker.time_cutoff: yield from txn.tgt.tracker.stop_tracking(txn.timestamp)
+
+def check_balance(txn):
     src_balance, tgt_balance = txn.system.needs_balance(txn)
     if src_balance > txn.src.balance:
         txn.src.adjust_balance_up(src_balance - txn.src.balance)
@@ -249,26 +270,25 @@ def track_transactions(txns,Tracker,report_file):
     for txn in txns:
         try:
             print(txn.src.balance,txn.tgt.balance)
-            if txn.src.tracker and txn.src.tracker.time_cutoff: yield from txn.src.tracker.stop_tracking(txn.timestamp)
-            if txn.tgt.tracker and txn.tgt.tracker.time_cutoff: yield from txn.tgt.tracker.stop_tracking(txn.timestamp)
-            yield from check_balance(txn,report_file)
+            yield from check_tracker(txn,Tracker)
+            yield from check_balance(txn)
             print(txn.src.balance,txn.tgt.balance)
             print(txn)
             if txn.categ == 'deposit':
-                if     txn.src.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+"-> "+str(txn)+"\n"+traceback.format_exc()+"\n")
-                if not txn.tgt.has_tracker(): txn.tgt.track(Tracker)
-                txn.tgt.deposit(txn,track=True)
+                if     txn.src.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" from tracked account -> "+str(txn)+"\n")
+                yield from txn.tgt.deposit(txn,track=True)
             elif txn.categ == 'transfer':
-                if not txn.src.has_tracker(): txn.src.track(Tracker)
-                if not txn.tgt.has_tracker(): txn.tgt.track(Tracker)
                 txn.src.transfer(txn,track=True)
             elif txn.categ == 'withdraw':
-                if not txn.src.has_tracker(): txn.src.track(Tracker)
-                if     txn.tgt.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+"-> "+str(txn)+"\n"+traceback.format_exc()+"\n")
+                if     txn.tgt.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" into tracked account -> "+str(txn)+"\n")
                 yield from txn.src.withdraw(txn,track=True)
             else:
-                if     txn.src.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+"-> "+str(txn)+"\n"+traceback.format_exc()+"\n")
-                if     txn.tgt.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+"-> "+str(txn)+"\n"+traceback.format_exc()+"\n")
+                report_file.write("WARNING: UNTRACKED: "+str(txn)+"\n")
+                if txn.src.has_tracker():
+                    yield from txn.src.tracker.pseudo_withdraw(this_txn.amt+this_txn.rev)
+                    report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" from tracked account -> "+str(txn)+"\n")
+                if txn.tgt.has_tracker():
+                    report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" into tracked account -> "+str(txn)+"\n")
                 txn.src.transfer(txn,track=False)
         except:
             report_file.write("FAILED: PROCESSING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
