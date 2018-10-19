@@ -63,7 +63,7 @@ if __name__ == '__main__':
         system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type)
     ############## Infer starting balance ##############
     if "balance_type" in config_data:
-        system.define_needs_balance(config_data["balance_type"])
+        system.define_needs_balances(config_data["balance_type"])
     #################### OUTPUT ########################
     follow.start_report(report_filename,args)
     ####################################################

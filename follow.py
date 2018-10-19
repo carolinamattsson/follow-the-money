@@ -44,6 +44,15 @@ class Branch:
             # "root branches" begin building the flow with the amount given to it
             flow = Flow(self, amt, rev)
         return flow
+    @classmethod
+    def new_root(cls,txn):
+        return [cls(None,txn,txn.amt)]
+    @classmethod
+    def new_leaves(cls,new_branches,skip_leaf=False):
+        if skip_leaf:
+            return [branch.prev.follow_back(branch.prev.amt) for branch in new_branches if branch.prev]
+        else:
+            return [branch.follow_back(branch.amt) for branch in new_branches]
 
 class Flow:
     # This Class allows us to represent unique trajectories that specific amounts of money follow through the system
@@ -112,7 +121,7 @@ class Tracker(list):
         #    note that if branches are removed from the account in this function, that must be reflected in the tracked balance
         # this "basic" version offers no tracking at all
         #    only one branch is returned, which is a new "root branch" that corresponds directly to the transaction itself
-        new_branches = [Branch(None,this_txn,this_txn.amt)]
+        new_branches = Branch.new_root(this_txn)
         return new_branches
     def stop_tracking(self,timestamp=None):
         # this function finds the "leaf branches" in this account, builds the "money flows" that thus end at this account, returns those "money flows", and stops tracking those "leaf branches"
@@ -128,46 +137,34 @@ class Tracker(list):
             flows        = [branch.follow_back(branch.amt) for branch in self]
             self[:]      = []
         return flows
-    def deposit(self,this_txn):
-        # this function deposits a transaction onto the account
-        #    it begins to track a "root branch" that corresponds directly to the deposit transaction
-        if this_txn.src.has_tracker() and this_txn.type != "inferred": yield from this_txn.src.pseudo_withdraw(this_txn.amt+this_txn.rev)
-        self.add_branches([Branch(None,this_txn,this_txn.amt)])
     def infer_deposit(self,amt):
         # this function creates an inferred Transaction object and deposits it onto the account
-        if amt > self.resolution_limit:
-            self.add_branches([Branch(None,self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.account.system.timewindow[0],"amt":amt,"rev":0,"type":'inferred',"categ":'deposit'}),amt)])
-    def transfer(self,this_txn):
-        # this function processes an outgoing transaction from this account onto a receiving account
-        #    it extends the branches in the account by this transaction, and adds these new branches onto the receiving account
-        new_branches = self.extend_branches(this_txn)
-        this_txn.tgt.tracker.add_branches(new_branches)
-    def withdraw(self,this_txn):
-        # this function processes a withdraw transaction from this account
-        #    it extends the branches in the account by this transaction, builds the "money flows" that leave the system via this transaction, and returns the completed "money flows"
-        new_branches = self.extend_branches(this_txn)
-        flows = [branch.follow_back(branch.amt) for branch in new_branches]
-        return flows
-    def infer_withdraw(self,amt):
+        inferred_deposit = self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.account.system.timewindow[0],"amt":amt,"rev":0,"type":'inferred',"categ":'deposit'})
+        self.add_branches(Branch.new_root(inferred_deposit))
+    def infer_withdraw(self,amt,track=True):
         # this function creates an inferred Transaction object and withdraws it from the account
-        if amt > self.resolution_limit:
-            yield from self.withdraw(self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.account.system.timewindow[1],"amt":amt,"rev":0,"type":'inferred',"categ":'withdraw'}))
-    def pseudo_withdraw(self,amt):
-        # this function processes what would be a withdrawal from this account, without recording this transaction as such
-        #    it extends the branches in the account by this transaction, builds the "money flows" that end at this transaction *not including itself*, and returns the completed "money flows"
-        # useful for when a "deposit" transaction or an uncategorized transaction is actually pulling from tracked funds
-        new_branches = self.extend_branches(self.Transaction(self.account,self.account,{"amt":amt,"type":"pseudo"}))
-        flows = [branch.prev.follow_back(branch.prev.amt) for branch in new_branches if branch.prev]
-        return flows
+        inferred_withdraw = self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.account.system.timewindow[1],"amt":amt,"rev":0,"type":'inferred',"categ":'withdraw'})
+        new_branches = self.extend_branches(inferred_withdraw)
+        yield from Branch.new_leaves(new_branches,skip_leaf=(not track))
     def adjust_tracker_up(self,amt):
-        if self.infer:
-            self.infer_deposit(amt)
+        if self.infer: self.infer_deposit(amt)
     def adjust_tracker_down(self,amt):
-        if amt > self.resolution_limit:
-            if self.infer:
-                yield from self.infer_withdraw(amt)
-            else:
-                yield from self.pseudo_withdraw(amt)
+        yield from self.infer_withdraw(amt,track=self.infer)
+    @classmethod
+    def process(cls,txn,src_track=True,tgt_track=True):
+        if src_track:
+            if not txn.src.has_tracker(): txn.src.track(cls)
+            new_branches = txn.src.tracker.extend_branches(txn)
+        else:
+            if txn.src.has_tracker():
+                new_branches = txn.src.tracker.extend_branches(txn)
+                yield from Branch.new_leaves(new_branches,skip_leaf=True)
+            new_branches = Branch.new_root(txn) if tgt_track else []
+        if tgt_track:
+            if not txn.tgt.has_tracker(): txn.tgt.track(cls)
+            txn.tgt.tracker.add_branches(new_branches)
+        else:
+            yield from Branch.new_leaves(new_branches)
 
 class Greedy_tracker(Tracker):
     type = "greedy"
@@ -238,19 +235,12 @@ def define_tracker(follow_heuristic,time_cutoff,resolution_limit,infer):
     Tracker_class.infer                = infer
     return Tracker_class
 
-def check_tracker(txn,Tracker):
-    if txn.categ == 'deposit':
-        if not txn.tgt.has_tracker(): txn.tgt.track(Tracker)
-    elif txn.categ == 'transfer':
-        if not txn.src.has_tracker(): txn.src.track(Tracker)
-        if not txn.tgt.has_tracker(): txn.tgt.track(Tracker)
-    elif txn.categ == 'withdraw':
-        if not txn.src.has_tracker(): txn.src.track(Tracker)
-    if txn.src.tracker and txn.src.tracker.time_cutoff: yield from txn.src.tracker.stop_tracking(txn.timestamp)
-    if txn.tgt.tracker and txn.tgt.tracker.time_cutoff: yield from txn.tgt.tracker.stop_tracking(txn.timestamp)
+def check_trackers(txn):
+    if txn.src.tracker: yield from txn.src.tracker.stop_tracking(txn.timestamp)
+    if txn.tgt.tracker: yield from txn.tgt.tracker.stop_tracking(txn.timestamp)
 
-def check_balance(txn):
-    src_balance, tgt_balance = txn.system.needs_balance(txn)
+def check_balances(txn):
+    src_balance, tgt_balance = txn.system.needs_balances(txn)
     if src_balance > txn.src.balance:
         txn.src.adjust_balance_up(src_balance - txn.src.balance)
     elif src_balance < txn.src.balance:
@@ -269,26 +259,23 @@ def track_transactions(txns,Tracker,report_file):
     for txn in txns:
         try:
             #print(txn.src.balance,txn.tgt.balance)
-            yield from check_tracker(txn,Tracker)
-            yield from check_balance(txn)
+            if Tracker.time_cutoff: yield from check_trackers(txn)
+            yield from check_balances(txn)
             #print(txn.src.balance,txn.tgt.balance)
             #print(txn)
             if txn.categ == 'deposit':
-                if     txn.src.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" from tracked account -> "+str(txn)+"\n")
-                yield from txn.tgt.deposit(txn,track=True)
+                if txn.src.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" from tracked account -> "+str(txn)+"\n")
+                yield from txn.tgt.deposit(txn,Tracker)
             elif txn.categ == 'transfer':
-                txn.src.transfer(txn,track=True)
+                yield from txn.src.transfer(txn,Tracker)
             elif txn.categ == 'withdraw':
-                if     txn.tgt.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" into tracked account -> "+str(txn)+"\n")
-                yield from txn.src.withdraw(txn,track=True)
+                if txn.tgt.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" into tracked account -> "+str(txn)+"\n")
+                yield from txn.src.withdraw(txn,Tracker)
             else:
                 report_file.write("WARNING: UNTRACKED: "+str(txn)+"\n")
-                if txn.src.has_tracker():
-                    yield from txn.src.tracker.pseudo_withdraw(this_txn.amt+this_txn.rev)
-                    report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" from tracked account -> "+str(txn)+"\n")
-                if txn.tgt.has_tracker():
-                    report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" into tracked account -> "+str(txn)+"\n")
-                txn.src.transfer(txn,track=False)
+                if txn.src.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" from tracked account -> "+str(txn)+"\n")
+                if txn.tgt.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" into tracked account -> "+str(txn)+"\n")
+                yield from txn.src.bookkeep(txn,Tracker)
         except:
             report_file.write("FAILED: PROCESSING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
 

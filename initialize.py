@@ -30,7 +30,7 @@ class System():
                 self.get_txn_categ = lambda txn: self.get_txn_categ_accts(txn.src.categ,txn.tgt.categ)
         else:
             self.get_txn_categ = lambda txn: "transfer"
-        self.needs_balance = lambda txn: (max(txn.amt+txn.rev,txn.src.balance),txn.tgt.balance)
+        self.needs_balances = lambda txn: (max(txn.amt+txn.rev,txn.src.balance),txn.tgt.balance)
     def has_account(self,acct_ID):
         return acct_ID in self.accounts
     def get_account(self,acct_ID):
@@ -51,13 +51,13 @@ class System():
         if not src_follow and     tgt_follow: return 'deposit'
         if     src_follow and not tgt_follow: return 'withdraw'
         if not src_follow and not tgt_follow: return 'system'
-    def define_needs_balance(self,balance_type):
+    def define_needs_balances(self,balance_type):
         if balance_type == "pre":
-            self.needs_balance = lambda txn: (float(txn.src_balance),float(txn.tgt_balance))
+            self.needs_balances = lambda txn: (float(txn.src_balance),float(txn.tgt_balance))
         elif balance_type == "post":
-            self.needs_balance = lambda txn: (float(txn.src_balance)+txn.amt+txn.rev,float(txn.tgt_balance)-txn.amt)
+            self.needs_balances = lambda txn: (float(txn.src_balance)+txn.amt+txn.rev,float(txn.tgt_balance)-txn.amt)
         else:
-            self.needs_balance = lambda txn: (max(txn.amt+txn.rev,txn.src.balance),txn.tgt.balance)
+            self.needs_balances = lambda txn: (max(txn.amt+txn.rev,txn.src.balance),txn.tgt.balance)
 
 class Transaction(object):
     # A transaction, here, contains the basic features of a transaction with references to the source and target accounts
@@ -130,28 +130,35 @@ class Account(dict):
         if self.has_tracker(): self.tracker.adjust_tracker_up(missing)
         self.infer_balance(missing)
     def adjust_balance_down(self, extra):
-        if self.has_tracker(): self.tracker.adjust_tracker_down(extra)
+        if self.has_tracker(): yield from self.tracker.adjust_tracker_down(extra)
         self.remove_balance(extra)
-    def deposit(self,txn,track=False):
+    def deposit(self,txn,Tracker=False):
         # this function deposits a transaction onto the account
         # if the account is tracking, make it happen
-        if track:
-            yield from self.tracker.deposit(txn)
+        if Tracker:
+            yield from Tracker.process(txn,src_track=False,tgt_track=True)
         # then, adjust the balance accordingly
         txn.src.balance = txn.src.balance-txn.amt-txn.rev
         self.balance += txn.amt
-    def transfer(self,txn,track=False):
+    def transfer(self,txn,Tracker=False):
         # this function transfers a transaction from one account to another
-        if track:
-            self.tracker.transfer(txn)
+        if Tracker:
+            yield from Tracker.process(txn,src_track=True,tgt_track=True)
         # then, adjust the balances accordingly
         self.balance = self.balance-txn.amt-txn.rev
         txn.tgt.balance += txn.amt
-    def withdraw(self,txn,track=False):
+    def withdraw(self,txn,Tracker=False):
         # this function processes a withdraw transaction from this account
-        if track:
-            yield from self.tracker.withdraw(txn)
+        if Tracker:
+            yield from Tracker.process(txn,src_track=True,tgt_track=False)
         # then, adjust the balance accordingly
+        self.balance = self.balance-txn.amt-txn.rev
+        txn.tgt.balance += txn.amt
+    def bookkeep(self,txn,Tracker=False):
+        # this function keeps the accounting straight
+        if Tracker:
+            yield from Tracker.process(txn,src_track=False,tgt_track=False)
+        # then, adjust the balances accordingly
         self.balance = self.balance-txn.amt-txn.rev
         txn.tgt.balance += txn.amt
 
