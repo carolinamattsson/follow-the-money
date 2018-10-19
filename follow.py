@@ -160,7 +160,6 @@ class Tracker(list):
         flows = [branch.prev.follow_back(branch.prev.amt) for branch in new_branches if branch.prev]
         return flows
     def adjust_tracker_up(self,amt):
-        print("adjust_tracker_up")
         if self.infer:
             self.infer_deposit(amt)
     def adjust_tracker_down(self,amt):
@@ -269,11 +268,11 @@ def track_transactions(txns,Tracker,report_file):
     # The function also
     for txn in txns:
         try:
-            print(txn.src.balance,txn.tgt.balance)
+            #print(txn.src.balance,txn.tgt.balance)
             yield from check_tracker(txn,Tracker)
             yield from check_balance(txn)
-            print(txn.src.balance,txn.tgt.balance)
-            print(txn)
+            #print(txn.src.balance,txn.tgt.balance)
+            #print(txn)
             if txn.categ == 'deposit':
                 if     txn.src.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" from tracked account -> "+str(txn)+"\n")
                 yield from txn.tgt.deposit(txn,track=True)

@@ -38,6 +38,11 @@ if __name__ == '__main__':
     if not os.path.isdir(args.output_directory):
         raise OSError("Could not find the output directory",args.output_directory)
 
+    report_filename = os.path.join(args.output_directory,args.prefix+"_report.txt")
+    try:
+        os.remove(report_filename)
+    except:
+        pass
     ##################### INPUT ########################
     transaction_filename = args.input_file
     ########### Read the configuration file ############
@@ -48,7 +53,6 @@ if __name__ == '__main__':
     timewindow = (config_data["timewindow_beg"],config_data["timewindow_end"])
     boundary_type = config_data["boundary_type"] if config_data["boundary_type"] else None
     ############# Define what a *user* is ##############
-    report_filename = os.path.join(args.output_directory,args.prefix+"system_report.txt")
     if boundary_type:
         if boundary_type == 'transactions':
             system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,transaction_categories=config_data["transaction_categories"])
@@ -65,7 +69,6 @@ if __name__ == '__main__':
     if "balance_type" in config_data:
         system.define_needs_balance(config_data["balance_type"])
     #################### OUTPUT ########################
-    report_filename = os.path.join(args.output_directory,args.prefix+"wflows_report.txt")
     follow.start_report(report_filename,args)
     ####################################################
     file_ending = ".csv"

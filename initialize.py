@@ -127,7 +127,6 @@ class Account(dict):
         # this function drops the running balance in the account, also adjusting the inferred starting balance
         self.balance -= amt
     def adjust_balance_up(self, missing):
-        print("Hi!", self.has_tracker())
         if self.has_tracker(): self.tracker.adjust_tracker_up(missing)
         self.infer_balance(missing)
     def adjust_balance_down(self, extra):
