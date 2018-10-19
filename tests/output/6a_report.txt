@@ -1,0 +1,83 @@
+Running 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/6a_missing.csv
+Using the configuration file: /Users/Carolina/Documents/Research/code/follow_the_money/tests/5-6a_config.json
+Output is going here:/Users/Carolina/Documents/Research/code/follow_the_money/tests/output/6a_
+Options:
+    Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv
+    Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv
+    Stop tracking funds below 0.01 in value.
+
+
+FAILED: PROCESSING: 7,CCC,DDD,2014-11-01 01:49:00,user,user,1000.0,0.0,1000,500
+Traceback (most recent call last):
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 273, in track_transactions
+    yield from check_balance(txn)
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 257, in check_balance
+    yield from txn.src.adjust_balance_down(txn.src.balance - src_balance)
+TypeError: 'NoneType' object is not iterable
+
+FAILED: PROCESSING: 6,BBB,DDD,2014-11-01 01:12:00,user,user,500.0,0.0,1000,0
+Traceback (most recent call last):
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 273, in track_transactions
+    yield from check_balance(txn)
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 261, in check_balance
+    yield from txn.tgt.adjust_balance_down(txn.tgt.balance - tgt_balance)
+TypeError: 'NoneType' object is not iterable
+
+FAILED: PROCESSING: 7,CCC,DDD,2014-11-01 01:49:00,user,user,1000.0,0.0,1000,500
+Traceback (most recent call last):
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 273, in track_transactions
+    yield from check_balance(txn)
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 257, in check_balance
+    yield from txn.src.adjust_balance_down(txn.src.balance - src_balance)
+TypeError: 'NoneType' object is not iterable
+
+FAILED: PROCESSING: 10,BBB,AAA,2014-11-01 02:21:00,user,atm,500.0,0.0,500,1500
+Traceback (most recent call last):
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 273, in track_transactions
+    yield from check_balance(txn)
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 257, in check_balance
+    yield from txn.src.adjust_balance_down(txn.src.balance - src_balance)
+TypeError: 'NoneType' object is not iterable
+
+Running 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/6a_missing.csv
+Using the configuration file: /Users/Carolina/Documents/Research/code/follow_the_money/tests/5-6a_config.json
+Output is going here:/Users/Carolina/Documents/Research/code/follow_the_money/tests/output/6a_
+Options:
+    Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv
+    Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv
+    Stop tracking funds below 0.01 in value.
+    Record inferred deposits and withdrawals as transactions.
+
+
+FAILED: PROCESSING: 7,CCC,DDD,2014-11-01 01:49:00,user,user,1000.0,0.0,1000,500
+Traceback (most recent call last):
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 273, in track_transactions
+    yield from check_balance(txn)
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 257, in check_balance
+    yield from txn.src.adjust_balance_down(txn.src.balance - src_balance)
+TypeError: 'NoneType' object is not iterable
+
+FAILED: PROCESSING: 6,BBB,DDD,2014-11-01 01:12:00,user,user,500.0,0.0,1000,0
+Traceback (most recent call last):
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 273, in track_transactions
+    yield from check_balance(txn)
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 261, in check_balance
+    yield from txn.tgt.adjust_balance_down(txn.tgt.balance - tgt_balance)
+TypeError: 'NoneType' object is not iterable
+
+FAILED: PROCESSING: 7,CCC,DDD,2014-11-01 01:49:00,user,user,1000.0,0.0,1000,500
+Traceback (most recent call last):
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 273, in track_transactions
+    yield from check_balance(txn)
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 257, in check_balance
+    yield from txn.src.adjust_balance_down(txn.src.balance - src_balance)
+TypeError: 'NoneType' object is not iterable
+
+FAILED: PROCESSING: 10,BBB,AAA,2014-11-01 02:21:00,user,atm,500.0,0.0,500,1500
+Traceback (most recent call last):
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 273, in track_transactions
+    yield from check_balance(txn)
+  File "/Users/Carolina/Documents/Research/code/follow_the_money/follow.py", line 257, in check_balance
+    yield from txn.src.adjust_balance_down(txn.src.balance - src_balance)
+TypeError: 'NoneType' object is not iterable
+
