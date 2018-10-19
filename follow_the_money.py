@@ -38,11 +38,7 @@ if __name__ == '__main__':
     if not os.path.isdir(args.output_directory):
         raise OSError("Could not find the output directory",args.output_directory)
 
-    report_filename = os.path.join(args.output_directory,args.prefix+"_report.txt")
-    try:
-        os.remove(report_filename)
-    except:
-        pass
+    report_filename = os.path.join(args.output_directory,args.prefix+"report.txt")
     ##################### INPUT ########################
     transaction_filename = args.input_file
     ########### Read the configuration file ############
@@ -73,6 +69,7 @@ if __name__ == '__main__':
     ####################################################
     file_ending = ".csv"
     if args.infer:  file_ending = "_inf"+file_ending
+    if args.no_balance: file_ending = "_nb"+file_ending
     if args.cutoff: file_ending = "_"+str(args.cutoff)+"hr"+file_ending
     ############### Alright, let's go! #################
     if args.greedy:
