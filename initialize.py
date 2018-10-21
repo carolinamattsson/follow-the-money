@@ -217,7 +217,7 @@ def infer_starting_balance(system,transaction_file,report_filename):
         transactions = initialize_transactions(txn_reader,system,report_file)
         for txn in transactions:
             if txn.src.balance < txn.amt+txn.rev: txn.src.infer_balance(txn.amt+txn.rev-txn.src.balance)
-            txn.src.transfer(txn,track=False)
+            txn.src.bookkeep(txn,track=False)
     return system
 
 def discover_account_categories(src,tgt,amt,rev=0,basics=None,txn_type=None):

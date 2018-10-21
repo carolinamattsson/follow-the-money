@@ -37,6 +37,8 @@ python3 ../follow_the_money.py 4t_boundary.csv 1-4i_config.json ./output --prefi
 python3 ../follow_the_money.py 4t_boundary.csv 1-4t_config.json ./output --prefix 4t_ --greedy --well_mixed --infer
 python3 ../follow_the_money.py 4t_boundary2.csv 1-4i_config.json ./output --prefix 4i_2_ --greedy --well_mixed --infer
 python3 ../follow_the_money.py 4t_boundary2.csv 1-4t_config.json ./output --prefix 4t_2_ --greedy --well_mixed --infer
+python3 ../follow_the_money.py 4t_boundary3.csv 1-4i_config.json ./output --prefix 4i_3_ --greedy --well_mixed --infer
+python3 ../follow_the_money.py 4t_boundary3.csv 1-4t_config.json ./output --prefix 4t_3_ --greedy --well_mixed --infer
 
 # Plain vanilla follow-the-money where the pre-transaction balance of accounts is provided
 python3 ../follow_the_money.py 5a_balance.csv 5-6a_config.json ./output --prefix 5a_ --greedy --well_mixed
