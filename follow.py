@@ -330,6 +330,8 @@ def run(system,transaction_filename,wflow_filename,report_filename,follow_heuris
             wflow_writer.writerow(wflow.to_print())
         # loop through all accounts, and process the remaining funds
         for wflow in track_remaining_funds(system,report_file):
+            if wflow.txn_types[0] == "inferred" and wflow.txn_types[1] == "inferred":
+                continue
             wflow_writer.writerow(wflow.to_print())
     return system
 
