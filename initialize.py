@@ -5,6 +5,7 @@ Up-to-date code: https://github.com/Carromattsson/follow_the_money
 Copyright (C) 2018 Carolina Mattsson, Northeastern University
 '''
 
+from collections import defaultdict
 from datetime import datetime, timedelta
 import math
 
@@ -18,7 +19,7 @@ class System():
         self.boundary_type = boundary_type
         if self.boundary_type:
             if self.boundary_type == "transactions":
-                self.txn_categs = transaction_categories
+                self.txn_categs = defaultdict("system",transaction_categories)
                 self.get_txn_categ = lambda txn: self.txn_categs[txn.type]
             elif boundary_type == "accounts":
                 self.categ_follow = set(category_follow)
