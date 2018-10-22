@@ -172,6 +172,8 @@ def setup_system(transaction_header,timeformat,timewindow,boundary_type=None,tra
             system = System(transaction_header,timeformat,timewindow,boundary_type,category_follow=category_follow)
         elif boundary_type == "inferred_accounts":
             system = System(transaction_header,timeformat,timewindow,boundary_type,account_categories=account_categories,category_order=category_order,category_follow=category_follow)
+        elif boundary_type == "none":
+            system = System(transaction_header,timeformat,timewindow,boundary_type,timewindow)
     else:
         system = System(transaction_header,timeformat,timewindow,boundary_type,timewindow)
     ############ Make Classes System-aware #############
@@ -237,6 +239,15 @@ def discover_account_categories(src,tgt,amt,rev=0,basics=None,txn_type=None):
         tgt.basics[txn_type]['amt_in']   += float(amt)
         tgt.basics[txn_type]['alters_in'].add(src.acct_ID)
     return src, tgt
+
+def start_report(report_filename,args):
+    import os
+    with open(report_filename,'w') as report_file:
+        report_file.write("Initialing 'follow the money' for: "+os.path.abspath(args.input_file)+"\n")
+        report_file.write("Using the configuration file: "+os.path.abspath(args.config_file)+"\n")
+        if args.no_balance: report_file.write("    Ignoring inferred starting balances (no effect if balances are given)."+"\n")
+        report_file.write("\n")
+        report_file.write("\n")
 
 if __name__ == '__main__':
     print("Please run main.py, this file keeps classes and functions.")

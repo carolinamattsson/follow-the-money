@@ -293,7 +293,7 @@ def track_remaining_funds(system,report_file):
             report_file.write("FAILED: REMAINING FUNDS: "+acct_ID+"\n"+traceback.format_exc()+"\n")
         acct.close_out()
 
-def start_report(report_filename,args):
+def update_report(report_filename,args):
     import os
     with open(report_filename,'a') as report_file:
         report_file.write("Running 'follow the money' for: "+os.path.abspath(args.input_file)+"\n")
@@ -303,11 +303,10 @@ def start_report(report_filename,args):
         if args.greedy: report_file.write("    Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv"+"\n")
         if args.well_mixed: report_file.write("    Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv"+"\n")
         if args.no_tracking: report_file.write("    Weighted flows with 'no-tracking' heuristic saved with extension: wflows_no-tracking.csv"+"\n")
+        if args.infer: report_file.write("    Record inferred deposits and withdrawals as transactions."+"\n")
         if args.cutoff: report_file.write("    Stop tracking funds after "+str(args.cutoff)+" hours."+"\n")
         if args.smallest: report_file.write("    Stop tracking funds below "+str(args.smallest)+" in value."+"\n")
-        if args.infer: report_file.write("    Record inferred deposits and withdrawals as transactions."+"\n")
-        if args.no_balance: report_file.write("    Ignoring inferred starting balances when running well-mixed (no effect if balances are given)."+"\n")
-        #if args.read_balance: report_file.write("    Read balance information from columns of the transaction file."+"\n")
+        if args.no_balance: report_file.write("    Ignoring inferred starting balances (no effect if balances are given)."+"\n")
         report_file.write("\n")
         report_file.write("\n")
 
