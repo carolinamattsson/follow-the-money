@@ -4,7 +4,7 @@ This is the script to run a basic "follow the money" data transformation within 
 Author: Carolina Mattsson, Northeastern University, October 2018
 
 How to execute this code from the linux command line:
-python3 /path/to/input-file.csv /path/to/config-file.json /path/to/output-directory/ --greedy --infer --prefix "foo" 
+python3 /path/to/input-file.csv /path/to/config-file.json /path/to/output-directory/ --greedy --infer --prefix "foo"
 
 '''
 
@@ -71,6 +71,7 @@ if __name__ == '__main__':
         system.define_needs_balances(config_data["balance_type"])
     elif not args.no_balance:
         init.infer_starting_balance(system,transaction_filename,report_filename)
+    ####################################################
 
     #################### OUTPUT ########################
     follow.update_report(report_filename,args)
@@ -82,12 +83,11 @@ if __name__ == '__main__':
     ############### Alright, let's go! #################
     if args.greedy:
         filename = os.path.join(args.output_directory,args.prefix+"wflows_greedy"+file_ending)
-        follow.run(system,transaction_filename,filename,report_filename,'greedy',args.cutoff,args.smallest,args.infer)
+        follow.run(system,transaction_filename,filename,report_filename,'greedy',args.cutoff,args.smallest,args.infer,args.no_balance)
     if args.well_mixed:
-        if args.greedy and args.no_balance: system.reset(starting_balance=False)
         filename = os.path.join(args.output_directory,args.prefix+"wflows_well-mixed"+file_ending)
-        follow.run(system,transaction_filename,filename,report_filename,'well-mixed',args.cutoff,args.smallest,args.infer)
+        follow.run(system,transaction_filename,filename,report_filename,'well-mixed',args.cutoff,args.smallest,args.infer,args.no_balance)
     if args.no_tracking:
         filename = os.path.join(args.output_directory,args.prefix+"wflows_no-tracking"+file_ending)
-        follow.run(system,transaction_filename,filename,report_filename,'no-tracking',args.cutoff,args.smallest,args.infer)
+        follow.run(system,transaction_filename,filename,report_filename,'no-tracking',args.cutoff,args.smallest,args.infer,args.no_balance)
     ####################################################

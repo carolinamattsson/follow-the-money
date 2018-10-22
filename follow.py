@@ -311,11 +311,11 @@ def update_report(report_filename,args):
         report_file.write("\n\n")
         report_file.flush()
 
-def run(system,transaction_filename,wflow_filename,report_filename,follow_heuristic,cutoff,smallest,infer):
+def run(system,transaction_filename,wflow_filename,report_filename,follow_heuristic,cutoff,smallest,infer,no_balance):
     import traceback
     import csv
     ################# Reset the system ##################
-    system = system.reset()
+    system = system.reset(no_balance=no_balance)
     ############# Define the tracker class ##############
     Tracker = define_tracker(follow_heuristic,cutoff,smallest,infer)
     ###################### RUN! #########################
@@ -330,7 +330,7 @@ def run(system,transaction_filename,wflow_filename,report_filename,follow_heuris
             wflow_writer.writerow(wflow.to_print())
         # loop through all accounts, and process the remaining funds
         for wflow in track_remaining_funds(system,report_file):
-            if wflow.txn_types[0] == "inferred" and wflow.txn_types[1] == "inferred":
+            if infer and len(wflow.txn_types) == 2 and wflow.txn_types[0] == "inferred" and wflow.txn_types[1] == "inferred":
                 continue
             wflow_writer.writerow(wflow.to_print())
     return system

@@ -1,3 +1,7 @@
+Initialing 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/5t_balance.csv
+Using the configuration file: /Users/Carolina/Documents/Research/code/follow_the_money/tests/5-6t_config.json
+
+
 Running 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/5t_balance.csv
 Using the configuration file: /Users/Carolina/Documents/Research/code/follow_the_money/tests/5-6t_config.json
 Output is going here:/Users/Carolina/Documents/Research/code/follow_the_money/tests/output/5t_

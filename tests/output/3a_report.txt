@@ -1,20 +1,5 @@
-Running 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/3a_finite.csv
+Initialing 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/3a_finite.csv
 Using the configuration file: /Users/Carolina/Documents/Research/code/follow_the_money/tests/1-4a_config.json
-Output is going here:/Users/Carolina/Documents/Research/code/follow_the_money/tests/output/3a_
-Options:
-    Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv
-    Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv
-    Stop tracking funds below 0.01 in value.
-    Ignoring inferred starting balances when running well-mixed (no effect if balances are given).
-
-
-Running 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/3a_finite.csv
-Using the configuration file: /Users/Carolina/Documents/Research/code/follow_the_money/tests/1-4a_config.json
-Output is going here:/Users/Carolina/Documents/Research/code/follow_the_money/tests/output/3a_
-Options:
-    Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv
-    Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv
-    Stop tracking funds below 0.01 in value.
 
 
 Running 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/3a_finite.csv
@@ -23,18 +8,8 @@ Output is going here:/Users/Carolina/Documents/Research/code/follow_the_money/te
 Options:
     Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv
     Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv
-    Stop tracking funds below 0.01 in value.
     Record inferred deposits and withdrawals as transactions.
-
-
-Running 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/3a_finite.csv
-Using the configuration file: /Users/Carolina/Documents/Research/code/follow_the_money/tests/1-4a_config.json
-Output is going here:/Users/Carolina/Documents/Research/code/follow_the_money/tests/output/3a_
-Options:
-    Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv
-    Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv
     Stop tracking funds after 2 hours.
     Stop tracking funds below 0.01 in value.
-    Record inferred deposits and withdrawals as transactions.
 
 

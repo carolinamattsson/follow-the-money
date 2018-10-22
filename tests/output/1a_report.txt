@@ -1,10 +1,5 @@
-Running 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/1a_regular.csv
+Initialing 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/1a_regular.csv
 Using the configuration file: /Users/Carolina/Documents/Research/code/follow_the_money/tests/1-4a_config.json
-Output is going here:/Users/Carolina/Documents/Research/code/follow_the_money/tests/output/1a_
-Options:
-    Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv
-    Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv
-    Stop tracking funds below 0.01 in value.
 
 
 Running 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/1a_regular.csv

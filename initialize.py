@@ -39,9 +39,9 @@ class System():
     def create_account(self,acct_ID):
         self.accounts[acct_ID] = Account(acct_ID)
         return self.accounts[acct_ID]
-    def reset(self,starting_balance=True):
+    def reset(self,no_balance=False):
         for acct_ID,acct in self.accounts.items():
-            acct.reset(starting_balance)
+            acct.reset(no_balance)
         return self
     def get_txn_categ_accts(self,src_categ,tgt_categ):
         # this method determines whether a transaction is a 'deposit', 'transfer', or 'withdraw' in cases where accounts are either provider-facing or public-facing, and only the latter reflect "real" use of the ecosystem
@@ -105,8 +105,8 @@ class Account(dict):
     def close_out(self):
         self.balance = 0
         self.tracker = None
-    def reset(self,starting_balance=True):
-        if not starting_balance: self.starting_balance = 0
+    def reset(self,no_balance):
+        if no_balance: self.starting_balance = 0
         self.balance = self.starting_balance
         self.tracker = None
     def update_categ(self, src_tgt, txn_type):
@@ -121,6 +121,7 @@ class Account(dict):
     def track(self,Tracker_Class):
         self.tracker = Tracker_Class(self)
     def infer_balance(self, amt):
+        #print("up",self.acct_ID,self.balance,amt)
         # this function upps the running balance in the account, also adjusting the inferred starting balance
         self.starting_balance += amt
         self.balance += amt
@@ -133,32 +134,40 @@ class Account(dict):
     def adjust_balance_down(self, extra):
         if self.has_tracker(): yield from self.tracker.adjust_tracker_down(extra)
         self.remove_balance(extra)
-    def deposit(self,txn,Tracker=False):
+    def deposit(self,txn,Tracker=None):
         # this function deposits a transaction onto the account
         # if the account is tracking, make it happen
         if Tracker:
             yield from Tracker.process(txn,src_track=False,tgt_track=True)
+        else:
+            yield from []
         # then, adjust the balance accordingly
         txn.src.balance = txn.src.balance-txn.amt-txn.rev
         self.balance += txn.amt
-    def transfer(self,txn,Tracker=False):
+    def transfer(self,txn,Tracker=None):
         # this function transfers a transaction from one account to another
         if Tracker:
             yield from Tracker.process(txn,src_track=True,tgt_track=True)
+        else:
+            yield from []
         # then, adjust the balances accordingly
         self.balance = self.balance-txn.amt-txn.rev
         txn.tgt.balance += txn.amt
-    def withdraw(self,txn,Tracker=False):
+    def withdraw(self,txn,Tracker=None):
         # this function processes a withdraw transaction from this account
         if Tracker:
             yield from Tracker.process(txn,src_track=True,tgt_track=False)
+        else:
+            yield from []
         # then, adjust the balance accordingly
         self.balance = self.balance-txn.amt-txn.rev
         txn.tgt.balance += txn.amt
-    def bookkeep(self,txn,Tracker=False):
+    def bookkeep(self,txn,Tracker=None):
         # this function keeps the accounting straight
         if Tracker:
             yield from Tracker.process(txn,src_track=False,tgt_track=False)
+        else:
+            yield from []
         # then, adjust the balances accordingly
         self.balance = self.balance-txn.amt-txn.rev
         txn.tgt.balance += txn.amt
@@ -220,7 +229,8 @@ def infer_starting_balance(system,transaction_file,report_filename):
         transactions = initialize_transactions(txn_reader,system,report_file)
         for txn in transactions:
             if txn.src.balance < txn.amt+txn.rev: txn.src.infer_balance(txn.amt+txn.rev-txn.src.balance)
-            txn.src.bookkeep(txn,track=False)
+            txn.src.balance  = txn.src.balance-txn.amt-txn.rev
+            txn.tgt.balance += txn.amt
     return system
 
 def discover_account_categories(src,tgt,amt,rev=0,basics=None,txn_type=None):
