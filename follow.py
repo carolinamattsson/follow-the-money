@@ -278,6 +278,7 @@ def track_transactions(txns,Tracker,report_file):
                 yield from txn.src.bookkeep(txn,Tracker)
         except:
             report_file.write("FAILED: PROCESSING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
+        report_file.flush()
 
 def track_remaining_funds(system,report_file):
     # This function removes all the remaining money from the system, either by inferring a withdraw that brings the balance down to zero or by letting the account forget everything
@@ -307,8 +308,8 @@ def update_report(report_filename,args):
         if args.cutoff: report_file.write("    Stop tracking funds after "+str(args.cutoff)+" hours."+"\n")
         if args.smallest: report_file.write("    Stop tracking funds below "+str(args.smallest)+" in value."+"\n")
         if args.no_balance: report_file.write("    Ignoring inferred starting balances (no effect if balances are given)."+"\n")
-        report_file.write("\n")
-        report_file.write("\n")
+        report_file.write("\n\n")
+        report_file.flush()
 
 def run(system,transaction_filename,wflow_filename,report_filename,follow_heuristic,cutoff,smallest,infer):
     import traceback

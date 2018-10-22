@@ -246,8 +246,8 @@ def start_report(report_filename,args):
         report_file.write("Initialing 'follow the money' for: "+os.path.abspath(args.input_file)+"\n")
         report_file.write("Using the configuration file: "+os.path.abspath(args.config_file)+"\n")
         if args.no_balance: report_file.write("    Ignoring inferred starting balances (no effect if balances are given)."+"\n")
-        report_file.write("\n")
-        report_file.write("\n")
+        report_file.write("\n\n")
+        report_file.flush()
 
 if __name__ == '__main__':
     print("Please run main.py, this file keeps classes and functions.")
