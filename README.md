@@ -57,7 +57,9 @@ There are (at present) four options for defining the boundary of the system:
   - `none` (or left undefined)
   - `transactions`
   - `accounts`
-  - `inferred accounts`
+  - `inferred_accounts`
+  - `accounts+otc`
+  - `inferred_accounts+otc`
 
 Not defining a boundary, or setting `boundary_type` to `none`, will treat all
 transactions as user-driven and the system as fully contained.  
@@ -94,6 +96,15 @@ an `inferred_accounts` boundary also requires a list of account categories
 categories will be inferred using the mapping (`account_categories`). Some accounts
 may have multiple possible categories, and will be given the first one that appears
 in the ranked list provided (`account_order`).
+
+Sometimes, the dataset may contain *both* account and transaction information. The
+`+otc` options allow for an amalgamation of the two boundaries, given that you also provide
+a transaction mapping (`transaction_categories`). The results reflect that transactions
+between two untracked accounts are now tracked as their category, except that their  
+transaction type is given a prefix of `"OTC_"` in the output files. This is the acronym
+for "over-the-counter", which is used to describe when non-users appear to be making user
+transactions, possible on a user's behalf. Transaction types that do not appear in the mapping,
+or are not in one of the tracked categories (`deposit`,`transfer`,`withdraw`), remain untracked.
 
 In all cases, the program will report untracked transactions so you can make sure
 they are indeed uninteresting. But do note that it may be the case that no boundary
