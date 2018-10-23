@@ -29,6 +29,16 @@ class System():
                 self.categ_order = category_order
                 self.categ_follow = set(category_follow)
                 self.get_txn_categ = lambda txn: self.get_txn_categ_accts(txn.src.categ,txn.tgt.categ)
+            elif boundary_type == "accounts+otc":
+                self.categ_follow = set(category_follow)
+                self.txn_categs = defaultdict(lambda:"system",transaction_categories)
+                self.get_txn_categ = lambda txn: self.get_txn_categ_accts_otc(txn.src_categ,txn.tgt_categ,txn)
+            elif boundary_type == "inferred_accounts+otc":
+                self.acct_categs = account_categories
+                self.categ_order = category_order
+                self.categ_follow = set(category_follow)
+                self.txn_categs = defaultdict(lambda:"system",transaction_categories)
+                self.get_txn_categ = lambda txn: self.get_txn_categ_accts_otc(txn.src.categ,txn.tgt.categ,txn)
         else:
             self.get_txn_categ = lambda txn: "transfer"
         self.needs_balances = lambda txn: (max(txn.amt+txn.rev,txn.src.balance),txn.tgt.balance)
@@ -52,6 +62,18 @@ class System():
         if not src_follow and     tgt_follow: return 'deposit'
         if     src_follow and not tgt_follow: return 'withdraw'
         if not src_follow and not tgt_follow: return 'system'
+    def get_txn_categ_accts_otc(self,src_categ,tgt_categ,txn):
+        # this method determines whether a transaction is a 'deposit', 'transfer', or 'withdraw' in cases where accounts are either provider-facing or public-facing, and only the latter reflect "real" use of the ecosystem
+        # the determination is based on whether the source and target are on the public-facing or provider-facing side of the ecosystem
+        src_follow = src_categ in self.categ_follow
+        tgt_follow = tgt_categ in self.categ_follow
+        if     src_follow and     tgt_follow: return 'transfer'
+        if not src_follow and     tgt_follow: return 'deposit'
+        if     src_follow and not tgt_follow: return 'withdraw'
+        if not src_follow and not tgt_follow:
+            txn_type = txn.type
+            txn.type = "OTC_"+txn.type
+            return self.txn_categs[txn_type]
     def define_needs_balances(self,balance_type):
         if balance_type == "pre":
             self.needs_balances = lambda txn: (float(txn.src_balance),float(txn.tgt_balance))
@@ -172,19 +194,23 @@ class Account(dict):
         self.balance = self.balance-txn.amt-txn.rev
         txn.tgt.balance += txn.amt
 
-def setup_system(transaction_header,timeformat,timewindow,boundary_type=None,transaction_categories=None,account_columns=None,account_categories=None,category_order=None,category_follow=None):
+def setup_system(transaction_header,timeformat,timewindow,boundary_type,config_data):
     ############### Initialize system ##################
     if boundary_type:
-        if boundary_type == "transactions":
-            system = System(transaction_header,timeformat,timewindow,boundary_type,transaction_categories=transaction_categories)
-        elif boundary_type == "accounts":
-            system = System(transaction_header,timeformat,timewindow,boundary_type,category_follow=category_follow)
-        elif boundary_type == "inferred_accounts":
-            system = System(transaction_header,timeformat,timewindow,boundary_type,account_categories=account_categories,category_order=category_order,category_follow=category_follow)
-        elif boundary_type == "none":
-            system = System(transaction_header,timeformat,timewindow,boundary_type,timewindow)
+        if boundary_type == 'none':
+            system = System(transaction_header,timeformat,timewindow,boundary_type)
+        elif boundary_type == 'transactions':
+            system = System(transaction_header,timeformat,timewindow,boundary_type,transaction_categories=config_data["transaction_categories"])
+        elif boundary_type == 'accounts':
+            system = System(transaction_header,timeformat,timewindow,boundary_type,category_follow=config_data["account_following"])
+        elif boundary_type == 'inferred_accounts':
+            system = System(transaction_header,timeformat,timewindow,boundary_type,category_follow=config_data["account_following"],account_categories=config_data["account_categories"],category_order=config_data["account_order"])
+        elif boundary_type == 'accounts+otc':
+            system = System(transaction_header,timeformat,timewindow,boundary_type,category_follow=config_data["account_following"],transaction_categories=config_data["transaction_categories"])
+        elif boundary_type == 'inferred_accounts+otc':
+            system = System(transaction_header,timeformat,timewindow,boundary_type,category_follow=config_data["account_following"],account_categories=config_data["account_categories"],category_order=config_data["account_order"],transaction_categories=config_data["transaction_categories"])
     else:
-        system = System(transaction_header,timeformat,timewindow,boundary_type,timewindow)
+        system = System(transaction_header,timeformat,timewindow,boundary_type)
     ############ Make Classes System-aware #############
     Transaction.system = system
     Account.system = system

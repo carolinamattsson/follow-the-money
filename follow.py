@@ -257,6 +257,7 @@ def track_transactions(txns,Tracker,report_file):
     #                               3) Deposit, transfer, or withdraw the transaction
     # The function also
     for txn in txns:
+        inconsistents = set()
         try:
             #print(txn.src.balance,txn.tgt.balance)
             if Tracker.time_cutoff: yield from check_trackers(txn)
@@ -264,21 +265,25 @@ def track_transactions(txns,Tracker,report_file):
             #print(txn.src.balance,txn.tgt.balance)
             #print(txn)
             if txn.categ == 'deposit':
-                if txn.src.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" from tracked account -> "+str(txn)+"\n")
+                if txn.src.has_tracker(): inconsistents.add(txn.src.acct_ID)
                 yield from txn.tgt.deposit(txn,Tracker)
             elif txn.categ == 'transfer':
                 yield from txn.src.transfer(txn,Tracker)
             elif txn.categ == 'withdraw':
-                if txn.tgt.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" into tracked account -> "+str(txn)+"\n")
+                if txn.tgt.has_tracker(): inconsistents.add(txn.tgt.acct_ID)
                 yield from txn.src.withdraw(txn,Tracker)
             else:
                 report_file.write("WARNING: UNTRACKED: "+str(txn)+"\n")
-                if txn.src.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" from tracked account -> "+str(txn)+"\n")
-                if txn.tgt.has_tracker(): report_file.write("WARNING: INCONSISTENT BOUNDARY: "+txn.categ+" into tracked account -> "+str(txn)+"\n")
+                if txn.src.has_tracker(): inconsistents.add(txn.src.acct_ID)
+                if txn.tgt.has_tracker(): inconsistents.add(txn.tgt.acct_ID)
                 yield from txn.src.bookkeep(txn,Tracker)
         except:
             report_file.write("FAILED: PROCESSING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
-        report_file.flush()
+            report_file.flush()
+    if inconsistents: report_file.write("WARNING: INCONSISTENT BOUNDARY AT:\n")
+    for account in inconsistents:
+        report_file.write(account+"\n")
+    report_file.flush()
 
 def track_remaining_funds(system,report_file):
     # This function removes all the remaining money from the system, either by inferring a withdraw that brings the balance down to zero or by letting the account forget everything

@@ -54,18 +54,12 @@ if __name__ == '__main__':
     timewindow = (config_data["timewindow_beg"],config_data["timewindow_end"])
     boundary_type = config_data["boundary_type"] if config_data["boundary_type"] else None
     ############# Define what a *user* is ##############
-    if boundary_type:
-        if boundary_type == 'transactions':
-            system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,transaction_categories=config_data["transaction_categories"])
-        elif boundary_type == 'accounts':
-            system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,category_follow=config_data["account_following"])
-        elif boundary_type == 'inferred_accounts':
-            system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,category_follow=config_data["account_following"],account_categories=config_data["account_categories"],category_order=config_data["account_order"])
-            system = init.infer_account_categories(system,transaction_filename,report_filename)
-        else:
-            raise ValueError("Check config file -- boundary_type options are 'transactions', 'accounts', and 'inferred_accounts'",boundary_type)
-    else:
-        system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type)
+    try:
+        system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,config_data)
+    except:
+        raise ValueError("Check config file for required fields -- boundary_type options are 'none', 'transactions', 'accounts', 'inferred_accounts', 'accounts+otc', and 'inferred_accounts+otc'",boundary_type)
+    if boundary_type in ['inferred_accounts','inferred_accounts+otc']:
+        system = init.infer_account_categories(system,transaction_filename,report_filename)
     ############ Read/infer starting balance ###########
     if "balance_type" in config_data:
         system.define_needs_balances(config_data["balance_type"])

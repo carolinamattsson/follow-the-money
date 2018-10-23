@@ -12,5 +12,7 @@ Options:
     Stop tracking funds below 0.01 in value.
 
 
-WARNING: INCONSISTENT BOUNDARY: deposit from tracked account -> 12,AAA,CCC,2014-11-01 02:57:00,cash_deposit,1000.0,0.0
-WARNING: INCONSISTENT BOUNDARY: deposit from tracked account -> 12,AAA,CCC,2014-11-01 02:57:00,cash_deposit,1000.0,0.0
+WARNING: INCONSISTENT BOUNDARY AT:
+AAA
+WARNING: INCONSISTENT BOUNDARY AT:
+AAA
