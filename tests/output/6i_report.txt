@@ -1,5 +1,5 @@
-Running 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/6t_missing.csv
-Using the configuration file: /Users/Carolina/Documents/Research/code/follow_the_money/tests/5-6i_config.json
+Running 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/input/6t_missing.csv
+Using the configuration file: /Users/Carolina/Documents/Research/code/follow_the_money/tests/config/5-6i_config.json
 Output is going here:/Users/Carolina/Documents/Research/code/follow_the_money/tests/output/6i_
 Options:
     Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv
