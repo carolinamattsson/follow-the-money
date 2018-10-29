@@ -2,13 +2,15 @@ from collections import defaultdict
 import traceback
 
 #######################################################################################################
-def split_by_month(wflows):
+def split_by_month(wflows,infer):
     for wflow in wflows:
+        if not infer and "inferred" in wflow["flow_txn_types"]:
+            continue
         month_ID = "-".join(wflow['flow_timestamp'].split("-")[:-1])
         yield month_ID, wflow
 
 #######################################################################################################
-def piechart_by_categ(wflow_file,piechart_file,issues_file,split_by=split_by_month,max_hops=6):
+def piechart_by_categ(wflow_file,piechart_file,issues_file,max_hops=6,infer=False):
     ##########################################################################################
     wflow_header = ['flow_timestamp','flow_amt','flow_frac_root','flow_length','flow_length_wrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_durations','flow_rev_fracs','flow_categs']
     piechart_header = ['hop','txn_type','amount','frac_root','txns','senders']
@@ -19,7 +21,7 @@ def piechart_by_categ(wflow_file,piechart_file,issues_file,split_by=split_by_mon
         # piecharts is a rather nested dictionary: split_categ -> txn_type -> hop -> base_dictionary
         piecharts = defaultdict(lambda: defaultdict(lambda: {hop:{'amount':0,'frac_root':0,'txns':set(),'senders':set()} for hop in range(max_hops+1)}))
         # populate the piechart dictionary
-        for categ, wflow in split_by_month(reader_wflows):
+        for categ, wflow in split_by_month(reader_wflows,infer):
             try:
                 wflow = parse(wflow)
                 piecharts = update_piechart(piecharts, categ, wflow, max_hops)
@@ -151,6 +153,7 @@ if __name__ == '__main__':
     parser.add_argument('output_directory', help='Path to the output directory')
     parser.add_argument('--prefix', default="", help='Prefix prepended to output files')
     parser.add_argument('--max_hops', type=int, default=6, help='Create a bar chart file out to this step')
+    parser.add_argument('--infer', action="store_true", default=False, help='Include flows that begin or end with inferred transactions')
 
     args = parser.parse_args()
 
@@ -160,9 +163,9 @@ if __name__ == '__main__':
         raise OSError("Could not find the output directory",args.output_directory)
 
     wflow_filename = args.input_file
-    chart_filename = os.path.join(args.output_directory,args.prefix+"_chart.csv")
-    report_filename = os.path.join(args.output_directory,args.prefix+"_chart_issues.txt")
+    chart_filename = os.path.join(args.output_directory,args.prefix+"chart.csv")
+    report_filename = os.path.join(args.output_directory,args.prefix+"chart_issues.txt")
 
     ######### Creates weighted flow file #################
-    piechart_by_categ(wflow_filename,chart_filename,report_filename,max_hops=int(args.max_hops))
+    piechart_by_categ(wflow_filename,chart_filename,report_filename,max_hops=int(args.max_hops),infer=args.infer)
     #################################################
