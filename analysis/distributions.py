@@ -89,6 +89,7 @@ def update_dists(dists, split_categ, wflow, digits_amt, digits_nrm, digits_dur):
     flow_prev_dur  = 0
     flow_prev_amt  = wflow['flow_amt']
     flow_prev_nrm  = wflow['flow_frac_root']
+    last = len(wflow['flow_durations'])-1
     for i,flow_this_dur in enumerate(wflow['flow_durations']):
         flow_this_dur = 10**round(math.log(flow_this_dur,10),digits_dur) if flow_this_dur else 0
         flow_this_amt = wflow['flow_amt']*(1-wflow['flow_rev_fracs'][i])
@@ -104,7 +105,7 @@ def update_dists(dists, split_categ, wflow, digits_amt, digits_nrm, digits_dur):
             else:
                 dists['duration'][split_categ][flow_this_dur]['_in_amt'] += flow_this_amt
                 dists['duration'][split_categ][flow_this_dur]['_in_nrm'] += flow_this_nrm
-        elif i == wflow['flow_length']-1 and wflow['flow_categs'][1] == 'withdraw':
+        elif i == last and wflow['flow_categs'][1] == 'withdraw':
             dists['duration'][split_categ][flow_this_dur]['_out_amt'] += flow_this_amt
             dists['duration'][split_categ][flow_this_dur]['_out_nrm'] += flow_this_nrm
         else:
@@ -157,9 +158,9 @@ if __name__ == '__main__':
     parser.add_argument('input_file', help='The input weighted flow file (created by follow_the_money.py)')
     parser.add_argument('output_directory', help='Path to the output directory')
     parser.add_argument('--prefix', default="", help='Prefix prepended to output files')
-    parser.add_argument('--digits_amt', type=int, default=2, help='Decimal places in rounded amount')
-    parser.add_argument('--digits_nrm', type=int, default=4, help='Decimal places in rounded normalized amount (ie. fraction of root transaction)')
-    parser.add_argument('--digits_dur', type=int, default=4, help='Decimal places in rounded hours of duration')
+    parser.add_argument('--digits_amt', type=int, default=3, help='Decimal places in rounded amount')
+    parser.add_argument('--digits_nrm', type=int, default=3, help='Decimal places in rounded normalized amount (ie. fraction of root transaction)')
+    parser.add_argument('--digits_dur', type=int, default=3, help='Decimal places in rounded hours of duration')
     parser.add_argument('--infer', action="store_true", default=False, help='Include flows that begin or end with inferred transactions')
 
     args = parser.parse_args()
