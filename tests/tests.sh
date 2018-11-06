@@ -55,3 +55,13 @@ python3 ../follow_the_money.py input/6t_missing.csv config/5-6t_config.json ./ou
 python3 ../follow_the_money.py input/6a_missing.csv config/5-6a_config.json ./output --prefix 6a_ --greedy --well_mixed --infer
 python3 ../follow_the_money.py input/6t_missing.csv config/5-6i_config.json ./output --prefix 6i_ --greedy --well_mixed --infer
 python3 ../follow_the_money.py input/6t_missing.csv config/5-6t_config.json ./output --prefix 6t_ --greedy --well_mixed --infer
+
+# Incorporating fees charged to the sender AND the recipient (ie. revenue for the provider)
+python3 ../follow_the_money.py input/7a_split.csv config/7-8a_config.json ./output --prefix 7a_ --greedy --well_mixed
+python3 ../follow_the_money.py input/7t_split.csv config/7-8i_config.json ./output --prefix 7i_ --greedy --well_mixed
+python3 ../follow_the_money.py input/7t_split.csv config/7-8t_config.json ./output --prefix 7t_ --greedy --well_mixed
+
+# Illustrate the handling of fees charged in excess of the total transferred amount
+python3 ../follow_the_money.py input/8a_excess.csv config/7-8a_config.json ./output --prefix 8a_ --greedy --well_mixed
+python3 ../follow_the_money.py input/8t_excess.csv config/7-8i_config.json ./output --prefix 8i_ --greedy --well_mixed
+python3 ../follow_the_money.py input/8t_excess.csv config/7-8t_config.json ./output --prefix 8t_ --greedy --well_mixed

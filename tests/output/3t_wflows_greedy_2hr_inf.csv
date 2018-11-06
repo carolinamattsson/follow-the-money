@@ -3,7 +3,5 @@ flow_timestamp,flow_amt,flow_frac_root,flow_length,flow_length_wrev,flow_duratio
 2014-11-01 00:51:00,500.0,1.0,1,1.0,0.9833333333333333,"[AAA,BBB,DDD,AAA]","[5,6,8]","[direct_deposit,p2p_transfer,cash_withdraw]","[0.35,0.6333333333333333]","[0.0,0.0,0.0]","(deposit,withdraw)"
 2014-11-01 00:21:00,1000.0,0.5,1,1.0,1.4833333333333334,"[AAA,CCC,DDD,AAA]","[3,7,8]","[cash_deposit,p2p_transfer,cash_withdraw]","[1.4666666666666666,0.016666666666666666]","[0.0,0.0,0.0]","(deposit,withdraw)"
 2014-11-01 00:21:00,100.0,0.05,1,1.0,1.95,"[AAA,CCC,EEE,RRR]","[3,4,9]","[cash_deposit,p2p_transfer,card_payment]","[0.08333333333333333,1.8666666666666667]","[0.0,0.0,0.0]","(deposit,withdraw)"
-2014-11-01 00:00:00,500.0,0.125,0,0,0.0,"[BBB,BBB]",[i],[inferred],[],[0.0],"(deposit,deposit)"
 2014-11-01 02:21:00,500.0,1.0,0,0,0.0,"[BBB,AAA]",[10],[cash_withdraw],[],[0.0],"(withdraw,withdraw)"
 2014-11-01 00:21:00,900.0,0.45,1,1.0,0.08333333333333333,"[AAA,CCC,EEE]","[3,4]","[cash_deposit,p2p_transfer]",[0.08333333333333333],"[0.0,0.0]","(deposit,transfer)"
-2014-11-01 03:00:00,900.0,1.0,0,0,0.0,"[EEE,EEE]",[i],[inferred],[],[0.0],"(withdraw,withdraw)"

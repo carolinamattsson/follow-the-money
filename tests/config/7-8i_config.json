@@ -1,12 +1,11 @@
 {
-  "transaction_header": ["txn_ID","src_ID","tgt_ID","timestamp","type","amt","fee","src_balance","tgt_balance"],
+  "transaction_header": ["txn_ID","src_ID","tgt_ID","timestamp","type","amt","src_fee","tgt_fee"],
   "timeformat": "%Y-%m-%d %H:%M:%S",
   "timewindow_beg": "2014-11-01 00:00:00",
   "timewindow_end": "2014-11-01 03:00:00",
-  "revenue/fee": "sender",
-  "balance_type": "pre",
+  "revenue/fee": "split",
   "boundary_type": "inferred_accounts",
-  "account_following": ["user"],
+  "account_following": ["user","merchant"],
   "account_order": ["bank","atm","corporation","merchant","user"],
   "account_categories":{
     "check_deposit": {"src":"bank","tgt":"user"},
@@ -14,7 +13,7 @@
     "direct_deposit":{"src":"corporation","tgt":"user"},
     "p2p_transfer":  {"src":"user","tgt":"user"},
     "bill_payment":  {"src":"user","tgt":"corporation"},
-    "card_payment":  {"src":"user","tgt":"pos"},
+    "card_payment":  {"src":"user","tgt":"merchant"},
     "cash_withdraw": {"src":"user","tgt":"atm"}
   }
 }

@@ -1,8 +1,9 @@
 {
-  "transaction_header": ["txn_ID","src_ID","tgt_ID","timestamp","src_categ","tgt_categ","amt","rev","src_balance","tgt_balance"],
+  "transaction_header": ["txn_ID","src_ID","tgt_ID","timestamp","src_categ","tgt_categ","amt","fee","src_balance","tgt_balance"],
   "timeformat": "%Y-%m-%d %H:%M:%S",
   "timewindow_beg": "2014-11-01 00:00:00",
   "timewindow_end": "2014-11-01 03:00:00",
+  "revenue/fee": "sender",
   "balance_type": "pre",
   "boundary_type": "accounts",
   "account_following": ["user"]

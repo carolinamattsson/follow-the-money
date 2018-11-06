@@ -21,7 +21,7 @@ incoming data needs to be ordered, and contain at least these columns:
 
 Additional columns that can be used with different variations:
  - type (transaction type)
- - rev (fee/revenue incurred)
+ - fee (fee/revenue incurred)
  - src/tgt_categ (known account categories)
  - src/tgt_balance (known account balances)
 
@@ -34,6 +34,23 @@ contain the `timeformat`. Note that the file itself is read in the order given
 to calculate time differences. As such, it can be inferred or coarse. Relatedly,
 the `config.json` file needs to contain the `timewindow_beg` and `timewindow_end`
 so that the program can account for the finite time window of the data.
+
+If each transaction contains information on the fee or fees that users pay to use the
+service (ie. the revenue the provider is generating from running the service), the
+program requires a `fee/revenue` entry in the `config.json`. This entry can be set to
+one of several possible accounting conventions. The `sender` convention tells the
+code that `amt` `+` `fee` is to be taken from the sender and `amt` placed in the
+recipient's account. The `recipient` convention means instead that `amt` is taken from
+the sender and `amt` `-` `fee` is placed in the recipient's account. Some providers
+may assess fees in both ways (the `split` convention) where `amt` `+` `src_fee` is taken
+from the sender and `amt` `-` `tgt_fee` is placed in the recipient's account. Note that
+these options all treat fees as tied to the transaction itself -- these funds never
+reach the account of the recipient and are not "followed" separately. It is, of course,
+entirely possible for providers to instead represent fees as separate transactions and
+it is possible to pre-process data into such a form using additional assumptions. This
+code does this only if the fees assessed on a recipient exceed the transaction amount,
+in which case this code withdraws a separate fee from the recipient's account
+immediately prior to processing the transaction in question.
 
 If the transaction file contains information on the balance of the accounts at
 the time of the transaction, you can tell the program to monitor these by putting

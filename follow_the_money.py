@@ -49,18 +49,18 @@ if __name__ == '__main__':
     ########### Read the configuration file ############
     with open(args.config_file, 'r') as config_file:
         config_data = json.load(config_file)
-    transaction_header = config_data["transaction_header"]
-    timeformat = config_data["timeformat"]
-    timewindow = (config_data["timewindow_beg"],config_data["timewindow_end"])
-    boundary_type = config_data["boundary_type"] if config_data["boundary_type"] else None
-    ############# Define what a *user* is ##############
-    try:
-        system = init.setup_system(transaction_header,timeformat,timewindow,boundary_type,config_data)
-    except:
-        raise ValueError("Check config file for required fields -- boundary_type options are 'none', 'transactions', 'accounts', 'inferred_accounts', 'accounts+otc', and 'inferred_accounts+otc'",boundary_type)
-    if boundary_type in ['inferred_accounts','inferred_accounts+otc']:
+    ################ Initialize system #################
+    system = init.setup_system(config_data)
+    ########## Define accounting convention ############
+    if "revenue/fee" in config_data:
+        system = init.define_fee_accounting(system,config_data)
+    ############# Define system boundary ###############
+    if "boundary_type" in config_data:
+        system = init.define_system_boundary(system,config_data)
+    ########### Infer account categories ###############
+    if config_data["boundary_type"] in ['inferred_accounts','inferred_accounts+otc']:
         system = init.infer_account_categories(system,transaction_filename,report_filename)
-    ############ Read/infer starting balance ###########
+    ########## Read/infer starting balance #############
     if "balance_type" in config_data:
         system.define_needs_balances(config_data["balance_type"])
     elif not args.no_balance:
