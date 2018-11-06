@@ -57,9 +57,9 @@ if __name__ == '__main__':
     ############# Define system boundary ###############
     if "boundary_type" in config_data:
         system = init.define_system_boundary(system,config_data)
-    ########### Infer account categories ###############
-    if config_data["boundary_type"] in ['inferred_accounts','inferred_accounts+otc']:
-        system = init.infer_account_categories(system,transaction_filename,report_filename)
+        ########### Infer account categories ###############
+        if config_data["boundary_type"] in ['inferred_accounts','inferred_accounts+otc']:
+            system = init.infer_account_categories(system,transaction_filename,report_filename)
     ########## Read/infer starting balance #############
     if "balance_type" in config_data:
         system.define_needs_balances(config_data["balance_type"])
