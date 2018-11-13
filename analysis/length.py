@@ -68,9 +68,9 @@ def update_piechart(piecharts, categ, wflow, max_hops):
             # continuous terms
             rev_frac = float(wflow['flow_rev_fracs'][i]) - float(wflow['flow_rev_fracs'][i-1]) if (i > 0 and wflow['flow_rev_fracs'][i-1]) else float(wflow['flow_rev_fracs'][i])
             piecharts[categ][txn_type][hop]['amount']    += wflow['flow_amt']*(1-rev_frac)
-            piecharts[categ]['rev'][hop]['amount']       += wflow['flow_amt']*(rev_frac)
+            piecharts[categ]['FEE'][hop]['amount']       += wflow['flow_amt']*(rev_frac)
             piecharts[categ][txn_type][hop]['frac_root'] += wflow['flow_frac_root']*(1-rev_frac)
-            piecharts[categ]['rev'][hop]['frac_root']    += wflow['flow_frac_root']*(rev_frac)
+            piecharts[categ]['FEE'][hop]['frac_root']    += wflow['flow_frac_root']*(rev_frac)
             # discrete terms
             piecharts[categ][txn_type][hop]['txns'].add(wflow['flow_txn_IDs'][i])
             if wflow['flow_acct_IDs'][i]:

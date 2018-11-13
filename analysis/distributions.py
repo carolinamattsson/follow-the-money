@@ -96,6 +96,8 @@ def update_dists(dists, split_categ, wflow, digits_amt, digits_nrm, digits_dur):
         flow_this_nrm = wflow['flow_frac_root']*(1-wflow['flow_rev_fracs'][i])
         dists['duration'][split_categ][flow_prev_dur]['__system_amt'] += flow_prev_amt - flow_this_amt
         dists['duration'][split_categ][flow_prev_dur]['__system_nrm'] += flow_prev_nrm - flow_this_nrm
+        dists['duration'][split_categ][flow_prev_dur]['_end_fee_amt'] += flow_prev_amt - flow_this_amt
+        dists['duration'][split_categ][flow_prev_dur]['_end_fee_nrm'] += flow_prev_nrm - flow_this_nrm
         dists['duration'][split_categ][flow_this_dur]['__node_amt']  += flow_this_amt
         dists['duration'][split_categ][flow_this_dur]['__node_nrm']  += flow_this_nrm
         if i == 0 and wflow['flow_categs'][0] == 'deposit':
@@ -120,6 +122,15 @@ def update_dists(dists, split_categ, wflow, digits_amt, digits_nrm, digits_dur):
         flow_prev_nrm  = flow_this_nrm
     dists['duration'][split_categ][flow_prev_dur]['__system_amt'] += flow_prev_amt
     dists['duration'][split_categ][flow_prev_dur]['__system_nrm'] += flow_prev_nrm
+    if last < 0:
+        dists['duration'][split_categ][flow_prev_dur]['_end_otc_amt'] += flow_prev_amt
+        dists['duration'][split_categ][flow_prev_dur]['_end_otc_nrm'] += flow_prev_nrm
+    elif last == 0:
+        dists['duration'][split_categ][flow_prev_dur]['_end_'+wflow['flow_txn_types'][-1]+'_amt'] += flow_prev_amt
+        dists['duration'][split_categ][flow_prev_dur]['_end_'+wflow['flow_txn_types'][-1]+'_nrm'] += flow_prev_nrm
+    elif last > 0:
+        dists['duration'][split_categ][flow_prev_dur]['_end_transfer_amt'] += flow_prev_amt
+        dists['duration'][split_categ][flow_prev_dur]['_end_transfer_nrm'] += flow_prev_nrm
     return dists
 
 def combine_dists(dists,breakdowns,digits_amt,digits_nrm,digits_dur):
