@@ -3,19 +3,23 @@
 # (head -1 DATE_weighted_flowfile.csv && tail -n +2 DATE_weighted_flowfile.csv | sort -t, -k7 -s) > DATE_weighted_flowfile_byagent.csv
 
 #######################################################################################################
-def aggregate_enter_exit(flow_filename,enter_exit_filename,agent_filename,issues_filename,processes=1,sources=[],targets=[],infer=False):
-    from collections import defaultdict
+from datetime import datetime, timedelta
+from collections import defaultdict
+
+#######################################################################################################
+def aggregate_enter_exit(flow_filename,enter_exit_filename,agent_filename,issues_filename,processes=1,sources=[],targets=[],infer=False,timeformat="%Y-%m-%d %H:%M:%S"):
     from multiprocessing import Pool
     import traceback
     ##########################################################################################
-    global issues_file, writer_issues, enter_exit_header, own_sources, own_targets
+    global issues_file, writer_issues, enter_exit_header, own_sources, own_targets, flow_timeformat
+    flow_timeformat = timeformat
     own_sources = sources + ['inferred']
     own_targets = targets + ['inferred']
     wflow_header      = ['flow_timestamp','flow_amt','flow_frac_root','flow_length','flow_length_wrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_durations','flow_rev_fracs','flow_categs']
     enter_exit_header = ['enter_ID','exit_ID','agent_type_deposits','agent_type_amount','total_users','total_normalized','total_amount']
     enter_exit_header = enter_exit_header + [split+"_"+weight for split in ["0user","1user","2user","3+user"] for weight in ["amt","nrm"]]
-    enter_exit_header = enter_exit_header + [split+"_"+weight for split in ["0hr","0-24hr","24-168hr",">168hr"] for weight in ["amt","nrm"]]
-    enter_exit_header = enter_exit_header + [split+"_"+weight for split in ["1user_0-24hr","1user_24-168hr","1user_>168hr"] for weight in ["amt","nrm"]]
+    enter_exit_header = enter_exit_header + [split+"_"+weight for split in ["0days","1days","2days","3+days"] for weight in ["amt","nrm"]]
+    enter_exit_header = enter_exit_header + [split+"_"+weight for split in ["1user_0days","1user_1days","1user_2days","1user_3+days"] for weight in ["amt","nrm"]]
     agent_header      = ['agent_ID','agent_type_deposits','agent_type_amount_deposited','agent_type_amount_withdrawn','deposits_deposits','deposits_amount','withdraws_amount','self_users','self_deposits','self_amount']
     #agent_header      = agent_header + [term+'~'+exit for term in ['deposits_exit_deposits','deposits_exit_amount'] for exit in ['CASHOUT','ATMWD','BILLPAY','TOPUP','TOPUP_TRANSFER','DTOPUP','REVENUE','UNLOAD','inferred','other']]
     #agent_header      = agent_header + [term+'~'+enter for term in ['withdraws_enter_amount'] for enter in ['CASHIN','BULKPAY','LOAD','inferred','other'] ]
@@ -118,18 +122,24 @@ def make_network(agent):
             agent_link['total_amount']     += flow['flow_amt']
             # check where to attribute the amount
             number_users = "".join([str(len(flow['flow_acct_IDs'][1:-1])) if len(flow['flow_acct_IDs'][1:-1])<3 else "3+","user"])
-            number_hours = "0hr" if flow["flow_duration"]==0 else ("0-24hr" if flow["flow_duration"]<24 else ("24-168hr" if flow["flow_duration"]<168 else (">168hr")))
+            number_days = "".join(get_days(flow['flow_timestamp'],flow["flow_duration"],flow_timeformat),"days")
             agent_link[number_users+"_amt"] += flow['flow_amt']
             agent_link[number_users+"_nrm"] += flow['flow_frac_root']
-            agent_link[number_hours+"_amt"] += flow['flow_amt']
-            agent_link[number_hours+"_nrm"] += flow['flow_frac_root']
-            if number_users == "1user" and number_hours!="0hr":
-                agent_link[number_users+"_"+number_hours+"_amt"] += flow['flow_amt']
-                agent_link[number_users+"_"+number_hours+"_nrm"] += flow['flow_frac_root']
+            agent_link[number_days+"_amt"] += flow['flow_amt']
+            agent_link[number_days+"_nrm"] += flow['flow_frac_root']
+            if number_users == "1user":
+                agent_link[number_users+"_"+number_days+"_amt"] += flow['flow_amt']
+                agent_link[number_users+"_"+number_days+"_nrm"] += flow['flow_frac_root']
         except:
             writer_issues.writerow(['could not make_network for flow:',flow['flow_txn_IDs'],traceback.format_exc()])
             issues_file.flush()
     return agent_adjacency
+
+def get_days(flow_timestamp,flow_duration,timeformat):
+    start_timestamp = datetime.strptime(flow_timestamp,timeformat)
+    end_timestamp   = start_timestamp + flow_duration
+    days = (end_timestamp.date()-start_timestamp.date()).days
+    return days
 
 def finalize_link(agent_link):
     agent_link['total_users'] = len(agent_link['total_users'])
@@ -235,6 +245,7 @@ if __name__ == '__main__':
     parser.add_argument('--source', action='append', default=[], help='Transaction types that are their own sources (first sender is ignored)')
     parser.add_argument('--target', action='append', default=[], help='Transaction types that are their own targets (last recipient is ignored)')
     parser.add_argument('--infer', action="store_true", default=False, help='Include flows that begin or end with inferred transactions')
+    parser.add_argument('--timeformat', default="%Y-%m-%d %H:%M:%S", help='Timeformat of the flow timestamp, if different from %Y-%m-%d %H:%M:%S')
 
     args = parser.parse_args()
 
@@ -251,5 +262,5 @@ if __name__ == '__main__':
     report_filename = os.path.join(args.output_directory,args.prefix+"network_issues.txt")
 
     ##### Creates network file, and agent+ file #####
-    aggregate_enter_exit(wflow_filename,network_filename,agents_filename,report_filename,processes=args.parallel,sources=args.source,targets=args.target,infer=args.infer)
+    aggregate_enter_exit(wflow_filename,network_filename,agents_filename,report_filename,processes=args.parallel,sources=args.source,targets=args.target,infer=args.infer,timeformat=args.timeformat)
     #################################################
