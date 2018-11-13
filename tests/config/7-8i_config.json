@@ -3,7 +3,7 @@
   "timeformat": "%Y-%m-%d %H:%M:%S",
   "timewindow_beg": "2014-11-01 00:00:00",
   "timewindow_end": "2014-11-01 03:00:00",
-  "revenue/fee": "split",
+  "fee/revenue": "split",
   "boundary_type": "inferred_accounts",
   "account_following": ["user","merchant"],
   "account_order": ["bank","atm","corporation","merchant","user"],

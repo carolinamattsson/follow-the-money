@@ -21,7 +21,7 @@ incoming data needs to be ordered, and contain at least these columns:
 
 Additional columns that can be used with different variations:
  - type (transaction type)
- - fee (fee/revenue incurred)
+ - src/tgt_fee (fee/revenue incurred)
  - src/tgt_categ (known account categories)
  - src/tgt_balance (known account balances)
 
@@ -39,9 +39,9 @@ If each transaction contains information on the fee or fees that users pay to us
 service (ie. the revenue the provider is generating from running the service), the
 program requires a `fee/revenue` entry in the `config.json`. This entry can be set to
 one of several possible accounting conventions. The `sender` convention tells the
-code that `amt` `+` `fee` is to be taken from the sender and `amt` placed in the
+code that `amt` `+` `src_fee` is to be taken from the sender and `amt` placed in the
 recipient's account. The `recipient` convention means instead that `amt` is taken from
-the sender and `amt` `-` `fee` is placed in the recipient's account. Some providers
+the sender and `amt` `-` `tgt_fee` is placed in the recipient's account. Some providers
 may assess fees in both ways (the `split` convention) where `amt` `+` `src_fee` is taken
 from the sender and `amt` `-` `tgt_fee` is placed in the recipient's account. Note that
 these options all treat fees as tied to the transaction itself -- these funds never

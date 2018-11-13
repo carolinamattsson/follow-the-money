@@ -191,7 +191,7 @@ def setup_system(config_data):
     return system
 
 def define_fee_accounting(system,config_data):
-    fee_convention = config_data["revenue/fee"]
+    fee_convention = config_data["fee/revenue"]
     if   fee_convention == "sender":
         new_txn_header = None if "src_fee" in system.txn_header else ["src_"+term if term == "fee" else term for term in system.txn_header]
         system.define_fee_accounting("sender",new_txn_header)
@@ -201,7 +201,7 @@ def define_fee_accounting(system,config_data):
     elif fee_convention == "split":
         system.define_fee_accounting("split")
     else:
-        raise ValueError("Config error: 'revenue/fee' options are 'sender', 'recipient', 'split' -- ",fee_convention)
+        raise ValueError("Config error: 'fee/revenue' options are 'sender', 'recipient', 'split' -- ",fee_convention)
     return system
 
 def define_system_boundary(system,config_data):

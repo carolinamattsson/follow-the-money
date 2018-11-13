@@ -3,7 +3,7 @@
   "timeformat": "%Y-%m-%d %H:%M:%S",
   "timewindow_beg": "2014-11-01 00:00:00",
   "timewindow_end": "2014-11-01 03:00:00",
-  "revenue/fee": "sender",
+  "fee/revenue": "sender",
   "boundary_type": "accounts",
   "account_following": ["user"]
 }

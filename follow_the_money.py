@@ -52,7 +52,7 @@ if __name__ == '__main__':
     ################ Initialize system #################
     system = init.setup_system(config_data)
     ########## Define accounting convention ############
-    if "revenue/fee" in config_data:
+    if "revenue/fee" in config_data or 'fee/revenue' in config_data:
         system = init.define_fee_accounting(system,config_data)
     ############# Define system boundary ###############
     if "boundary_type" in config_data:
