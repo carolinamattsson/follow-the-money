@@ -1,3 +1,2 @@
 # Wish list of future things to be implemented #
-frac_leaf as well as frac_root --> not hard :)
-in congif, allow for the possibility that the amount column *includes* the fee --> a bit tricky
+frac_leaf as well as frac_root, really just a vector of frac_txns --> not hard :)

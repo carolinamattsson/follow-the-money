@@ -9,7 +9,7 @@ Options:
     Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv
     Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv
     Record inferred deposits and withdrawals as transactions.
-    Stop tracking funds after 2 hours.
+    Stop tracking funds after 24 hours.
     Stop tracking funds below 0.01 in value.
 
 

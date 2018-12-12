@@ -6,9 +6,9 @@ python3 ../follow_the_money.py input/1t_regular.csv config/1-4i_config.json ./ou
 python3 ../follow_the_money.py input/1t_regular.csv config/1-4t_config.json ./output --prefix 1t_ --greedy --well_mixed
 
 # Incorporating a time cutoff, after which money stops being tracked
-python3 ../follow_the_money.py input/1a_regular.csv config/1-4a_config.json ./output --prefix 1a_ --greedy --well_mixed --cutoff 2
-python3 ../follow_the_money.py input/1t_regular.csv config/1-4i_config.json ./output --prefix 1i_ --greedy --well_mixed --cutoff 2
-python3 ../follow_the_money.py input/1t_regular.csv config/1-4t_config.json ./output --prefix 1t_ --greedy --well_mixed --cutoff 2
+python3 ../follow_the_money.py input/1a_regular.csv config/1-4a_config.json ./output --prefix 1a_ --greedy --well_mixed --cutoff 24
+python3 ../follow_the_money.py input/1t_regular.csv config/1-4i_config.json ./output --prefix 1i_ --greedy --well_mixed --cutoff 24
+python3 ../follow_the_money.py input/1t_regular.csv config/1-4t_config.json ./output --prefix 1t_ --greedy --well_mixed --cutoff 24
 
 # Incorporating fees charged to the user (ie. revenue for the provider)
 python3 ../follow_the_money.py input/2a_revenue.csv config/1-4a_config.json ./output --prefix 2a_ --greedy --well_mixed
@@ -27,9 +27,9 @@ python3 ../follow_the_money.py input/3t_finite.csv config/1-4t_config.json ./out
 python3 ../follow_the_money.py input/3a_finite.csv config/1-4a_config.json ./output --prefix 3a_ --greedy --well_mixed --infer
 python3 ../follow_the_money.py input/3t_finite.csv config/1-4i_config.json ./output --prefix 3i_ --greedy --well_mixed --infer
 python3 ../follow_the_money.py input/3t_finite.csv config/1-4t_config.json ./output --prefix 3t_ --greedy --well_mixed --infer
-python3 ../follow_the_money.py input/3a_finite.csv config/1-4a_config.json ./output --prefix 3a_ --greedy --well_mixed --cutoff 2 --infer
-python3 ../follow_the_money.py input/3t_finite.csv config/1-4i_config.json ./output --prefix 3i_ --greedy --well_mixed --cutoff 2 --infer
-python3 ../follow_the_money.py input/3t_finite.csv config/1-4t_config.json ./output --prefix 3t_ --greedy --well_mixed --cutoff 2 --infer
+python3 ../follow_the_money.py input/3a_finite.csv config/1-4a_config.json ./output --prefix 3a_ --greedy --well_mixed --cutoff 24 --infer
+python3 ../follow_the_money.py input/3t_finite.csv config/1-4i_config.json ./output --prefix 3i_ --greedy --well_mixed --cutoff 24 --infer
+python3 ../follow_the_money.py input/3t_finite.csv config/1-4t_config.json ./output --prefix 3t_ --greedy --well_mixed --cutoff 24 --infer
 
 # Illustrate the handling of evident inconsistencies in the network boundary or transactions outside the boundary
 python3 ../follow_the_money.py input/4a_boundary.csv config/1-4a_config.json ./output --prefix 4a_ --greedy --well_mixed --infer
