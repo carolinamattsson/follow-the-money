@@ -17,7 +17,7 @@ def aggregate_enter_exit(flow_filename,enter_exit_filename,agent_filename,issues
     own_sources = sources + ['inferred']
     own_targets = targets + ['inferred']
     wflow_header      = ['flow_timestamp','flow_amt','flow_frac_root','flow_length','flow_length_wrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_durations','flow_rev_fracs','flow_categs']
-    enter_exit_header = ['enter_ID','exit_ID','edge_type_amt','edge_type_nrm','total_users','total_normalized','total_amount']
+    enter_exit_header = ['enter_ID','exit_ID','edge_type_amt','edge_type_nrm','total_users','total_nrm','total_amt']
     enter_exit_header = enter_exit_header + [split+"_"+weight for split in ["0user","1user","2user","3+user"] for weight in ["amt","nrm"]]
     enter_exit_header = enter_exit_header + [split+"_"+weight for split in ["0days","1days","2days","3+days"] for weight in ["amt","nrm"]]
     enter_exit_header = enter_exit_header + [split+"_"+weight for split in ["1user_1days","1user_2days","1user_3+days"] for weight in ["amt","nrm"]]
