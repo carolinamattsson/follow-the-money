@@ -9,11 +9,11 @@ import csv
 import networkx as nx
 from networkx.algorithms.community.quality import modularity
 from collections import defaultdict
-from make_enterexit_pajek import parse_pajek
-from make_enterexit_pajek import generate_pajek
+from make_split_pajek import parse_pajek
+from make_split_pajek import generate_pajek
 import backboning
 
-def make_gexf(network_path,node_sort,nodes,edge_sort,edges,partitions=[]):
+def make_gexf(network_path,node_sort,nodes,edge_sort,edges,attributes=[]):
     # Load the full network
     with open(network_path+'.net','r') as network_pajek:
         G = parse_pajek(network_pajek)
@@ -24,11 +24,12 @@ def make_gexf(network_path,node_sort,nodes,edge_sort,edges,partitions=[]):
     else:
         G_core = G
     # Write the nodes to a text file
-    with open(network_path+"_"+node_sort+nodes+".nodes","w") as nodes_file:
+    nodes_file = network_path+"_"+node_sort+nodes+".nodes" if nodes else network_path+".nodes"
+    with open(nodes_file,"w") as nodes_file:
         for node in G_core:
             meh = nodes_file.write(str(G.node[node].get('unique_id',node))+'\n')
     # Filter the edges
-    if edge_filter:
+    if edge_sort:
         table, nnodes, nnedges = backboning.from_nx(G_core)
         nc_table = backboning.noise_corrected(table)
         if edges:
@@ -46,43 +47,48 @@ def make_gexf(network_path,node_sort,nodes,edge_sort,edges,partitions=[]):
         for attr in G_core.node[node]:
             G_filters.node[node][attr] = G_core.node[node][attr]
     # Find partitions by attributes
-    partitions = {attr:defaultdict(lambda: set()) for attr in partitions}
+    partition = {attr:defaultdict(lambda: set()) for attr in attributes}
     for node in G_core:
-        for attr in partitions:
-            partitions[attr][G_core.nodes[node][attr]].add(node)
+        for attr in attributes:
+            partition[attr][G_core.nodes[node][attr]].add(node)
     # Now only for the subnetwork with known attributes
-    attr_subgraph            = {}
-    attr_subgraph_partitions = {}
-    for attr in partitions:
-        attr_nodes = [node for node in G_core.nodes() if G_core.nodes[node][attr]]
+    attr_subgraph           = {}
+    attr_subgraph_partition = {attr:defaultdict(lambda: set()) for attr in attributes}
+    for attr in attributes:
+        attr_nodes = [node for node in G_core.nodes() if G_core.nodes[node][attr] != "-" ]
         attr_subgraph[attr] = G_core.subgraph(attr_nodes)
         for node in attr_subgraph[attr]:
-            attr_subgraph_partitions[attr][attr_subgraph[attr][node][attr]].add(node)
+            attr_subgraph_partition[attr][attr_subgraph[attr].nodes[node][attr]].add(node)
     # Write basic stats to a text file
-    with open(network_path+"_"+node_sort+nodes+".stats","w") as nodes_file:
-        nodes_file.write('# nodes\n')
-        nodes_file.write(str(G_core.number_of_nodes())+'\n')
-        nodes_file.write('# edges\n')
-        nodes_file.write(str(G_core.size())+'\n')
-        nodes_file.write('# total weight\n')
-        nodes_file.write(str(G_core.size(weight='weight'))+'\n')
-        nodes_file.write('# edges - filtered\n')
-        nodes_file.write(str(G_filters.size())+'\n')
-        nodes_file.write('# total weight - filtered\n')
-        nodes_file.write(str(G_filters.size(weight='weight'))+'\n')
+    stats_file = network_path+"_"+node_sort+nodes+".stats" if nodes else network_path+".stats"
+    with open(stats_file,"w") as stats_file:
+        stats_file.write('# nodes\n')
+        stats_file.write(str(G_core.number_of_nodes())+'\n')
+        stats_file.write('# edges\n')
+        stats_file.write(str(G_core.size())+'\n')
+        stats_file.write('# total weight\n')
+        stats_file.write(str(G_core.size(weight='weight'))+'\n')
+        stats_file.write('# edges - filtered\n')
+        stats_file.write(str(G_filters.size())+'\n')
+        stats_file.write('# total weight - filtered\n')
+        stats_file.write(str(G_filters.size(weight='weight'))+'\n')
         try:
-            for attr in partitions:
-                nodes_file.write('# modularity '+attr+' \n')
-                nodes_file.write(str(modularity(G_core, partition[attr].values(), weight='weight'))+'\n')
-            for attr in partitions:
-                nodes_file.write('# modularity '+attr+' - known only \n')
-                nodes_file.write(str(modularity(attr_subgraph[attr], attr_subgraph_partitions[attr].values(), weight='weight'))+'\n')
+            for attr in attributes:
+                stats_file.write('# modularity '+attr+' \n')
+                stats_file.write(str(modularity(G_core, partition[attr].values(), weight='weight'))+'\n')
+            for attr in attributes:
+                stats_file.write('# modularity '+attr+' - known only \n')
+                stats_file.write(str(modularity(attr_subgraph[attr], attr_subgraph_partition[attr].values(), weight='weight'))+'\n')
         except:
             pass
     # Save as Gephi file
-    nx.write_gexf(G_filters, network_path+"_"+node_sort+nodes+"_"+edge_sort+edges+".gexf")
+    gexf_file  = network_path+"_"+node_sort+nodes if nodes else network_path
+    gexf_file += "_"+edge_sort+edges+".gexf" if edges else ".gexf"
+    nx.write_gexf(G_filters, gexf_file)
 
 if __name__ == '__main__':
+    import argparse
+    import os
 
     ################### ARGUMENTS #####################
     parser = argparse.ArgumentParser()
@@ -99,4 +105,4 @@ if __name__ == '__main__':
     if not os.path.isfile(args.input_file):
         raise OSError("Could not find the input file",args.input_file)
     ####################################################
-    make_gexf(args.input_file.split(".net")[0],args.node_sort,args.nodes,args.edge_sort,args.edges,partitions=args.partition)
+    make_gexf(args.input_file.split(".net")[0],args.node_sort,args.nodes,args.edge_sort,args.edges,attributes=args.partition)

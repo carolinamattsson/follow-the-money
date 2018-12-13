@@ -123,7 +123,11 @@ def parse_pajek(lines):
 def load_attribute_mapping(pickle_file):
     import pickle
     with open(pickle_file,'rb') as attr_pickle:
-        return pickle.load(attr_pickle)
+        attr_dict = pickle.load(attr_pickle)
+    attr_header = set()
+    for node in attr_dict:
+        attr_header.update(attr_dict[node].keys())
+    return attr_dict, attr_header
 
 def load_node_set(agent_list):
     with open(agent_list,'r') as agents:
@@ -164,26 +168,27 @@ def save_as_pajek(network_split):
     import traceback
     try:
         # Create a name for this sub-network
-        if len(network_split["motifs"]) == 1:
+        if network_split["motifs"] == "ALL":
+            split_name = "ALL-ALL"
+        elif len(network_split["motifs"]) == 1:
             split_name = network_split["motifs"][0]
         else:
             split_name = set()
-            for term in network_split:
+            for term in network_split["motifs"]:
                 split_name.update(term.split("-"))
             split_name = "".join(split_name)
         if len(network_split["terms"]) == 1:
-            split_name += network_split["terms"][0]
+            split_name += "_"+network_split["terms"][0]
         else:
-
-            split_name += "".join((term[0] for term in network_split["terms"])))+network_split["terms"][0][1:]
+            split_name += "_"+"".join((term[0] for term in network_split["terms"]))+network_split["terms"][0][1:]
         if subgraph:
-            split_name += network_split["subgraph"]
+            split_name += "_"+network_split["subgraph"]
         print("Running for: ",str(network_split))
         print("Output files will have modifier:",split_name)
         # Load subgraph nodes
         if subgraph:
             print("Reading subgraph node set: "+split_name)
-            subgraph_nodes = load_node_set(network_split)
+            subgraph_nodes = load_node_set(subgraph)
             print("Subgraph is "+str(len(subgraph_nodes))+" nodes")
         else:
             subgraph_nodes = set()
@@ -194,13 +199,14 @@ def save_as_pajek(network_split):
         # Read in the network
         with open(enter_exit_filename,"r") as enter_exit_file, open(issues_filename,"w") as issues_file:
             print("Reading "+split_name+" from "+enter_exit_filename)
+            enter_exit_reader = csv.DictReader(enter_exit_file,delimiter=",",quotechar="'")
             for agent_link in enter_exit_reader:
                 try:
-                    if agent_link[motif_term] in network_split["motifs"]:
-                        if subgraph and subgraph_skip(agent_link,subgraph_nodes,network_split["subgraph"]): continue
-                        weight = sum(float(agent_link[term]) for term in network_split["terms"])
-                        if weight > 0:
-                            G.add_edge(agent_link['enter_ID'],agent_link['exit_ID'],weight=weight)
+                    if network_split["motifs"] != "ALL" and agent_link[motif_term] not in network_split["motifs"]: continue
+                    if subgraph and subgraph_skip(agent_link,subgraph_nodes,network_split["subgraph"]): continue
+                    weight = sum(float(agent_link[term]) for term in network_split["terms"])
+                    if weight > 0:
+                        G.add_edge(agent_link['enter_ID'],agent_link['exit_ID'],weight=weight)
                 except:
                     issues_file.write("Could not process: "+str(agent_link)+traceback.format_exc())
             # get the total deposits/ed at every node -- this is used to determine receipt of teleporting walkers in InfoMap
@@ -218,9 +224,9 @@ def save_as_pajek(network_split):
                 for node in G:
                     for term in attr_header:
                         try:
-                            G.node[node][term] = attr_mapping[node][term]
+                            G.node[node][term] = attr_mapping[node][term].replace(" ", "")
                         except:
-                            G.node[node][term] = ''
+                            G.node[node][term] = '-'
                 if node_name:
                     # note full unique ID
                     for node in G:
@@ -247,18 +253,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('input_file', help='The input network file (.csv, created by network.py)')
     parser.add_argument('--split_type', action='append', default=[], help='Enter-exit motif to split into a separate sub-network. To join several, use tuples.')
-    parser.add_argument('--split_term',action='append', default=['total'], help='Link property to split into a separate sub-network. To join several, use tuples.')
+    parser.add_argument('--split_term',action='append', default=[], help='Link property to split into a separate sub-network. To join several, use tuples.')
     parser.add_argument('--subgraph', default=None, help='Filename to a set of nodes. Splits the network also into the subgraph of these nodes, and the rest.')
     parser.add_argument('--normalized', action="store_true", default=False, help='Use normalized link weights.')
     parser.add_argument('--attr_pickle', default=None, help='Filename for a pickled dictionary of node attributes. These are added to the network.')
-    parser.add_argument('--node_name', default=None, help='Defines a new node name. Attributes separated by commas, or an integer for the first x characters of the node ID.')
+    parser.add_argument('--node_name', default=None, help='Defines a new node name, using attributes separated by commas. Then gets the first 4 characters of the node ID.')
     parser.add_argument('--processes', type=int, default=1, help='The max number of parallel processes to launch.')
 
     args = parser.parse_args()
 
     if not os.path.isfile(args.input_file):
         raise OSError("Could not find the input file",args.input_file)
-    if args.fee_evasion and not os.path.isfile(args.subgraph):
+    if args.subgraph and not os.path.isfile(args.subgraph):
         raise OSError("Could not find the subgraph node list",args.subgraph)
     if args.attr_pickle and not os.path.isfile(args.attr_pickle):
         raise OSError("Could not find the attribute pickle file",args.attr_pickle)
@@ -266,17 +272,21 @@ if __name__ == '__main__':
         raise ValueError("Please enter a positive number of processes",args.processes)
     if args.node_name and not args.attr_pickle:
         raise ValueError("Node names cannot be changed unless there is an attribute dictionary provided.")
+    if not args.split_term:
+        args.split_term = ['total']
+    if not args.split_type:
+        args.split_type = [None]
     ####################################################
     network_splits = []
     for motifs in args.split_type:
-        motifs = tuple(motif.strip() for motif in motifs.strip('()').split(','))
-        for terms in args.split_property
+        motifs = tuple(motif.strip() for motif in motifs.strip('()').split(',')) if motifs else 'ALL'
+        for terms in args.split_term:
             terms = tuple(term.strip()+"_nrm" for term in terms.strip('()').split(',')) if args.normalized else tuple(term.strip()+"_amt" for term in terms.strip('()').split(','))
             if args.subgraph:
-                network_splits.append({"motifs":motifs,"terms":terms,"subgraph":"subgraph"))
-                network_splits.append({"motifs":motifs,"terms":terms,"subgraph":"remgraph"))
+                network_splits.append({"motifs":motifs,"terms":terms,"subgraph":"subgraph"})
+                network_splits.append({"motifs":motifs,"terms":terms,"subgraph":"remgraph"})
             else:
-                network_splits.append({"motifs":motifs,"terms":terms,"subgraph":None))
+                network_splits.append({"motifs":motifs,"terms":terms,"subgraph":None})
 
     global enter_exit_filename, motif_term, subgraph, attr_pickle, node_name
 
