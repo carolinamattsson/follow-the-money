@@ -12,6 +12,7 @@ from collections import defaultdict
 from make_split_pajek import parse_pajek
 from make_split_pajek import generate_pajek
 import backboning
+import traceback
 
 def make_gexf(network_path,node_sort,nodes,edge_sort,edges,attributes=[]):
     # Load the full network
@@ -24,7 +25,7 @@ def make_gexf(network_path,node_sort,nodes,edge_sort,edges,attributes=[]):
     else:
         G_core = G
     # Write the nodes to a text file
-    nodes_file = network_path+"_"+node_sort+nodes+".nodes" if nodes else network_path+".nodes"
+    nodes_file = network_path+"_"+node_sort+str(nodes)+".nodes" if nodes else network_path+".nodes"
     with open(nodes_file,"w") as nodes_file:
         for node in G_core:
             meh = nodes_file.write(str(G.node[node].get('unique_id',node))+'\n')
@@ -60,7 +61,7 @@ def make_gexf(network_path,node_sort,nodes,edge_sort,edges,attributes=[]):
         for node in attr_subgraph[attr]:
             attr_subgraph_partition[attr][attr_subgraph[attr].nodes[node][attr]].add(node)
     # Write basic stats to a text file
-    stats_file = network_path+"_"+node_sort+nodes+".stats" if nodes else network_path+".stats"
+    stats_file = network_path+"_"+node_sort+str(nodes)+".stats" if nodes else network_path+".stats"
     with open(stats_file,"w") as stats_file:
         stats_file.write('# nodes\n')
         stats_file.write(str(G_core.number_of_nodes())+'\n')
@@ -80,10 +81,10 @@ def make_gexf(network_path,node_sort,nodes,edge_sort,edges,attributes=[]):
                 stats_file.write('# modularity '+attr+' - known only \n')
                 stats_file.write(str(modularity(attr_subgraph[attr], attr_subgraph_partition[attr].values(), weight='weight'))+'\n')
         except:
-            pass
+            stats_file.write(traceback.format_exc())
     # Save as Gephi file
-    gexf_file  = network_path+"_"+node_sort+nodes if nodes else network_path
-    gexf_file += "_"+edge_sort+edges+".gexf" if edges else ".gexf"
+    gexf_file  = network_path+"_"+node_sort+str(nodes) if nodes else network_path
+    gexf_file += "_"+edge_sort+str(int(100*edges))+".gexf" if edges else ".gexf"
     nx.write_gexf(G_filters, gexf_file)
 
 if __name__ == '__main__':

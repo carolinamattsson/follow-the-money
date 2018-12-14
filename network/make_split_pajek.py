@@ -162,7 +162,7 @@ def subgraph_skip(agent_link,subgraph_nodes,half):
     if half == "remgraph":
         return agent_link['enter_ID'] in subgraph_nodes and agent_link['exit_ID'] in subgraph_nodes
     if half == "subgraph":
-        return agent_link['enter_ID'] not in subgraph_nodes and agent_link['exit_ID'] not in subgraph_nodes
+        return not (agent_link['enter_ID'] in subgraph_nodes and agent_link['exit_ID'] in subgraph_nodes)
 
 def save_as_pajek(network_split):
     import traceback
