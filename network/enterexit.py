@@ -220,7 +220,7 @@ if __name__ == '__main__':
     parser.add_argument('input_file', help='The input weighted flow file (created by follow_the_money.py)')
     parser.add_argument('output_directory', help='Path to the output directory')
     parser.add_argument('--prefix', default="", help='Prefix prepended to output files')
-    parser.add_argument('--parallel', type=int, default=1, help='The max number of parallel processes to launch.')
+    parser.add_argument('--processes', type=int, default=1, help='The max number of parallel processes to launch.')
     parser.add_argument('--source', action='append', default=[], help='Transaction types that are their own sources (first sender is ignored)')
     parser.add_argument('--target', action='append', default=[], help='Transaction types that are their own targets (last recipient is ignored)')
     parser.add_argument('--infer', action="store_true", default=False, help='Include flows that begin or end with inferred transactions')
@@ -233,14 +233,14 @@ if __name__ == '__main__':
         raise OSError("Could not find the input file",args.input_file)
     if not os.path.isdir(args.output_directory):
         raise OSError("Could not find the output directory",args.output_directory)
-    if args.parallel < 1:
-        raise ValueError("--parallel must be a positive integer",args.parallel)
+    if args.processes < 1:
+        raise ValueError("--processes must be a positive integer",args.processes)
 
     wflow_filename = args.input_file
     network_filename = os.path.join(args.output_directory,args.prefix+"network.csv")
-    agents_filename = os.path.join(args.output_directory,args.prefix+"agents.csv")
+    agents_filename = os.path.join(args.output_directory,args.prefix+"network_agents.csv")
     report_filename = os.path.join(args.output_directory,args.prefix+"network_issues.txt")
 
     ##### Creates network file, and agent+ file #####
-    aggregate_enter_exit(wflow_filename,network_filename,agents_filename,report_filename,processes=args.parallel,sources=args.source,targets=args.target,infer=args.infer,timeformat=args.timeformat,instant=args.instant)
+    aggregate_enter_exit(wflow_filename,network_filename,agents_filename,report_filename,processes=args.processes,sources=args.source,targets=args.target,infer=args.infer,timeformat=args.timeformat,instant=args.instant)
     #################################################

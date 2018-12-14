@@ -24,14 +24,14 @@ def get_days(flow_timestamp,flow_duration,timeformat,instant=0):
 def daychart_by_categ(wflow_file,daychart_file,issues_file,day_list,timeformat,instant,infer):
     ##########################################################################################
     wflow_header = ['flow_timestamp','flow_amt','flow_frac_root','flow_length','flow_length_wrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_durations','flow_rev_fracs','flow_categs']
-    daychart_header = ['day','txn_type','amount','frac_root','accounts']
+    daychart_header = ['day','txn_type','amount','normalized','accounts']
     day_list.sort()
     with open(wflow_file,'r') as wflow_file, open(issues_file,'w') as issues_file:
         reader_wflows   = csv.DictReader(wflow_file,delimiter=",",quotechar='"',escapechar="%")
         writer_issues   = csv.writer(issues_file,delimiter=",",quotechar='"',escapechar="%")
         #############################################################
         # daycharts is a rather nested dictionary: split_categ -> txn_type -> day -> base_dictionary
-        daycharts = defaultdict(lambda: defaultdict(lambda: {day:{'amount':0,'frac_root':0,'accounts':set()} for day in day_list}))
+        daycharts = defaultdict(lambda: defaultdict(lambda: {day:{'amount':0,'normalized':0,'accounts':set()} for day in day_list}))
         # populate the daychart dictionary
         for categ, wflow in split_by_month(reader_wflows,infer):
             try:
@@ -83,10 +83,10 @@ def update_daychart(daycharts, categ, wflow, day_list, timeformat, instant):
         flow_dur = flow_dur+flow_this_dur
         while get_days(wflow['flow_timestamp'],flow_dur,timeformat,instant) > entry:
             daycharts[categ][flow_this_type][entry]['amount']    += flow_this_amt
-            daycharts[categ][flow_this_type][entry]['frac_root'] += flow_this_nrm
+            daycharts[categ][flow_this_type][entry]['normalized'] += flow_this_nrm
             daycharts[categ][flow_this_type][entry]['accounts'].add(flow_this_acct)
             daycharts[categ]['FEE'][entry]['amount']             += flow_prev_amt-flow_this_amt
-            daycharts[categ]['FEE'][entry]['frac_root']          += flow_prev_nrm-flow_this_nrm
+            daycharts[categ]['FEE'][entry]['normalized']          += flow_prev_nrm-flow_this_nrm
             flow_prev_amt = flow_this_amt
             flow_prev_nrm = flow_this_nrm
             try:
@@ -99,10 +99,10 @@ def update_daychart(daycharts, categ, wflow, day_list, timeformat, instant):
         flow_this_type = wflow['flow_txn_types'][i]
     while get_days(wflow['flow_timestamp'],flow_dur,timeformat,instant) >= entry:
         daycharts[categ][flow_this_type][entry]['amount']    += flow_this_amt
-        daycharts[categ][flow_this_type][entry]['frac_root'] += flow_this_nrm
+        daycharts[categ][flow_this_type][entry]['normalized'] += flow_this_nrm
         daycharts[categ][flow_this_type][entry]['accounts'].add(flow_this_acct)
         daycharts[categ]['FEE'][entry]['amount']             += flow_prev_amt-flow_this_amt
-        daycharts[categ]['FEE'][entry]['frac_root']          += flow_prev_nrm-flow_this_nrm
+        daycharts[categ]['FEE'][entry]['normalized']          += flow_prev_nrm-flow_this_nrm
         flow_prev_amt = flow_this_amt
         flow_prev_nrm = flow_this_nrm
         try:
@@ -117,24 +117,24 @@ def combine_charts(charts,categs,txn_types):
             for day in charts[categ][txn_type]:
                 # continuous terms
                 charts['TOTAL'][txn_type][day]['amount']    += charts[categ][txn_type][day]['amount']
-                charts['TOTAL'][txn_type][day]['frac_root'] += charts[categ][txn_type][day]['frac_root']
+                charts['TOTAL'][txn_type][day]['normalized'] += charts[categ][txn_type][day]['normalized']
                 # discrete terms
                 charts['TOTAL'][txn_type][day]['accounts'].update(charts[categ][txn_type][day]['accounts'])
     return charts
 
 def summarize_charts(charts):
-    diagnostics = defaultdict(lambda: defaultdict(lambda: {'amount':0,'frac_root':0,'accounts':set()}))
+    diagnostics = defaultdict(lambda: defaultdict(lambda: {'amount':0,'normalized':0,'accounts':set()}))
     for categ in charts:
         for txn_type in charts[categ]:
             for day in charts[categ][txn_type]:
                 # continuous terms
                 diagnostics[categ][txn_type]['amount']    += charts[categ][txn_type][day]['amount']
-                diagnostics[categ][txn_type]['frac_root'] += charts[categ][txn_type][day]['frac_root']
+                diagnostics[categ][txn_type]['normalized'] += charts[categ][txn_type][day]['normalized']
                 # discrete terms
                 diagnostics[categ][txn_type]['accounts'].update(charts[categ][txn_type][day]['accounts'])
             # continuous terms
             diagnostics[categ]['TOTAL']['amount']    += diagnostics[categ][txn_type]['amount']
-            diagnostics[categ]['TOTAL']['frac_root'] += diagnostics[categ][txn_type]['frac_root']
+            diagnostics[categ]['TOTAL']['normalized'] += diagnostics[categ][txn_type]['normalized']
             # discrete terms
             diagnostics[categ]['TOTAL']['accounts'].update(diagnostics[categ][txn_type]['accounts'])
     for categ in diagnostics:
@@ -159,13 +159,13 @@ def write_daychart(diagnostics,daychart,daychart_file,daychart_header):
         # print diagnostics
         for txn_type in diagnostics:
             writer_daychart.writerow({'day':'TOTAL','txn_type':txn_type,'amount':diagnostics[txn_type]['amount'],\
-                                                                        'frac_root':diagnostics[txn_type]['frac_root'],\
+                                                                        'normalized':diagnostics[txn_type]['normalized'],\
                                                                         'accounts':diagnostics[txn_type]['accounts']})
         # print diagnostics
         for txn_type in daychart:
             for day in daychart[txn_type]:
                 writer_daychart.writerow({'day':day,'txn_type':txn_type,'amount':daychart[txn_type][day]['amount'],\
-                                                                        'frac_root':daychart[txn_type][day]['frac_root'],\
+                                                                        'normalized':daychart[txn_type][day]['normalized'],\
                                                                         'accounts':daychart[txn_type][day]['accounts']})
 
 if __name__ == '__main__':

@@ -128,7 +128,7 @@ if __name__ == '__main__':
     parser.add_argument('output_directory', help='Path to the output directory')
     parser.add_argument('--prefix', default="", help='Prefix prepended to output files')
     parser.add_argument('--infer', action="store_true", default=False, help='Include flows that begin or end with inferred transactions')
-    parser.add_argument('--circulate', type=int, default=6, help='The length at which flows are considered to circulate -- longer ones are folded in.')
+    parser.add_argument('--circulate', type=int, default=4, help='The length at which flows are considered to circulate -- longer ones are folded in.')
     parser.add_argument('--join', action='append', default=[], help='Enter & exit types with these terms are joined (takes tuples).')
 
     args = parser.parse_args()

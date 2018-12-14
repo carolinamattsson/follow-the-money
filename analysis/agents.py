@@ -18,7 +18,7 @@ def cumsum(a_list):
         yield total
 
 #######################################################################################################
-def find_agents(wflow_file,agent_file,issues_file,infer=False,join=False,circulate=4,sources=[],targets=[],timeformat="%Y-%m-%d %H:%M:%S",instant=0):
+def find_agents(wflow_file,agent_file,issues_file,infer=False,join=False,circulate=4,sources=[],sinks=[],timeformat="%Y-%m-%d %H:%M:%S",instant=0):
     ##########################################################################################
     wflow_header = ['flow_timestamp','flow_amt','flow_frac_root','flow_length','flow_length_wrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_durations','flow_rev_fracs','flow_split_categs']
     with open(wflow_file,'r') as wflow_file, open(issues_file,'w') as issues_file:
@@ -30,7 +30,7 @@ def find_agents(wflow_file,agent_file,issues_file,infer=False,join=False,circula
         # populate the agents dictionary
         for split_categ, wflow in split_by_month(reader_wflows,infer):
             try:
-                wflow = parse(wflow,sources,targets)
+                wflow = parse(wflow,sources,sinks)
                 agents = update_agents(agents,split_categ,wflow,join,circulate,timeformat,instant)
             except:
                 writer_issues.writerow([wflow[term] for term in wflow]+[traceback.format_exc()])
@@ -56,7 +56,7 @@ def find_agents(wflow_file,agent_file,issues_file,infer=False,join=False,circula
         for split_categ in agents:
             write_agents(agents[split_categ],agent_file,split_categ,breakdowns[split_categ],dur_breakdowns[split_categ])
 
-def parse(wflow,sources,targets):
+def parse(wflow,sources,sinks):
     #####################################################################################
     wflow['flow_acct_IDs']   = wflow['flow_acct_IDs'].strip('[]').split(',')
     wflow['flow_txn_types'] = wflow['flow_txn_types'].strip('[]').split(',')
@@ -67,8 +67,8 @@ def parse(wflow,sources,targets):
     wflow['flow_duration']  = float(wflow['flow_duration'])
     wflow['flow_durations'] = [] if wflow['flow_durations'] == "[]" else [float(dur) for dur in wflow['flow_durations'].strip('[]').split(',')]
     wflow['flow_length']    = len(wflow['flow_txn_IDs'])
-    # note when the source/targets are the provider instead
-    if wflow['flow_txn_types'][-1] in targets:
+    # note when the source/sinks are the provider instead
+    if wflow['flow_txn_types'][-1] in sinks:
         wflow['flow_acct_IDs'][-1] = wflow['flow_txn_types'][-1]
     if wflow['flow_txn_types'][0] in sources:
         wflow['flow_acct_IDs'][0] = wflow['flow_txn_types'][0]
@@ -117,18 +117,18 @@ def update_agents(agents, split_categ, wflow, join, circulate, timeformat, insta
             agents[split_categ][source]['source_1user1day_dur'] = []
         agents[split_categ][source]['source_1user1day_dur'].append((wflow['flow_duration'],wflow['flow_amt'],wflow['flow_frac_root']))
     # and now the taget :)
-    target = wflow['flow_acct_IDs'][-1]
-    agents[split_categ][target]['__target_amt'] += wflow['flow_amt']
-    agents[split_categ][target]['__target_nrm'] += wflow['flow_frac_root']
-    if agents[split_categ][target]['__target_dur'] == 0:
-        agents[split_categ][target]['__target_dur'] = []
-    agents[split_categ][target]['__target_dur'].append((wflow['flow_duration'],wflow['flow_amt'],wflow['flow_frac_root']))
+    sink = wflow['flow_acct_IDs'][-1]
+    agents[split_categ][sink]['__sink_amt'] += wflow['flow_amt']
+    agents[split_categ][sink]['__sink_nrm'] += wflow['flow_frac_root']
+    if agents[split_categ][sink]['__sink_dur'] == 0:
+        agents[split_categ][sink]['__sink_dur'] = []
+    agents[split_categ][sink]['__sink_dur'].append((wflow['flow_duration'],wflow['flow_amt'],wflow['flow_frac_root']))
     # also by motif
-    agents[split_categ][target]['target_'+motif+'_amt'] += wflow['flow_amt']
-    agents[split_categ][target]['target_'+motif+'_nrm'] += wflow['flow_frac_root']
-    if agents[split_categ][target]['target_'+motif+'_dur'] == 0:
-        agents[split_categ][target]['target_'+motif+'_dur'] = []
-    agents[split_categ][target]['target_'+motif+'_dur'].append((wflow['flow_duration'],wflow['flow_amt'],wflow['flow_frac_root']))
+    agents[split_categ][sink]['sink_'+motif+'_amt'] += wflow['flow_amt']
+    agents[split_categ][sink]['sink_'+motif+'_nrm'] += wflow['flow_frac_root']
+    if agents[split_categ][sink]['sink_'+motif+'_dur'] == 0:
+        agents[split_categ][sink]['sink_'+motif+'_dur'] = []
+    agents[split_categ][sink]['sink_'+motif+'_dur'].append((wflow['flow_duration'],wflow['flow_amt'],wflow['flow_frac_root']))
     return agents
 
 def combine_agents(agents,breakdowns):
@@ -148,9 +148,11 @@ def finalize_agent(agent,dur_breakdown):
             amt_cumsum = list(cumsum([x[1] for x in agent[dur_term]]))
             amt_mid = next(i for i,v in enumerate(amt_cumsum) if v >= amt_cumsum[-1]/2)
             agent[dur_term.split('_dur')[0]+'_median_dur_a'] = agent[dur_term][amt_mid][0]
+            agent[dur_term.split('_dur')[0]+'_mean_dur_a']   = sum([x[0]*x[1] for x in agent[dur_term]])/sum([x[1] for x in agent[dur_term]])
             nrm_cumsum = list(cumsum([x[2] for x in agent[dur_term]]))
             nrm_mid = next(i for i,v in enumerate(nrm_cumsum) if v >= nrm_cumsum[-1]/2)
             agent[dur_term.split('_dur')[0]+'_median_dur_d'] = agent[dur_term][nrm_mid][0]
+            agent[dur_term.split('_dur')[0]+'_mean_dur_d']   = sum([x[0]*x[2] for x in agent[dur_term]])/sum([x[2] for x in agent[dur_term]])
         except:
             agent[dur_term.split('_dur')[0]+'_median_dur_a'] = ''
             agent[dur_term.split('_dur')[0]+'_median_dur_d'] = ''
@@ -186,7 +188,7 @@ if __name__ == '__main__':
     parser.add_argument('--circulate', type=int, default=4, help='The length at which flows are considered to circulate -- longer ones are folded down.')
     parser.add_argument('--join', action='append', default=[], help='Enter & exit types with these terms are joined (takes tuples).')
     parser.add_argument('--source', action='append', default=[], help='Transaction types that are their own sources (first sender is ignored)')
-    parser.add_argument('--target', action='append', default=[], help='Transaction types that are their own targets (last recipient is ignored)')
+    parser.add_argument('--sink', action='append', default=[], help='Transaction types that are their own sinks (last recipient is ignored)')
     parser.add_argument('--timeformat', default="%Y-%m-%d %H:%M:%S", help='Timeformat of the flow timestamp, if different from %Y-%m-%d %H:%M:%S')
     parser.add_argument('--instant', type=float, default=0, help='Durations less than or equal to this value (in hours) are considered instant')
 
@@ -204,5 +206,5 @@ if __name__ == '__main__':
     args.join = [x.strip('()').split(',') for x in args.join]
 
     ######### Creates weighted flow file #################
-    find_agents(wflow_filename,agents_filename,report_filename,infer=args.infer,join=args.join,circulate=args.circulate,sources=args.source,targets=args.target,timeformat=args.timeformat,instant=args.instant)
+    find_agents(wflow_filename,agents_filename,report_filename,infer=args.infer,join=args.join,circulate=args.circulate,sources=args.source,sinks=args.sink,timeformat=args.timeformat,instant=args.instant)
     #################################################

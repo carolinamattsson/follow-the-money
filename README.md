@@ -48,9 +48,10 @@ these options all treat fees as tied to the transaction itself -- these funds ne
 reach the account of the recipient and are not "followed" separately. It is, of course,
 entirely possible for providers to instead represent fees as separate transactions and
 it is possible to pre-process data into such a form using additional assumptions. This
-code does this only if the fees assessed on a recipient exceed the transaction amount,
-in which case this code withdraws a separate fee from the recipient's account
-immediately prior to processing the transaction in question.
+code uses this approach if the fees assessed on a recipient exceed the transaction amount,
+which should be very rare if it happens at all. In such a case, this code withdraws a
+separate fee from the recipient's account immediately prior to processing the transaction
+in question.
 
 If the transaction file contains information on the balance of the accounts at
 the time of the transaction, you can tell the program to monitor these by putting
@@ -58,9 +59,9 @@ a `balance_type` entry in the `config.json`. This should be set to `pre` if the
 balance column contains the balance of the accounts before the transaction is
 processed, and `post` if after. Using this option will cause the balances in the
 `src_balance` and `tgt_balance` columns to supersede the program's internal
-accounting, and it will infer the existence of deposits and withdrawals that it
-cannot see that would bring the balance back into line with what is given. Note that
-accounting imperatives of the transaction itself would override even a given balance.
+accounting. If and when discrepancies occur, the program will infer the existence of
+deposits and withdrawals enough to bring the balance back into line with what is given.
+Note that accounting imperatives of the transaction itself override even a given balance.
 
 Defining the `boundary_type` of the system is vital for interpreting the output of
 `follow_the_money`. Payment systems are rarely fully contained. Most allow
@@ -68,7 +69,7 @@ users of the system to deposit and withdraw from their individual accounts, lett
 the total balance of the system fluctuate with use. This means that most payment
 systems have a user-facing side where the movement of money is user-driven, and
 a provider-facing side that accommodates users' deposits and withdraws. By defining
-a system boundary, you tell the program to follow only user-driven activity.  
+a system boundary, you can tell the program to follow only user-driven activity.  
 
 There are (at present) four options for defining the boundary of the system:
   - `none` (or left undefined)
@@ -107,7 +108,7 @@ and we see them use the same transaction `type` for different purposes. It is st
 possible to define a network boundary so long as there are some transaction types
 that users are *not* allowed to make. For example, a user would never show up as
 the source for a transaction `type` we know to be a cash-in `deposit` or the recipient
-of a transaction `type` we know to be a purchase and a point of sale. Defining
+of a transaction `type` we know to be a purchase at a point of sale. Defining
 an `inferred_accounts` boundary also requires a list of account categories
 (`account_following`) that will be considered user-facing accounts. However, these
 categories will be inferred using the mapping (`account_categories`). Some accounts
@@ -120,7 +121,7 @@ a transaction mapping (`transaction_categories`). The results reflect that trans
 between two untracked accounts are now tracked as their category, except that their  
 transaction type is given a prefix of `"OTC_"` in the output files. This is the acronym
 for "over-the-counter", which is used to describe when non-users appear to be making user
-transactions, possible on a user's behalf. Transaction types that do not appear in the mapping,
+transactions, possibly on a user's behalf. Transaction types that do not appear in the mapping,
 or are not in one of the tracked categories (`deposit`,`transfer`,`withdraw`), remain untracked.
 
 In all cases, the program will report untracked transactions so you can make sure
@@ -158,6 +159,163 @@ columns), this flag will also make explicit cases where it inferred the existenc
 deposits and withdrawals that it cannot see in order to bring the balance back into
 line with what is given.
 
-Additional options are available. You can use --help to get descriptions, and can
+Additional options are available. You can use `--help` to get descriptions, and can
 find a series of examples in `tests/`. These examples show how the output changes
 under the available options for a simple transaction dataset reported in different ways.
+
+### 3) Analyze the output
+```
+distributions.py wflows_greedy.csv output_directory
+```
+This script takes the output of follow-the-money, ie. of weighted flows, and reports
+the distribution of their size, normalized size, and duration.
+Additional options are available. You can use `--help` to get descriptions.
+
+```
+motifs.py wflows_greedy.csv output_directory --circulate 4
+```
+This script takes the output of follow-the-money, ie. of weighted flows, and reports
+properties over observed transaction-type sequences, ie. motifs. The `--circulate`
+flag consolidates motifs at and above the given length, retaining only the first
+and last transaction type.
+Additional options are available. You can use `--help` to get descriptions.
+
+```
+users.py wflows_greedy.csv output_directory
+```
+This script takes the output of follow-the-money, ie. of weighted flows, and reports
+properties over observed `users`. These are accounts that have been observed within
+trajectories at least once. This script reports the total amount processed by these
+accounts, as well as the mean and median processing time. These measures are also
+broken down by sub-motifs, meaning the in-out transaction type pattern that funds
+passing through that account follow. Ex. money that enters an account as a transfer
+follows a different sub-motif if it leaves as an ATM withdrawal or a payment.   
+Additional options are available. You can use `--help` to get descriptions.
+
+```
+agents.py wflows_greedy.csv output_directory
+```
+This script takes the output of follow-the-money, ie. of weighted flows, and reports
+properties over observed `agents`. These are accounts that have been observed to begin
+or end trajectories at least once. This script reports the total amount for which
+an account is a source or a sink, as well as the mean and median processing time.
+These measures are also broken down by motif.   
+Additional options are available. You can use `--help` to get descriptions.
+
+```
+length.py wflows_greedy.csv output_directory
+```
+This script takes the output of follow-the-money, ie. of weighted flows, and creates
+a summary of the system that can be visualized as a bar-chart. Specifically, this
+summary conveys how much money leaves the payment system at each step and the
+transaction type through which it leaves.  
+Additional options are available. You can use `--help` to get descriptions.
+
+```
+duration.py wflows_greedy.csv output_directory
+```
+This script takes the output of follow-the-money, ie. of weighted flows, and creates
+a summary of the system that can be visualized as a bar-chart. Specifically, this
+summary conveys how much money leaves the payment system each day and the
+transaction type through which it leaves.   
+Additional options are available. You can use `--help` to get descriptions.
+
+### 4) Aggregate the output into entry-exit networks
+```
+(head -1 wflows_greedy.csv && tail -n +2 wflows_greedy.csv | sort -t, -k6 -s) > wflows_greedy_byagent.csv
+```
+First, sort the output of follow-the-money by the agent who stared the trajectory,
+which is the entry point to the mobile money network.
+
+```
+entryexit.py wflows_greedy_byagent.csv output_directory --processes 32
+```
+This program aggregates trajectories into a network of entry to exit points (`network.csv`).
+The weights for each network link is the sum of the amount, or deposit-normalized amount,
+that moved from that entry point to that exit point via the payment system. The weight on
+each link is also broken up into categories based on distance and time.
+
+By distance:
+- 0user   Funds passed directly from an entry point to an exit point (ex. over-the-counter bill payments)
+- 1user   Funds passed through one user (ex. a deposit followed by a withdrawal, short-term money storage)
+- 2user   Funds passed through two users (ex. a deposits, sent as a transfer, then used as a payment)
+- 3+user  Funds passed through three or more users
+
+By time:
+- 0days   Funds moved instantaneously from entry point to an exit point
+- 1days   Funds entered and exited the system on the same day
+- 2days   Funds entered the system and then exited on the subsequent day
+- 3+days  Funds remained in the system for longer
+
+This script also creates a file of network descriptives for these accounts (`network_agents.csv`).
+
+This aggregation is computationally intensive, and using multiple processes is suggested.
+
+Additional options are available. You can use `--help` to get descriptions.
+
+```
+make_split_pajek.py  network.csv --split_term 0user --split_term 1user --split_term 2user,3+user
+```
+This python script reads the entry-exit network and splits it along the dimensions given,
+creating separate networks in a condensed format, called pajek files (extension `.net`).
+The example provided will create three networks, one with the instantaneous transaction
+amount from one agent to another, a second with the money that is deposited at the entry
+point and withdrawn at the exit, and a third with the money that experiences at least one
+user-user transfer en route from entry to the exit.
+By default, the edge-weight becomes the amount observed to move from entry to exit point
+while the `--normalized` flag tells the code to use the deposit-normalized amount instead.
+Using the `--split_type` tag, the script can also split the entry-exit network by the type
+of edge, meaning the most common enter-exit transaction type combination observed between
+those entry-exit points.
+Without any `--split` flags, the code will create a network using the overall totals.
+It is also possible to split each resulting network using a list of nodes, passed
+to the `--subgraph` flag as a filename. This creates a `subgraph` network containing only the
+links among these nodes and a `remgraph` network containing all remaining edges.
+Additional options are available. You can use `--help` to get descriptions.
+
+### 5) Mapping and visualization
+```
+nohup ./Infomap network_total_nrm.net OUTPUT_FOLDER/ -k -d -o -p 0.15 -N 4  --ftree -v >  OUTPUT_FOLDER/network_total_nrm.out
+```
+The pajek files (extension `.net`) can be used directly as the input to the
+stand-alone C++ implementation of the Infomap algorithm, available here:
+http://www.mapequation.org/code.html#Installation. Running this algorithm with
+the above options simulates deposit transactions (`nrm.net`) or individual dollars
+(`amt.net`) moving between agents randomly in proportion to the edge weights of
+the system. With a 15% probability, at each step, we introduce some noise to the
+system and the random movement begins again at an agent chosen randomly in
+proportion to the actual deposits (amount deposited) they received. The result
+is a 'map' of the entry-exit network with agents grouped together if deposits
+(or dollars) get 'stuck' amongst them. This 'map' is fractal in nature if the
+data supports it, and the `.ftree` file it produces can be interactively
+viewed at: http://www.mapequation.org/apps/NetworkNavigator.html
+
+```
+make_core_gexf.py network_total_nrm.net --node_sort core_number --nodes 4000 --edge_sort noise_corrected_pct --edges 0.9
+```
+This python script reads a network in pajek format (extension `.net`). The script returns a `.gexf` file that can be immediately read by Gephi, free and open source network visualization software, available here: https://gephi.org/
+
+The `--node_sort` flag must refer to a sortable property of the nodes in the
+pajek file; by default this is the core_number, which is calculated within
+`make_split_pajek.py`, but out_strength is also available out-of-the-box. The top
+number of nodes given in `--nodes` are kept. The `--edge_sort` flag must refer
+to a property returned by the `backboning.py` algorithm; by default this is
+noise_corrected_pct, but a few others could be made available (see below). Agents
+at or above the fraction given in `--edges` are kept.
+
+```
+backboning.py
+```
+This is a lightly modified version of Michele Coscia's network backboning code,
+available here: http://www.michelecoscia.com/?page_id=287
+The function that is called by `make_core_gexf.py` is called noise_corrected(),
+offering the following options:
+- weight                  The absolute link weight
+- pct
+- score
+- score_pct
+- noise_corrected
+- noise_corrected_pct
+
+It would be fairly simple to modify `make_core_gexf.py` to filter based off of
+the other backboning options.

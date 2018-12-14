@@ -34,7 +34,7 @@ def make_gexf(network_path,node_sort,nodes,edge_sort,edges,attributes=[]):
         table, nnodes, nnedges = backboning.from_nx(G_core)
         nc_table = backboning.noise_corrected(table)
         if edges:
-            G_filters = backboning.write_scores_nx(nc_table,edge_filter=(edge_sort,1-edges))
+            G_filters = backboning.write_scores_nx(nc_table,edge_filter=(edge_sort,edges))
         else:
             G_filters = backboning.write_scores_nx(nc_table)
     else:
