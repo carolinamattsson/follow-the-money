@@ -240,7 +240,7 @@ def initialize_transactions(txn_reader,system,report_file,get_categ=False):
 def infer_account_categories(system,transaction_file,report_filename):
     import csv
     with open(transaction_file,'r') as txn_file, open(report_filename,'w') as report_file:
-        txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar="'",escapechar="%")
+        txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
         transactions = initialize_transactions(txn_reader,system,report_file)
         for txn in transactions:
             txn.src.update_categ('src',txn.type)
@@ -255,7 +255,7 @@ def infer_account_categories(system,transaction_file,report_filename):
 def infer_starting_balance(system,transaction_file,report_filename):
     import csv
     with open(transaction_file,'r') as txn_file, open(report_filename,'a') as report_file:
-        txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar="'",escapechar="%")
+        txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
         transactions = initialize_transactions(txn_reader,system,report_file)
         for txn in transactions:
             src_balance, tgt_balance = txn.system.needs_balances(txn)

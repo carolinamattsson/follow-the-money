@@ -27,7 +27,7 @@ def load_account_categories(file):
     with open(file,'rU') as account_categories_file:
         account_type_reader = csv.DictReader(
             account_categories_file,
-            ['transaction_type','sender/recipient','account_category'],delimiter=",",quotechar="'",escapechar="%")
+            ['transaction_type','sender/recipient','account_category'],delimiter=",",quotechar='"',escapechar="%")
         for account_type in account_type_reader:
             account_categories[account_type['sender/recipient']][account_type['transaction_type']] =\
                 account_type['account_category']
