@@ -1,0 +1,28 @@
+{
+  "transaction_header": ["txn_ID","src_ID","tgt_ID","timestamp","type","amt","fee"],
+  "timeformat": "%Y-%m-%d %H:%M:%S",
+  "timewindow_beg": "2014-11-01 00:00:00",
+  "timewindow_end": "2014-11-01 03:00:00",
+  "fee/revenue": "sender",
+  "boundary_type": "inferred_accounts+otc",
+  "account_following": ["user"],
+  "account_order": ["bank","atm","corporation","merchant","user"],
+  "account_categories":{
+    "check_deposit": {"src":"bank","tgt":"user"},
+    "cash_deposit":  {"src":"atm", "tgt":"user"},
+    "direct_deposit":{"src":"corporation","tgt":"user"},
+    "p2p_transfer":  {"src":"user","tgt":"user"},
+    "bill_payment":  {"src":"user","tgt":"corporation"},
+    "card_payment":  {"src":"user","tgt":"pos"},
+    "cash_withdraw": {"src":"user","tgt":"atm"}
+  },
+  "transaction_categories":{
+    "check_deposit":"deposit",
+    "cash_deposit":"deposit",
+    "direct_deposit":"deposit",
+    "p2p_transfer":"transfer",
+    "bill_payment":"withdraw",
+    "card_payment":"withdraw",
+    "cash_withdraw":"withdraw"
+  }
+}

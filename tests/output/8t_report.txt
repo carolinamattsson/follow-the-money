@@ -1,0 +1,15 @@
+Initialing 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/input/8t_excess.csv
+Using the configuration file: /Users/Carolina/Documents/Research/code/follow_the_money/tests/config/7-8t_config.json
+
+
+Running 'follow the money' for: /Users/Carolina/Documents/Research/code/follow_the_money/tests/input/8t_excess.csv
+Using the configuration file: /Users/Carolina/Documents/Research/code/follow_the_money/tests/config/7-8t_config.json
+Output is going here:/Users/Carolina/Documents/Research/code/follow_the_money/tests/output/8t_
+Options:
+    Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv
+    Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv
+    Stop tracking funds below 0.01 in value.
+
+
+UNTRACKED TRANSACTIONS:
+UNTRACKED TRANSACTIONS:
