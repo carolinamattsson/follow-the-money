@@ -1,7 +1,6 @@
 # Just for me, sorry
-tests/
 references/
-examples/*code.py
+examples/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
