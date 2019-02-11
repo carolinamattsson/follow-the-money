@@ -4,7 +4,7 @@
 # Paper - Noise Corrected: Coscia & Neffke “Network Backboning with Noisy Data”, ICDE 2017
 #                          https://arxiv.org/pdf/1701.07336.pdf
 #
-# Modified slightly for use with this code base by Carolina Mattsson, August 2018
+# Modified slightly for use with this code base by ________________, August 2018
 #
 # to_pandas_edgelist & from_pandas_edgelist are a part of NetworkX, modified for version issues
 

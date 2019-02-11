@@ -4,8 +4,6 @@ This code defines classes and functions for the basic functionaliy
 of "follow the money" -- an algorithm to turn a list of transactions into a
 list of money flows, representing weighted trajectories of money through a
 payment system.
-Up-to-date code: https://github.com/Carromattsson/follow_the_money
-Copyright (C) 2018 Carolina Mattsson, Northeastern University
 '''
 from datetime import datetime, timedelta
 import traceback

@@ -1,8 +1,5 @@
 '''
 Initialize a payment processing system
-
-Up-to-date code: https://github.com/Carromattsson/follow_the_money
-Copyright (C) 2018 Carolina Mattsson, Northeastern University
 '''
 
 from collections import defaultdict

@@ -1,7 +1,6 @@
 '''
 Follow The Money - main
 This is the script to run a basic "follow the money" data transformation within the specified system boundaries.
-Author: Carolina Mattsson, Northeastern University, October 2018
 
 How to execute this code from the linux command line:
 python3 /path/to/input-file.csv /path/to/config-file.json /path/to/output-directory/ --greedy --infer --prefix "foo"

@@ -4,8 +4,6 @@ This code defines classes and functions for a substantial exploration
 of a transation dataset, with weighted and directed temporal links. This code
 can return a dictionary of all the accounts encountered, used to initialize
 Follow the money analysis of the transaction dataset.
-Up-to-date code: https://github.com/Carromattsson/follow_the_money
-Copyright (C) 2018 Carolina Mattsson, Northeastern University
 
 Requirements:
 The incoming data needs to be time ordered and have at least these columns:
