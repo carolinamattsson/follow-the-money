@@ -8,7 +8,44 @@ import networkx as nx
 
 def generate_pajek(G,teleport=None,name_list=None):
     """
-    Modified from NetworkX source code: https://networkx.github.io/documentation/stable/_modules/networkx/readwrite/pajek.html#write_pajek
+    Modified from NetworkX source code:
+    https://networkx.github.io/documentation/stable/_modules/networkx/readwrite/pajek.html#write_pajek
+
+    Under the following license:
+    Copyright (C) 2004-2012, NetworkX Developers
+    Aric Hagberg <hagberg@lanl.gov>
+    Dan Schult <dschult@colgate.edu>
+    Pieter Swart <swart@lanl.gov>
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are
+    met:
+
+      * Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+      * Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials provided
+        with the distribution.
+
+      * Neither the name of the NetworkX Developers nor the names of its
+        contributors may be used to endorse or promote products derived
+        from this software without specific prior written permission.
+
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+    A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+    OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+    LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+    DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+    THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     """
     # write nodes with attributes
     yield '*vertices %s' % (G.order())
@@ -26,7 +63,7 @@ def generate_pajek(G,teleport=None,name_list=None):
                 yield '#'+' '.join(['index','name'])+' '+' '.join(na_header)
             first = False
         if name_list:
-            name = '_'.join([G.node[n][term] for term in name_list]+[n[0:4]])
+            name = '_'.join([G.node[n][term] for term in name_list]+[n[0:12]])
         else:
             name = n
         if teleport:
@@ -48,11 +85,47 @@ def generate_pajek(G,teleport=None,name_list=None):
 def parse_pajek(lines):
     """
     Modified from NetworkX source code: https://networkx.github.io/documentation/stable/_modules/networkx/readwrite/pajek.html#read_pajek
+
+    Under the following license:
+    Copyright (C) 2004-2012, NetworkX Developers
+    Aric Hagberg <hagberg@lanl.gov>
+    Dan Schult <dschult@colgate.edu>
+    Pieter Swart <swart@lanl.gov>
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are
+    met:
+
+      * Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+      * Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials provided
+        with the distribution.
+
+      * Neither the name of the NetworkX Developers nor the names of its
+        contributors may be used to endorse or promote products derived
+        from this software without specific prior written permission.
+
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+    A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+    OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+    LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+    DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+    THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     """
     # multigraph=False
     lines = iter([line.rstrip('\n') for line in lines])
     G = nx.DiGraph()  # are multiedges allowed in Pajek? assume yes
-    labels = []  # in the order of the file, needed for matrix
+    unique_ids = []  # in the order of the file, needed for matrix
     while lines:
         try:
             l = next(lines)
@@ -67,8 +140,9 @@ def parse_pajek(lines):
             else:
                 G.graph['name'] = name
         elif l.lower().startswith("*vertices"):
-            nodelabels = {}
+            nodeids = {}
             l, nnodes = l.split()
+            print(nnodes)
             for i in range(int(nnodes)):
                 l = next(lines)
                 if l.lower().startswith("#"):
@@ -76,12 +150,20 @@ def parse_pajek(lines):
                     l = next(lines)
                 splitline = l.split()
                 id, label = splitline[0:2]
-                labels.append(label)
-                G.add_node(label)
-                nodelabels[id] = label
-                G.node[label]['id'] = id
-                extra_attr = zip(attr[2:], splitline[2:])
-                G.node[label].update(extra_attr)
+                if 'unique_id' == attr[-1]:
+                    unique_id = splitline[-1]
+                    unique_ids.append(unique_id)
+                    G.add_node(unique_id)
+                    nodeids[id] = unique_id
+                    G.node[unique_id]['label'] = label
+                    G.node[unique_id]['id'] = id
+                    extra_attr = zip(attr[2:], splitline[2:])
+                    G.node[unique_id].update(extra_attr)
+                else:
+                    G.add_node(id)
+                    G.node[id]['label'] = label
+                    extra_attr = zip(attr[2:], splitline[2:])
+                    G.node[id].update(extra_attr)
         elif l.lower().startswith("*edges") or l.lower().startswith("*arcs"):
             if l.lower().startswith("*edge"):
                 # switch from multidigraph to multigraph
@@ -93,9 +175,10 @@ def parse_pajek(lines):
                 splitline = l.split()
                 if len(splitline) < 2:
                     continue
-                ui, vi = splitline[0:2]
-                u = nodelabels.get(ui, ui)
-                v = nodelabels.get(vi, vi)
+                u, v = splitline[0:2]
+                if 'unique_id' == attr[-1]:
+                    u = nodeids.get(u, u)
+                    v = nodeids.get(v, v)
                 # parse the data attached to this edge and put in a dictionary
                 edge_data = {}
                 try:
@@ -113,7 +196,7 @@ def parse_pajek(lines):
                 G.add_edge(u, v, **edge_data)
         elif l.lower().startswith("*matrix"):
             G = nx.DiGraph(G)
-            adj_list = ((labels[row], labels[col], {'weight': int(data)})
+            adj_list = ((unique_ids[row], unique_ids[col], {'weight': int(data)})
                         for (row, line) in enumerate(lines)
                         for (col, data) in enumerate(line.split())
                         if int(data) != 0)
@@ -202,11 +285,14 @@ def save_as_pajek(network_split):
             enter_exit_reader = csv.DictReader(enter_exit_file,delimiter=",",quotechar="'")
             for agent_link in enter_exit_reader:
                 try:
-                    if network_split["motifs"] != "ALL" and agent_link[motif_term] not in network_split["motifs"]: continue
+                    if network_split["motifs"] != "ALL" and agent_link['edge_type'] not in network_split["motifs"]: continue
                     if subgraph and subgraph_skip(agent_link,subgraph_nodes,network_split["subgraph"]): continue
                     weight = sum(float(agent_link[term]) for term in network_split["terms"])
                     if weight > 0:
-                        G.add_edge(agent_link['enter_ID'],agent_link['exit_ID'],weight=weight)
+                        if G.has_edge(agent_link['enter_ID'],agent_link['exit_ID']):
+                            G[agent_link['enter_ID']][agent_link['exit_ID']]['weight'] += weight
+                        else:
+                            G.add_edge(agent_link['enter_ID'],agent_link['exit_ID'],weight=weight)
                 except:
                     issues_file.write("Could not process: "+str(agent_link)+traceback.format_exc())
             # get the total deposits/ed at every node -- this is used to determine receipt of teleporting walkers in InfoMap
@@ -257,7 +343,7 @@ if __name__ == '__main__':
     parser.add_argument('--subgraph', default=None, help='Filename to a set of nodes. Splits the network also into the subgraph of these nodes, and the rest.')
     parser.add_argument('--normalized', action="store_true", default=False, help='Use normalized link weights.')
     parser.add_argument('--attr_pickle', default=None, help='Filename for a pickled dictionary of node attributes. These are added to the network.')
-    parser.add_argument('--node_name', default=None, help='Defines a new node name, using attributes separated by commas. Then gets the first 4 characters of the node ID.')
+    parser.add_argument('--node_name', default=None, help='Defines a new node name, using attributes separated by commas. Then gets the first 12 characters of the node ID.')
     parser.add_argument('--processes', type=int, default=1, help='The max number of parallel processes to launch.')
 
     args = parser.parse_args()
@@ -288,10 +374,9 @@ if __name__ == '__main__':
             else:
                 network_splits.append({"motifs":motifs,"terms":terms,"subgraph":None})
 
-    global enter_exit_filename, motif_term, subgraph, attr_pickle, node_name
+    global enter_exit_filename, subgraph, attr_pickle, node_name
 
     enter_exit_filename = args.input_file
-    motif_term          = "edge_type_nrm" if args.normalized else "edge_type_amt"
     subgraph            = args.subgraph
     attr_pickle         = args.attr_pickle
     node_name           = [attr for attr in args.node_name.split(",")] if args.node_name else None
