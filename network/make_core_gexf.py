@@ -18,6 +18,37 @@ def make_gexf(network_path,node_sort,nodes,edge_sort,edges,attributes=[]):
     # Load the full network
     with open(network_path+'.net','r') as network_pajek:
         G = parse_pajek(network_pajek)
+    # Find partitions by attributes
+    partition = {attr:defaultdict(lambda: set()) for attr in attributes}
+    for node in G:
+        for attr in attributes:
+            partition[attr][G.nodes[node][attr]].add(node)
+    # Now only for the subnetwork with known attributes
+    attr_subgraph           = {}
+    attr_subgraph_partition = {attr:defaultdict(lambda: set()) for attr in attributes}
+    for attr in attributes:
+        attr_nodes = [node for node in G.nodes() if G.nodes[node][attr] != "-" ]
+        attr_subgraph[attr] = G.subgraph(attr_nodes)
+        for node in attr_subgraph[attr]:
+            attr_subgraph_partition[attr][attr_subgraph[attr].nodes[node][attr]].add(node)
+    # Write basic stats to a text file
+    stats_filename = network_path+"_"+node_sort+str(nodes)+".stats" if nodes else network_path+".stats"
+    with open(stats_filename,"w") as stats_file:
+        stats_file.write('# nodes\n')
+        stats_file.write(str(G.number_of_nodes())+'\n')
+        stats_file.write('# edges\n')
+        stats_file.write(str(G.size())+'\n')
+        stats_file.write('# total weight\n')
+        stats_file.write(str(G.size(weight='weight'))+'\n')
+        try:
+            for attr in attributes:
+                stats_file.write('# modularity '+attr+' \n')
+                stats_file.write(str(modularity(G, partition[attr].values(), weight='weight'))+'\n')
+            for attr in attributes:
+                stats_file.write('# modularity '+attr+' - known only \n')
+                stats_file.write(str(modularity(attr_subgraph[attr], attr_subgraph_partition[attr].values(), weight='weight'))+'\n')
+        except:
+            stats_file.write(traceback.format_exc())
     # Get the nodes in the core
     if nodes:
         core_nodes = sorted(G.nodes(), key=lambda n: float(G.node[n][node_sort]), reverse=True)[:nodes]
@@ -40,9 +71,11 @@ def make_gexf(network_path,node_sort,nodes,edge_sort,edges,attributes=[]):
     else:
         G_filters = G_core
     # Put back any zero-degree nodes
+    isolates = 0
     for node in G_core:
         if node not in G_filters:
             G_filters.add_node(node,**G_core.node[node])
+            isolates += 1
     # Share node attributes
     for node in G_filters:
         for attr in G_core.node[node]:
@@ -60,28 +93,29 @@ def make_gexf(network_path,node_sort,nodes,edge_sort,edges,attributes=[]):
         attr_subgraph[attr] = G_core.subgraph(attr_nodes)
         for node in attr_subgraph[attr]:
             attr_subgraph_partition[attr][attr_subgraph[attr].nodes[node][attr]].add(node)
-    # Write basic stats to a text file
-    stats_file = network_path+"_"+node_sort+str(nodes)+".stats" if nodes else network_path+".stats"
-    with open(stats_file,"w") as stats_file:
-        stats_file.write('# nodes\n')
+    # Write filtered stats to a text file
+    with open(stats_filename,"a") as stats_file:
+        stats_file.write('# nodes - core\n')
         stats_file.write(str(G_core.number_of_nodes())+'\n')
-        stats_file.write('# edges\n')
+        stats_file.write('# edges - core\n')
         stats_file.write(str(G_core.size())+'\n')
-        stats_file.write('# total weight\n')
+        stats_file.write('# total weight - core\n')
         stats_file.write(str(G_core.size(weight='weight'))+'\n')
-        stats_file.write('# edges - filtered\n')
-        stats_file.write(str(G_filters.size())+'\n')
-        stats_file.write('# total weight - filtered\n')
-        stats_file.write(str(G_filters.size(weight='weight'))+'\n')
         try:
             for attr in attributes:
-                stats_file.write('# modularity '+attr+' \n')
+                stats_file.write('# modularity '+attr+' - core\n')
                 stats_file.write(str(modularity(G_core, partition[attr].values(), weight='weight'))+'\n')
             for attr in attributes:
-                stats_file.write('# modularity '+attr+' - known only \n')
+                stats_file.write('# modularity '+attr+' - core known only \n')
                 stats_file.write(str(modularity(attr_subgraph[attr], attr_subgraph_partition[attr].values(), weight='weight'))+'\n')
         except:
             stats_file.write(traceback.format_exc())
+        stats_file.write('# edges - filtered core\n')
+        stats_file.write(str(G_filters.size())+'\n')
+        stats_file.write('# isolates - filtered core\n')
+        stats_file.write(str(isolates)+'\n')
+        stats_file.write('# total weight - filtered core\n')
+        stats_file.write(str(G_filters.size(weight='weight'))+'\n')
     # Save as Gephi file
     gexf_file  = network_path+"_"+node_sort+str(nodes) if nodes else network_path
     gexf_file += "_"+edge_sort+str(int(100*edges))+".gexf" if edges else ".gexf"
@@ -97,7 +131,7 @@ if __name__ == '__main__':
     parser.add_argument('--node_sort', default="core_number", help='The feature by which to choose the top nodes.')
     parser.add_argument('--nodes', type=int, default=None, help='The number of nodes to filter into the viz.')
     parser.add_argument('--edge_sort', default="noise_corrected_pct", help='The feature by which to choose the prominent edges.')
-    parser.add_argument('--edges', type=float, default=None, help='The fraction of edges to filter into the viz.')
+    parser.add_argument('--edges', type=float, default=None, help='The fraction of edges above which to filter into the viz.')
     #parser.add_argument('--raw', action="store_true", default=False, help='Give cutoffs in the raw values of the measures, instead.')
     parser.add_argument('--partition', action='append', default=[], help='Node attributes for which to calculate modularity.')
 

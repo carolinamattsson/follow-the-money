@@ -71,7 +71,7 @@ systems have a user-facing side where the movement of money is user-driven, and
 a provider-facing side that accommodates users' deposits and withdraws. By defining
 a system boundary, you can tell the program to follow only user-driven activity.  
 
-There are (at present) four options for defining the boundary of the system:
+There are (at present) six options for defining the boundary of the system:
   - `none` (or left undefined)
   - `transactions`
   - `accounts`
@@ -88,8 +88,8 @@ only amongst user-facing accounts (`transfer`), amongst provider-facing accounts
 (`system`), or between user-facing and provider-facing accounts (`deposit` & `withdraw`).
 Defining a `transactions` boundary requires a `type` column in the transaction
 data, and a mapping (`transaction_categories`) from the transaction `type` to the
-transaction category. Transaction types that are not included in the
-mapping are assumed to be `system` transactions that you do not want to track.
+transaction category in the `config.json` file. Transaction types that are not included
+in the mapping are assumed to be `system` transactions that you do not want to track.
 Using this `boundary_type` with imperfect categories will report appropriate warnings when
 the boundary appears inconsistent, such as when a `deposit` follows a `transfer`.  
 
@@ -107,13 +107,13 @@ given the transaction `type`. We may know that there are different account categ
 and we see them use the same transaction `type` for different purposes. It is still
 possible to define a network boundary so long as there are some transaction types
 that users are *not* allowed to make. For example, a user would never show up as
-the source for a transaction `type` we know to be a cash-in `deposit` or the recipient
+the source for a transaction `type` we know to be a cash `deposit` or the recipient
 of a transaction `type` we know to be a purchase at a point of sale. Defining
 an `inferred_accounts` boundary also requires a list of account categories
 (`account_following`) that will be considered user-facing accounts. However, these
 categories will be inferred using the mapping (`account_categories`). Some accounts
 may have multiple possible categories, and will be given the first one that appears
-in the ranked list provided (`account_order`).
+in the ranked list that must be provided (`account_order`).
 
 Sometimes, the dataset may contain *both* account and transaction information. The
 `+otc` options allow for an amalgamation of the two boundaries, given that you also provide

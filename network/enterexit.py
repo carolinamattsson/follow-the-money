@@ -17,7 +17,7 @@ def aggregate_enter_exit(flow_filename,enter_exit_filename,agent_filename,issues
     own_sources = sources + ['inferred']
     own_targets = targets + ['inferred']
     wflow_header      = ['flow_timestamp','flow_amt','flow_frac_root','flow_length','flow_length_wrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_durations','flow_rev_fracs','flow_categs']
-    enter_exit_header = ['enter_ID','exit_ID','edge_type_amt','edge_type_nrm','total_users','total_nrm','total_amt']
+    enter_exit_header = ['enter_ID','exit_ID','edge_type','total_users','total_nrm','total_amt']
     enter_exit_header = enter_exit_header + [split+"_"+weight for split in ["0user","1user","2user","3+user"] for weight in ["amt","nrm"]]
     enter_exit_header = enter_exit_header + [split+"_"+weight for split in ["0days","1days","2days","3+days"] for weight in ["amt","nrm"]]
     enter_exit_header = enter_exit_header + [split+"_"+weight for split in ["1user_1days","1user_2days","1user_3+days"] for weight in ["amt","nrm"]]
@@ -57,9 +57,10 @@ def aggregate_enter_exit(flow_filename,enter_exit_filename,agent_filename,issues
         #############################################################
         for agent_adjacency in agent_adjacencies:
             for exit_agent in agent_adjacency:
-                agent_summary = update_agent_summary(agent_summary,agent_adjacency[exit_agent])
-                agent_link    = finalize_link(agent_adjacency[exit_agent])
-                writer_enter_exit.writerow([agent_link[term] for term in enter_exit_header])
+                #agent_summary = update_agent_summary(agent_summary,agent_adjacency[exit_agent])
+                agent_links   = finalize_link(agent_adjacency[exit_agent])
+                for agent_link in agent_links:
+                    writer_enter_exit.writerow([agent_link[term] for term in enter_exit_header])
     if processes > 1:
         pool.close()
         pool.join()
@@ -97,41 +98,39 @@ def make_network(agent):
             # start a new entry for the exit agent, if it's a new one
             exit_agent = flow['flow_acct_IDs'][-1]
             if exit_agent not in agent_adjacency:
-                agent_adjacency[exit_agent]                  = {term:0 for term in enter_exit_header}
-                agent_adjacency[exit_agent]['enter_ID']      = flow['flow_acct_IDs'][0]
-                agent_adjacency[exit_agent]['exit_ID']       = flow['flow_acct_IDs'][-1]
-                agent_adjacency[exit_agent]['edge_type_amt'] = {'enter':defaultdict(int),'exit':defaultdict(int)}
-                agent_adjacency[exit_agent]['edge_type_nrm'] = {'enter':defaultdict(int),'exit':defaultdict(int)}
-                agent_adjacency[exit_agent]['enter_users']   = set()
-                agent_adjacency[exit_agent]['exit_users']    = set()
-                agent_adjacency[exit_agent]['total_users']   = set()
+                agent_adjacency[exit_agent] = {}
             # get the current one :)
             agent_link = agent_adjacency[exit_agent]
-            # keep track of the largest type
-            agent_link['edge_type_amt']['enter'][flow['flow_txn_types'][0]] += flow['flow_amt']
-            agent_link['edge_type_nrm']['enter'][flow['flow_txn_types'][0]] += flow['flow_frac_root']
-            agent_link['edge_type_amt']['exit'][flow['flow_txn_types'][-1]] += flow['flow_amt']
-            agent_link['edge_type_nrm']['exit'][flow['flow_txn_types'][-1]] += flow['flow_frac_root']
+            # keep track of the edge type (we have mutli-edges here), and initialize if needed
+            edge_type = flow['flow_txn_types'][0]+'-'+flow['flow_txn_types'][-1]
+            if edge_type not in agent_link:
+                agent_link[edge_type] = {term:0 for term in enter_exit_header}
+                agent_link[edge_type]['edge_type']=edge_type
+                agent_link[edge_type]['enter_ID']=flow['flow_acct_IDs'][0]
+                agent_link[edge_type]['exit_ID']=flow['flow_acct_IDs'][-1]
+                agent_link[edge_type]['enter_users']=set()
+                agent_link[edge_type]['exit_users']=set()
+                agent_link[edge_type]['total_users']=set()
             # update the amount
-            agent_link['enter_users'].update(flow['flow_acct_IDs'][1:-1][0] if flow['flow_acct_IDs'][1:-1] else [])
-            #agent_link['enter_txns'].add(flow['flow_txn_IDs'][0]) \ use with caution - very slow and uses lots of memory
-            agent_link['exit_users'].update(flow['flow_acct_IDs'][1:-1][-1] if flow['flow_acct_IDs'][1:-1] else [])
-            #agent_link['exit_txns'].add(flow['flow_txn_IDs'][-1]) \ use with caution - very slow and uses lots of memory
-            agent_link['total_users'].update(flow['flow_acct_IDs'][1:-1])
-            agent_link['total_normalized'] += flow['flow_frac_root']
-            agent_link['total_amount']     += flow['flow_amt']
+            agent_link[edge_type]['enter_users'].update(flow['flow_acct_IDs'][1:-1][0] if flow['flow_acct_IDs'][1:-1] else [])
+            #agent_link[edge_type]['enter_txns'].add(flow['flow_txn_IDs'][0]) \ use with caution - very slow and uses lots of memory
+            agent_link[edge_type]['exit_users'].update(flow['flow_acct_IDs'][1:-1][-1] if flow['flow_acct_IDs'][1:-1] else [])
+            #agent_link[edge_type]['exit_txns'].add(flow['flow_txn_IDs'][-1]) \ use with caution - very slow and uses lots of memory
+            agent_link[edge_type]['total_users'].update(flow['flow_acct_IDs'][1:-1])
+            agent_link[edge_type]['total_nrm'] += flow['flow_frac_root']
+            agent_link[edge_type]['total_amt']     += flow['flow_amt']
             # check where to attribute the amount
             users = len(flow['flow_acct_IDs'][1:-1])
             number_users = "".join([str(users) if users<3 else "3+","user"])
             days = get_days(flow['flow_timestamp'],flow["flow_duration"],flow_timeformat,flow_instant)
             number_days = "".join([str(days) if days<3 else "3+","days"])
-            agent_link[number_users+"_amt"] += flow['flow_amt']
-            agent_link[number_users+"_nrm"] += flow['flow_frac_root']
-            agent_link[number_days+"_amt"] += flow['flow_amt']
-            agent_link[number_days+"_nrm"] += flow['flow_frac_root']
+            agent_link[edge_type][number_users+"_amt"] += flow['flow_amt']
+            agent_link[edge_type][number_users+"_nrm"] += flow['flow_frac_root']
+            agent_link[edge_type][number_days+"_amt"] += flow['flow_amt']
+            agent_link[edge_type][number_days+"_nrm"] += flow['flow_frac_root']
             if number_users == "1user" and number_days != "0days":
-                agent_link[number_users+"_"+number_days+"_amt"] += flow['flow_amt']
-                agent_link[number_users+"_"+number_days+"_nrm"] += flow['flow_frac_root']
+                agent_link[edge_type][number_users+"_"+number_days+"_amt"] += flow['flow_amt']
+                agent_link[edge_type][number_users+"_"+number_days+"_nrm"] += flow['flow_frac_root']
         except:
             writer_issues.writerow(['could not make_network for flow:',flow['flow_txn_IDs'],traceback.format_exc()])
             issues_file.flush()
@@ -147,38 +146,37 @@ def get_days(flow_timestamp,flow_duration,timeformat,instant=0):
         return days + 1
 
 def finalize_link(agent_link):
-    agent_link['total_users'] = len(agent_link['total_users'])
-    agent_link['edge_type_amt']  = "-".join([max(agent_link['edge_type_amt']['enter'], key=agent_link['edge_type_amt']['enter'].get) if len(agent_link['edge_type_amt']['enter'])>0 else 'None', \
-                                             max(agent_link['edge_type_amt']['exit'],  key=agent_link['edge_type_amt']['exit'].get)  if len(agent_link['edge_type_amt']['exit'])>0 else 'None'])
-    agent_link['edge_type_nrm']  = "-".join([max(agent_link['edge_type_nrm']['enter'], key=agent_link['edge_type_nrm']['enter'].get) if len(agent_link['edge_type_nrm']['enter'])>0 else 'None', \
-                                             max(agent_link['edge_type_nrm']['exit'],  key=agent_link['edge_type_nrm']['exit'].get)  if len(agent_link['edge_type_nrm']['exit'])>0 else 'None'])
-    return agent_link
+    agent_links = []
+    for edge_type, link in agent_link.items():
+        link['total_users'] = len(link['total_users'])
+        agent_links.append(link)
+    return agent_links
 
 def update_agent_summary(agent_summary,agent_link):
     # first update the enter_agent
-    agent = agent_summary[agent_link['enter_ID']]
-    if not agent['agent_ID']: agent['agent_ID'] = agent_link['enter_ID']
-    for type in agent_link['edge_type_nrm']['enter']:
-        agent['agent_type_deposit_txns'][type] += agent_link['edge_type_nrm']['enter'][type]
-    for type in agent_link['edge_type_amt']['enter']:
-        agent['agent_type_deposit_amt'][type] += agent_link['edge_type_amt']['enter'][type]
-    agent['deposit_users'].update(agent_link['enter_users'])
-    #agent['deposits_txns'].update(agent_link['enter_txns'])
-    agent['deposit_txns'] += agent_link['total_normalized']
-    agent['deposit_amt']  += agent_link['total_amount']
+    agent = agent_summary[agent_link[edge_type]['enter_ID']]
+    if not agent['agent_ID']: agent['agent_ID'] = agent_link[edge_type]['enter_ID']
+    for type in agent_link[edge_type]['edge_type_nrm']['enter']:
+        agent['agent_type_deposit_txns'][type] += agent_link[edge_type]['edge_type_nrm']['enter'][type]
+    for type in agent_link[edge_type]['edge_type_amt']['enter']:
+        agent['agent_type_deposit_amt'][type] += agent_link[edge_type]['edge_type_amt']['enter'][type]
+    agent['deposit_users'].update(agent_link[edge_type]['enter_users'])
+    #agent['deposits_txns'].update(agent_link[edge_type]['enter_txns'])
+    agent['deposit_txns'] += agent_link[edge_type]['total_nrm']
+    agent['deposit_amt']  += agent_link[edge_type]['total_amt']
     # note the self-loops
-    if agent_link['enter_ID'] == agent_link['exit_ID']:
-        agent['self_users'] = len(agent_link['enter_users'] & agent_link['exit_users'])
-        agent['self_txns']  = agent_link['total_normalized']
-        agent['self_amt']   = agent_link['total_amount']
+    if agent_link[edge_type]['enter_ID'] == agent_link[edge_type]['exit_ID']:
+        agent['self_users'] = len(agent_link[edge_type]['enter_users'] & agent_link[edge_type]['exit_users'])
+        agent['self_txns']  = agent_link[edge_type]['total_nrm']
+        agent['self_amt']   = agent_link[edge_type]['total_amt']
     # then the exit_agent
-    agent = agent_summary[agent_link['exit_ID']]
-    if not agent['agent_ID']: agent['agent_ID'] = agent_link['exit_ID']
-    for type in agent_link['edge_type_amt']['exit']:
-        agent['agent_type_withdraw_amt'][type] += agent_link['edge_type_amt']['exit'][type]
-    agent['withdraw_users'].update(agent_link['exit_users'])
-    #agent['withdraws_txns'].update(agent_link['exit_txns'])
-    agent['withdraw_amt'] += agent_link['total_amount']
+    agent = agent_summary[agent_link[edge_type]['exit_ID']]
+    if not agent['agent_ID']: agent['agent_ID'] = agent_link[edge_type]['exit_ID']
+    for type in agent_link[edge_type]['edge_type_amt']['exit']:
+        agent['agent_type_withdraw_amt'][type] += agent_link[edge_type]['edge_type_amt']['exit'][type]
+    agent['withdraw_users'].update(agent_link[edge_type]['exit_users'])
+    #agent['withdraws_txns'].update(agent_link[edge_type]['exit_txns'])
+    agent['withdraw_amt'] += agent_link[edge_type]['total_amt']
     return agent_summary
 
 def finalize_agent(agent):
