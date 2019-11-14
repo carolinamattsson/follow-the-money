@@ -2,6 +2,13 @@
 
 This code turns a list of transactions from a financial ecosystem into trajectories of money through that system. These "money flows" include several possible weighting schemes and are built using explicit, modifiable, and accounting-consistent tracking heuristics.
 
+### 0) System requirements, install, and setup
+
+This software is written in Python 3. The network analysis requires the `networkx` package. 
+
+To use, either clone this repository or download a zip file of the code base. The code will be useable right away. 
+
+Note that the data transformation process that this code is covered by US Provisional Patent 62/809,359. 
 
 ### 1) Explore the data to create the configuration file
 A `config.json` file contains everything the code needs to understand
