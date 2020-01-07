@@ -255,6 +255,7 @@ def initialize_transactions(txn_reader,system,report_file,get_categ=False):
             # update starting balance if needed
             if src.starting_balance is None or tgt.starting_balance is None:
                 src_init_balance, tgt_init_balance = system.init_balances(txn)
+                # infer them if they're still missing (ex. missing in data)
                 if src.starting_balance is None:
                     src.starting_balance = src_init_balance if src_init_balance is not None else 0
                     src.balance = src.starting_balance
@@ -268,12 +269,16 @@ def initialize_transactions(txn_reader,system,report_file,get_categ=False):
 
 def infer_account_categories(system,transaction_file,report_filename):
     import csv
-    with open(transaction_file,'r') as txn_file, open(report_filename,'w') as report_file:
+    ################# Reset the system ##################
+    system = system.reset()
+    ############### Categorize accounts #################
+    with open(transaction_file,'r') as txn_file, open(report_filename,'a') as report_file:
         txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
         transactions = initialize_transactions(txn_reader,system,report_file)
         for txn in transactions:
             txn.src.update_categ('src',txn.type)
             txn.tgt.update_categ('tgt',txn.type)
+    ############### Select one category #################
     for acct_ID,account in system.accounts.items():
         for categ in system.categ_order:
             if categ in account.categs:
@@ -283,6 +288,9 @@ def infer_account_categories(system,transaction_file,report_filename):
 
 def infer_starting_balance(system,transaction_file,report_filename):
     import csv
+    ################# Reset the system ##################
+    system = system.reset()
+    ############# Run through with balances #############
     with open(transaction_file,'r') as txn_file, open(report_filename,'a') as report_file:
         txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
         transactions = initialize_transactions(txn_reader,system,report_file)
@@ -290,7 +298,7 @@ def infer_starting_balance(system,transaction_file,report_filename):
             src_balance, tgt_balance = system.needs_balances(txn)
             if src_balance > txn.src.balance: txn.src.infer_init_balance(src_balance - txn.src.balance)
             if tgt_balance > txn.tgt.balance: txn.tgt.infer_init_balance(tgt_balance - txn.tgt.balance)
-            txn.system.process(txn)
+            system.process(txn)
     return system
 
 def discover_account_categories(src,tgt,amt,basics=None,txn_type=None):
