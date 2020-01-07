@@ -223,13 +223,13 @@ def define_system_boundary(system,config_data):
     if   boundary_type == 'transactions':
         system.define_boundary('transactions',transaction_categories=config_data["transaction_categories"])
     elif boundary_type == 'accounts':
-        system.define_boundary('accounts',category_follow=config_data["account_following"])
+        system.define_boundary('accounts',category_follow=config_data["category_follow"])
     elif boundary_type == 'inferred_accounts':
-        system.define_boundary('inferred_accounts',category_follow=config_data["account_following"],account_categories=config_data["account_categories"],category_order=config_data["account_order"])
+        system.define_boundary('inferred_accounts',category_follow=config_data["category_follow"],account_categories=config_data["account_categories"],category_order=config_data["category_order"])
     elif boundary_type == 'accounts+otc':
-        system.define_boundary('accounts+otc',category_follow=config_data["account_following"],transaction_categories=config_data["transaction_categories"])
+        system.define_boundary('accounts+otc',category_follow=config_data["category_follow"],transaction_categories=config_data["transaction_categories"])
     elif boundary_type == 'inferred_accounts+otc':
-        system.define_boundary('inferred_accounts+otc',category_follow=config_data["account_following"],account_categories=config_data["account_categories"],category_order=config_data["account_order"],transaction_categories=config_data["transaction_categories"])
+        system.define_boundary('inferred_accounts+otc',category_follow=config_data["category_follow"],account_categories=config_data["account_categories"],category_order=config_data["category_order"],transaction_categories=config_data["transaction_categories"])
     else:
         raise ValueError("Config error: 'boundary_type' options are 'transactions', 'accounts', 'inferred_accounts', 'accounts+otc', 'inferred_accounts+otc' -- ",boundary_type)
     return system
