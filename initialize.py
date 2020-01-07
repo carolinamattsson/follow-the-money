@@ -1,8 +1,5 @@
 '''
 Initialize a payment processing system
-
-Up-to-date code: https://github.com/Carromattsson/follow_the_money
-Copyright (C) 2018 Carolina Mattsson, Northeastern University
 '''
 
 from collections import defaultdict
@@ -11,17 +8,20 @@ import math
 
 class System():
     # A payment system, here, is little more than a dictionary of accounts that keeps track of its boundaries
-    def __init__(self,transaction_header,timeformat,timewindow):
+    def __init__(self,transaction_header,timeformat,time_begin,time_end):
         self.accounts = {}
         self.txn_header = [term.replace("rev","fee") if "rev" in term else term for term in transaction_header]
         self.timeformat = timeformat
-        self.timewindow = (datetime.strptime(timewindow[0],self.timeformat),datetime.strptime(timewindow[1],self.timeformat))
+        self.time_begin   = datetime.strptime(time_begin,self.timeformat)
+        self.time_current = self.time_begin
+        self.time_end     = datetime.strptime(time_end,self.timeformat)
         self.boundary_type = None
         self.get_txn_categ = lambda txn: "transfer"
         self.fee_convention = None
         self.get_amounts = lambda txn: (txn.amt,txn.amt,0)
         self.balance_type = None
-        self.needs_balances = lambda txn: (max(txn.src.balance,txn.amt_out),max(txn.tgt.balance,-txn.amt_in))
+        self.init_balances = lambda txn: (txn.src.starting_balance,txn.tgt.starting_balance)
+        self.needs_balances = lambda txn: (max(txn.src.balance,txn.amt_sent),max(txn.tgt.balance,-txn.amt_rcvd))
     def define_fee_accounting(self,fee_convention,new_txn_header=None):
         self.fee_convention = fee_convention
         if new_txn_header: self.txn_header = new_txn_header
@@ -54,12 +54,18 @@ class System():
             self.categ_follow = set(category_follow)
             self.txn_categs = defaultdict(lambda:"system",transaction_categories)
             self.get_txn_categ = lambda txn: self.get_txn_categ_accts_otc(txn.src.categ,txn.tgt.categ,txn)
-    def define_needs_balances(self,balance_type):
+    def define_balance_functions(self,balance_type):
         self.balance_type = balance_type
         if balance_type == "pre":
-            self.needs_balances = lambda txn: (float(txn.src_balance),float(txn.tgt_balance))
+            self.init_balances = lambda txn: (txn.src_balance if txn.src_balance is not None else txn.src.starting_balance,\
+                                               txn.tgt_balance if txn.tgt_balance is not None else txn.tgt.starting_balance)
+            self.needs_balances = lambda txn: (txn.src_balance if txn.src_balance is not None else max(txn.src.balance,txn.amt_sent),\
+                                               txn.tgt_balance if txn.tgt_balance is not None else max(txn.tgt.balance,-txn.amt_rcvd))
         elif balance_type == "post":
-            self.needs_balances = lambda txn: (float(txn.src_balance)+txn.amt_out,float(txn.tgt_balance)-txn.amt_in)
+            self.init_balances = lambda txn: (txn.src_balance+txn.amt_sent if txn.src_balance is not None else txn.src.starting_balance,\
+                                               txn.tgt_balance-txn.amt_rcvd if txn.tgt_balance is not None else txn.tgt.starting_balance)
+            self.needs_balances = lambda txn: (txn.src_balance+txn.amt_sent if txn.src_balance is not None else max(txn.src.balance,txn.amt_sent),\
+                                               txn.tgt_balance-txn.amt_rcvd if txn.tgt_balance is not None else max(txn.tgt.balance,-txn.amt_rcvd))
     def has_account(self,acct_ID):
         return acct_ID in self.accounts
     def get_account(self,acct_ID):
@@ -67,9 +73,17 @@ class System():
     def create_account(self,acct_ID):
         self.accounts[acct_ID] = Account(acct_ID)
         return self.accounts[acct_ID]
-    def reset(self,no_balance=False,Tracker=None):
+    def update_time(self,timestamp):
+        time_txn = datetime.strptime(timestamp,self.timeformat)
+        if time_txn < self.time_current:
+            raise ValueError("Invalid time ordering (transaction time < system time): ",str(time_txn)," < ",str(self.time_current))
+        else:
+            self.time_current = time_txn
+            return time_txn
+    def reset(self):
+        self.time_current = self.time_begin
         for acct_ID,acct in self.accounts.items():
-            acct.reset(no_balance,Tracker)
+            acct.reset()
         return self
     def get_txn_categ_accts(self,src_categ,tgt_categ):
         # this method determines whether a transaction is a 'deposit', 'transfer', or 'withdraw' in cases where accounts are either provider-facing or public-facing, and only the latter reflect "real" use of the ecosystem
@@ -94,8 +108,8 @@ class System():
             return self.txn_categs[txn_type]
     def process(self,txn):
         # adjust account balances accordingly
-        txn.src.balance = txn.src.balance-txn.amt_out
-        txn.tgt.balance = txn.tgt.balance+txn.amt_in
+        txn.src.balance = txn.src.balance-txn.amt_sent
+        txn.tgt.balance = txn.tgt.balance+txn.amt_rcvd
 
 class Transaction(object):
     # A transaction, here, contains the basic features of a transaction with references to the source and target accounts
@@ -107,10 +121,10 @@ class Transaction(object):
         for key, value in txn_dict.items():
             setattr(self, key, value)
         # use the fee convention to determine how much is leaving the souce account, entering the target account, and disappearing in between
-        self.amt_out,self.amt_in,self.fee = self.system.get_amounts(self)
-        if self.amt_out < self.amt_in: raise ValueError("Invalid transaction (amount sent < amount received): ",str(txn_dict))
+        self.amt_sent,self.amt_rcvd,self.fee = self.system.get_amounts(self)
+        if self.amt_sent < self.amt_rcvd: raise ValueError("Invalid transaction (amount sent < amount received): ",str(txn_dict))
         try:
-            self.fee_scaling = self.fee/self.amt_in
+            self.fee_scaling = self.fee/self.amt_rcvd
         except:
             self.fee_scaling = None
         try:
@@ -122,14 +136,16 @@ class Transaction(object):
     def to_print(self):
         return(str(self).split(','))
     @classmethod
-    def create(cls,src,tgt,txn_dict,get_categ):
+    def create(cls,src,tgt,timestamp,txn_dict,get_categ):
         # This method creates a Transaction object from a dictionary and object references to the source and target accounts
         # The dictionary here is read in from the file, and has System.txn_header as the keys
-        txn_dict['timestamp'] = datetime.strptime(txn_dict['timestamp'],cls.system.timeformat)
-        for term in ['amt','fee','src_fee','tgt_fee']:
+        txn_dict['timestamp'] = timestamp
+        for term in ['amt','fee','src_fee','tgt_fee','src_balance','tgt_balance']:
             try:
                 txn_dict[term] = float(txn_dict[term])
-            except:
+            except ValueError:
+                txn_dict[term] = None
+            except KeyError:
                 continue
         txn = cls(src,tgt,txn_dict)
         if get_categ: txn.categ = cls.system.get_txn_categ(txn)
@@ -139,52 +155,50 @@ class Account(dict):
     # An account, here, contains the most important features of accounts and can contain tracking mechanisms
     def __init__(self, acct_ID):
         self.acct_ID  = acct_ID
-        self.starting_balance = 0
-        self.balance = 0
+        self.starting_balance = None
+        self.balance = None
         self.categs = set()
         self.categ = None
-        self.tracked = False
+        self.tracked = None
         self.tracker = None
     def close_out(self):
-        self.balance = 0
+        self.balance = None
+        self.tracked = None
         self.tracker = None
-    def reset(self,no_balance,Tracker):
-        if no_balance: self.starting_balance = 0
+    def reset(self):
         self.balance = self.starting_balance
-        self.tracked = False
-        if Tracker:
-            self.track(Tracker)
-        else:
-            self.tracker = None
+        self.tracked = None
+        self.tracker = None
     def update_categ(self, src_tgt, txn_type):
         # this collects the categories of account holder we've seen this user be
         if txn_type in self.system.acct_categs:
             self.categs.add(self.system.acct_categs[txn_type][src_tgt])
-    def has_tracker(self):
-        return isinstance(self.tracker,list)
-    def track(self,Tracker_Class):
-        self.tracker = Tracker_Class(self)
-    def infer_balance(self, amt):
+    def infer_init_balance(self, amt):
         # this function upps the running balance in the account, also adjusting the inferred starting balance
         self.starting_balance += amt
         self.balance += amt
-    def remove_balance(self, amt):
-        # this function drops the running balance in the account, also adjusting the inferred starting balance
-        self.balance -= amt
+    def has_balance(self):
+        return self.balance is not None
+    def track(self, Tracker_class, init=False):
+        self.tracked = True
+        self.tracker = Tracker_class(self,init)
+    def has_tracker(self):
+        return self.tracker is not None
     def adjust_balance_up(self, missing):
         if self.has_tracker(): self.tracker.adjust_tracker_up(missing)
-        self.infer_balance(missing)
+        self.balance += missing
     def adjust_balance_down(self, extra):
         if self.has_tracker(): yield from self.tracker.adjust_tracker_down(extra)
-        self.remove_balance(extra)
+        self.balance -= extra
 
 def setup_system(config_data):
     ############### Parse config file ##################
     transaction_header = config_data["transaction_header"]
     timeformat = config_data["timeformat"]
-    timewindow = (config_data["timewindow_beg"],config_data["timewindow_end"])
+    time_begin = config_data["timewindow_beg"]
+    time_end   = config_data["timewindow_end"]
     ############### Initialize system ##################
-    system = System(transaction_header,timeformat,timewindow)
+    system = System(transaction_header,timeformat,time_begin,time_end)
     ############ Make Classes System-aware #############
     Transaction.system = system
     Account.system = system
@@ -225,15 +239,30 @@ def load_accounts(accounts_file):
 
 def initialize_transactions(txn_reader,system,report_file,get_categ=False):
     import traceback
-    # Initialize the transaction. There are two steps:
-    #                               1) Ensure the source and target accounts exist
+    # Initialize the transaction. There are three steps:
+    #                               1) Update the current time in the system
+    #                               2) Ensure the source and target accounts exist
     #                               3) Create the transaction object
     for txn in txn_reader:
         try:
-            # define the transaction, creating accounts and trackers if needed
+            # update the current time in the system
+            timestamp = system.update_time(txn['timestamp'])
+            # define the transaction, creating accounts if needed
             src = system.get_account(txn['src_ID']) if system.has_account(txn['src_ID']) else system.create_account(txn['src_ID'])
             tgt = system.get_account(txn['tgt_ID']) if system.has_account(txn['tgt_ID']) else system.create_account(txn['tgt_ID'])
-            yield Transaction.create(src,tgt,txn,get_categ)
+            # make the transaction object
+            txn = Transaction.create(src,tgt,timestamp,txn,get_categ)
+            # update starting balance if needed
+            if src.starting_balance is None or tgt.starting_balance is None:
+                src_init_balance, tgt_init_balance = system.init_balances(txn)
+                if src.starting_balance is None:
+                    src.starting_balance = src_init_balance if src_init_balance is not None else 0
+                    src.balance = src.starting_balance
+                if tgt.starting_balance is None:
+                    tgt.starting_balance = tgt_init_balance if tgt_init_balance is not None else 0
+                    tgt.balance = tgt.starting_balance
+            # return the transaction object
+            yield txn
         except:
             report_file.write("ISSUE W/ INITIALIZING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
 
@@ -250,6 +279,7 @@ def infer_account_categories(system,transaction_file,report_filename):
             if categ in account.categs:
                 account.categ = categ
                 break
+    system.time_current = system.time_begin
     return system
 
 def infer_starting_balance(system,transaction_file,report_filename):
@@ -258,10 +288,11 @@ def infer_starting_balance(system,transaction_file,report_filename):
         txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
         transactions = initialize_transactions(txn_reader,system,report_file)
         for txn in transactions:
-            src_balance, tgt_balance = txn.system.needs_balances(txn)
-            if src_balance > txn.src.balance: txn.src.infer_balance(src_balance - txn.src.balance)
-            if tgt_balance > txn.tgt.balance: txn.tgt.infer_balance(tgt_balance - txn.tgt.balance)
-            txn.system.process(txn)
+            src_balance, tgt_balance = system.needs_balances(txn)
+            if src_balance > txn.src.balance: txn.src.infer_init_balance(src_balance - txn.src.balance)
+            if tgt_balance > txn.tgt.balance: txn.tgt.infer_init_balance(tgt_balance - txn.tgt.balance)
+            system.process(txn)
+    system.time_current = system.time_begin
     return system
 
 def discover_account_categories(src,tgt,amt,basics=None,txn_type=None):
@@ -286,8 +317,8 @@ def start_report(report_filename,args):
     with open(report_filename,'w') as report_file:
         report_file.write("Initialing 'follow the money' for: "+os.path.abspath(args.input_file)+"\n")
         report_file.write("Using the configuration file: "+os.path.abspath(args.config_file)+"\n")
-        if args.no_balance: report_file.write("    Ignoring inferred starting balances (no effect if balances are given)."+"\n")
-        report_file.write("\n\n")
+        if args.no_balance: report_file.write("    Avoid inferring account balances at start, when unseen."+"\n")
+        report_file.write("\n")
         report_file.flush()
 
 if __name__ == '__main__':

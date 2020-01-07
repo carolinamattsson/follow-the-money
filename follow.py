@@ -4,8 +4,6 @@ This code defines classes and functions for the basic functionaliy
 of "follow the money" -- an algorithm to turn a list of transactions into a
 list of money flows, representing weighted trajectories of money through a
 payment system.
-Up-to-date code: https://github.com/Carromattsson/follow_the_money
-Copyright (C) 2018 Carolina Mattsson, Northeastern University
 '''
 from datetime import datetime, timedelta
 import traceback
@@ -40,63 +38,59 @@ class Branch:
         if self.prev:
             # this is recursive... regular "branches" asks their previous "branch" for its flow, of a given amount, then adds its own
             flow = self.prev.follow_back(amt+fee)
-            flow.extend(self, amt)
+            flow.extend(self, amt, fee)
         else:
             # "root branches" begin building the flow with the amount given to it
             flow = Flow(self, amt, fee)
         return flow
-    @classmethod
-    def new_root(cls,txn):
-        return [cls(None,txn,txn.amt_in)]
-    @classmethod
-    def new_leaves(cls,new_branches,skip_leaf=False):
-        if skip_leaf:
-            return [branch.prev.follow_back(branch.prev.amt) for branch in new_branches if branch.prev]
-        else:
-            return [branch.follow_back(branch.amt) for branch in new_branches]
 
 class Flow:
     # This Class allows us to represent unique trajectories that specific amounts of money follow through the system
     # These "money flows" allow for useful aggregations at the system level where monetary units are never double-counted
 
     # Class variable defines what flow.to_print() currently outputs
-    header = ['flow_timestamp','flow_amt','flow_frac_root','flow_length','flow_length_wrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_durations','flow_rev_fracs','flow_categs']
+    header = ['root_timestamp','root_amt','root_txn','flow_length','flow_length_nrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_amts','flow_revs','flow_txns','flow_durs','flow_categs']
 
     def __init__(self, branch, amt, fee):
         # "money flows" have a size (flow.amt), a length within the system (flow.tux), and a duration of time that they remained in the system (flow.duration)
         # the specific trajectory is described by a list of transactions, through a list of accounts, where the money stayed for a list of durations
-        # when aggregating over "money flows", they can be weighted by their size or by their root transactions using flow.frac_root
+        # when aggregating over "money flows", they can be weighted by their size or by their transactions using flow.frac_root
         self.timestamp = datetime.strftime(branch.txn.timestamp,branch.txn.system.timeformat)
+        self.root_amt  = amt+fee
+        self.root_txn  = (amt+fee)/(branch.txn.amt_sent)
+        self.amts      = [amt]
+        self.revs      = [fee]
+        self.txns      = [(amt+fee)/(branch.txn.amt_sent)]
         self.txn_IDs   = [branch.txn.txn_ID]
         self.txn_types = [branch.txn.type]
+        self.acct_IDs  = [branch.txn.src.acct_ID,branch.txn.tgt.acct_ID]
         self.beg_categ = branch.txn.categ
         self.end_categ = branch.txn.categ
-        self.acct_IDs  = [branch.txn.src.acct_ID,branch.txn.tgt.acct_ID]
-        self.amt       = amt+fee
-        self.rev_fracs = [fee/(amt+fee)]
-        self.frac_root = (amt+fee)/(branch.txn.amt_out)
         self.duration  = timedelta(0)
         self.durations = []
         self.length    = 1 if branch.txn.categ == 'transfer' else 0                                              # "Transfers Until eXit" - deposited money begins at step 0, and any subsequent 'transfer' adds 1 to this measure
-        self.length_wrev = branch.txn.amt_in/(branch.txn.amt_out) if branch.txn.categ == 'transfer' else 0 #                        - strictly speaking, this measure aught to be adjusted by any revenue/fees incurred at each step
-    def extend(self, branch, amt):
+        self.length_nrev = branch.txn.amt_rcvd/(branch.txn.amt_sent) if branch.txn.categ == 'transfer' else 0 #                        - strictly speaking, this measure aught to be adjusted by any revenue/fees incurred at each step
+    def extend(self, branch, amt, fee):
         # this funciton builds up a "money flow" by incorporating the information in a subsequent "branch"
         # this is called inside the recursive function branch.follow_back(amt)
+        self.amts.append(amt)
+        self.revs.append(fee)
+        self.txns.append((amt+fee)/(branch.txn.amt_sent))
         self.txn_IDs.append(branch.txn.txn_ID)
         self.acct_IDs.append(branch.txn.tgt.acct_ID)
         self.txn_types.append(branch.txn.type)
         self.end_categ = branch.txn.categ
-        self.rev_fracs.append(1-(amt/self.amt))
         branch_duration = branch.txn.timestamp - branch.prev.txn.timestamp
         self.duration += branch_duration
         self.durations.append(branch_duration)
         self.length += 1 if branch.txn.categ == 'transfer' else 0             # neither 'deposit' nor 'withdraw' transactions are included in the "Transfer Until eXit" measure, only transaction within the system itself
-        self.length_wrev += amt/self.amt if branch.txn.categ == 'transfer' else 0
+        self.length_nrev += amt/self.root_amt if branch.txn.categ == 'transfer' else 0
     def to_print(self):
         # this returns a version of this class that can be exported to a file using writer.writerow()
-        return [self.timestamp,self.amt,self.frac_root,self.length,self.length_wrev,self.duration.total_seconds()/3600.0,\
+        return [self.timestamp,self.root_amt,self.root_txn,self.length,self.length_nrev,self.duration.total_seconds()/3600.0,\
                 '['+','.join(id for id in self.acct_IDs)+']','['+','.join(id for id in self.txn_IDs)+']','['+','.join(type for type in self.txn_types)+']',\
-                '['+','.join(str(dur.total_seconds()/3600.0) for dur in self.durations)+']','['+','.join(str(rev_frac) for rev_frac in self.rev_fracs)+']',\
+                '['+','.join(str(amt) for amt in self.amts)+']','['+','.join(str(rev) for rev in self.revs)+']','['+','.join(str(txn) for txn in self.txns)+']',\
+                '['+','.join(str(dur.total_seconds()/3600.0) for dur in self.durations)+']',\
                 '('+','.join([self.beg_categ,self.end_categ])+')']
 
 class Tracker(list):
@@ -107,11 +101,11 @@ class Tracker(list):
     type = "no-tracking"
     time_cutoff = None
     resolution_limit = 0.01
-    infer = False
-    def __init__(self, account):
+    infer = True
+    def __init__(self, account, init):
         # Trackers are initialized to reference:
         self.account = account                    # The Account instance that owns them
-        if self.infer: self.infer_deposit(self.account.balance)
+        self.infer_deposit(account.balance,account.system.time_begin if init else account.system.time_current,id="initial")
     def add_branches(self, branches):
         # this function adds a list of branches to the account
         self.extend(branches)
@@ -121,82 +115,78 @@ class Tracker(list):
         #    note that if branches are removed from the account in this function, that must be reflected in the tracked balance
         # this "basic" version offers no tracking at all
         #    only one branch is returned, which is a new "root branch" that corresponds directly to the transaction itself
-        if this_txn.amt_out > self.resolution_limit:
-            new_branch = Branch(None,this_txn,this_txn.amt_in)
-            if this_txn.amt_in > self.resolution_limit:
+        if this_txn.amt_sent > self.resolution_limit:
+            new_branch = Branch(None,this_txn,this_txn.amt_rcvd)
+            if this_txn.amt_rcvd > self.resolution_limit:
                 new_branches = [new_branch]
                 new_flows = []
             else:
                 new_branches = []
-                new_flows = new_branch.follow_back(new_branch.amt,fee=this_txn.amt_out-this_txn.amt_in)
+                new_flows = new_branch.follow_back(new_branch.amt,fee=this_txn.amt_sent-this_txn.amt_rcvd)
         return new_branches, new_flows
-    def stop_tracking(self,timestamp=None):
-        # this function finds the "leaf branches" in this account, builds the "money flows" that thus end at this account, returns those "money flows", and stops tracking those "leaf branches"
-        #    if a timestamp is given, flows that are older than Account.time_cutoff are considered "leaf branches"
-        #    if no timestamp is given, all flows are considered "leaf branches"
-        if timestamp:
-            flows = []
-            for branch in self:
-                if (timestamp-branch.txn.timestamp)>self.time_cutoff:
-                    flows.append(branch.follow_back(branch.amt))
-                    self.remove(branch)
-        else:
-            flows        = [branch.follow_back(branch.amt) for branch in self]
-            self[:]      = []
+    def stop_tracking(self,timestamp):
+        # this function makes "leaf branches" out of those in this account older than Account.time_cutoff
+        # if builds the "money flows" that thus end at this account, returns those "money flows", and stops tracking those "leaf branches"
+        flows = []
+        for branch in self:
+            if (timestamp-branch.txn.timestamp)>self.time_cutoff:
+                flows.append(branch.follow_back(branch.amt))
+                self.remove(branch)
         return flows
-    def infer_deposit(self,amt):
+    def infer_deposit(self,amt,timestamp,id='inferred'):
         if amt > self.resolution_limit:
             # this function creates an inferred Transaction object and deposits it onto the account
-            inferred_deposit = self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.account.system.timewindow[0],"amt":amt,"src_fee":0,"tgt_fee":0,"type":'inferred',"categ":'deposit'})
-            self.add_branches(Branch.new_root(inferred_deposit))
-    def infer_withdraw(self,amt,fee=0,type='inferred',track=True):
+            if self.infer:
+                inferred_deposit = self.Transaction(self.account,self.account,{"txn_ID":id,"timestamp":timestamp,"amt":amt,"src_fee":0,"tgt_fee":0,"type":'inferred',"categ":'deposit'})
+                new_branch = Branch(None,inferred_deposit,inferred_deposit.amt_rcvd)
+                self.add_branches([new_branch])
+    def infer_withdraw(self,amt,timestamp,fee=0,id='inferred'):
         if amt+fee > self.resolution_limit:
             # this function creates an inferred Transaction object and withdraws it from the account
-            inferred_withdraw = self.Transaction(self.account,self.account,{"txn_ID":'i',"timestamp":self.account.system.timewindow[1],"amt":amt,"src_fee":fee,"tgt_fee":0,"type":type,"categ":'withdraw'})
+            inferred_withdraw = self.Transaction(self.account,self.account,{"txn_ID":id,"timestamp":timestamp,"amt":amt,"src_fee":fee,"tgt_fee":0,"type":'inferred',"categ":'withdraw'})
             new_branches, new_flows = self.extend_branches(inferred_withdraw)
-            yield from Branch.new_leaves(new_branches,skip_leaf=(not track))+new_flows
+            yield from new_flows
+            if self.infer:
+                yield from [branch.follow_back(branch.amt) for branch in new_branches]
+            else:
+                yield from [branch.prev.follow_back(branch.amt) for branch in new_branches]
         else:
             yield from []
     def adjust_tracker_up(self,amt):
-        if self.infer: self.infer_deposit(amt)
+        self.infer_deposit(amt,self.account.system.time_current)
     def adjust_tracker_down(self,amt):
-        yield from self.infer_withdraw(amt,track=self.infer)
+        yield from self.infer_withdraw(amt,self.account.system.time_current)
     @classmethod
     def process(cls,txn,src_track=True,tgt_track=True):
-        if txn.amt_in < 0:
+        if txn.amt_rcvd < 0:
             # correct for this eventuality... it means over 100% of the transaction went towards the fee
             if tgt_track:
-                txn.tgt.tracked = True
-                if not txn.tgt.has_tracker(): txn.tgt.track(cls)
-                yield from txn.tgt.tracker.infer_withdraw(0,fee=-txn.amt_in,type='fee',track=True)
-            txn.tgt.balance = txn.tgt.balance+txn.amt_in
+                yield from txn.tgt.tracker.infer_withdraw(0,system.time_current,fee=-txn.amt_rcvd,id='fee')
+            txn.tgt.balance = txn.tgt.balance+txn.amt_rcvd
             txn.fee_scaling = 1
-            txn.amt_in = 0
-        if txn.amt_out > cls.resolution_limit:
+            txn.amt_rcvd = 0
+        if txn.amt_sent > cls.resolution_limit:
             if src_track:
-                txn.src.tracked = True
-                if not txn.src.has_tracker(): txn.src.track(cls)
                 new_branches, new_flows = txn.src.tracker.extend_branches(txn)
                 yield from new_flows
             else:
                 if txn.src.has_tracker():
                     new_branches, new_flows = txn.src.tracker.extend_branches(txn)
-                    yield from Branch.new_leaves(new_branches,skip_leaf=True)+new_flows
+                    yield from new_flows
+                    yield from [branch.follow_back(branch.amt) for branch in new_branches]
                 if tgt_track:
-                    new_branch = Branch(None,txn,txn.amt_in)
-                    if txn.amt_in > cls.resolution_limit:
+                    new_branch = Branch(None,txn,txn.amt_rcvd)
+                    if txn.amt_rcvd > cls.resolution_limit:
                         new_branches = [new_branch]
                     else:
                         new_branches = []
-                        yield from [new_branch.follow_back(new_branch.amt,fee=txn.amt_out-txn.amt_in)]
+                        yield from [new_branch.follow_back(new_branch.amt,fee=txn.amt_sent-txn.amt_rcvd)]
                 else:
                     new_branches = []
             if tgt_track:
-                txn.tgt.tracked = True
-                if not txn.tgt.has_tracker(): txn.tgt.track(cls)
                 txn.tgt.tracker.add_branches(new_branches)
             else:
-                yield from Branch.new_leaves(new_branches)
+                yield from [branch.follow_back(branch.amt) for branch in new_branches]
 
 class Greedy_tracker(Tracker):
     type = "greedy"
@@ -207,7 +197,7 @@ class Greedy_tracker(Tracker):
     def extend_branches(self,this_txn):
         # according to the LIFO heuristic, the "branches" to be extended are removed from the end of the account
         tracked = sum(branch.amt for branch in self)
-        amt = min(this_txn.amt_out,tracked)
+        amt = min(this_txn.amt_sent,tracked)
         branches = []
         while amt > self.resolution_limit:
             # "branches" are removed from the end of the account list until the amount of the transaction is reached
@@ -224,7 +214,7 @@ class Greedy_tracker(Tracker):
             # note that the list is reversed to preserve the newest branches at the end
             # note that if any resulting branches are less than the minimum we're tracking, they are not extended and instead followed back
         new_stack, new_flows = [], []
-        continues = this_txn.amt_in/this_txn.amt_out
+        continues = this_txn.amt_rcvd/this_txn.amt_sent
         for branch in reversed(branches):
             new_branch = Branch(branch,this_txn,branch.amt*continues)
             if new_branch.amt > self.resolution_limit:
@@ -234,11 +224,11 @@ class Greedy_tracker(Tracker):
         # if the outgoing transaction is larger than the amount being tracked, a new "root branch" is created that corresponds to the transaction itself and the untracked amount
             # note that the fee/revenue for this portion is accounted for later, within follow_back, using the fee information in the transaction itself
             # note that if the resulting branch is less than the minimum we're tracking but only because of the fee, it is instead followed back
-        amt_untracked = this_txn.amt_in - sum(branch.amt for branch in new_stack)
+        amt_untracked = this_txn.amt_rcvd - sum(branch.amt for branch in new_stack)
         if amt_untracked > self.resolution_limit:
             new_stack.append(Branch(None,this_txn,amt_untracked))
         else:
-            tot_untracked = this_txn.amt_out-tracked
+            tot_untracked = this_txn.amt_sent-tracked
             if tot_untracked > self.resolution_limit:
                 new_branch = Branch(None,this_txn,tot_untracked*continues)
                 new_flows.append(new_branch.follow_back(new_branch.amt,fee=tot_untracked-new_branch.amt))
@@ -252,9 +242,9 @@ class Well_mixed_tracker(Tracker):
     # this heuristic takes the perfectly fungible nature of money literally
     def extend_branches(self,this_txn):
         # according to the well-mixed heuristic, all the "branches" in an account are to be extended, and this depreciates their remaining value
-        track_factor = this_txn.amt_out/self.account.balance
-        split_factor = this_txn.amt_in/self.account.balance
-        stay_factor  = (self.account.balance-this_txn.amt_out)/self.account.balance
+        track_factor = this_txn.amt_sent/self.account.balance
+        split_factor = this_txn.amt_rcvd/self.account.balance
+        stay_factor  = (self.account.balance-this_txn.amt_sent)/self.account.balance
         new_pool, new_flows = [], []
         # all the "branches" in an account are extended by the outgoing transaction
             # note that if any resulting branches are less than the minimum we're tracking, they are not transferred to the target account
@@ -270,13 +260,13 @@ class Well_mixed_tracker(Tracker):
         # so, a new "root branch" is created with the balance that references this transaction itself begins to re-track this untracked money again - this branch corresponds to the transaction itself and the newly tracked amount
             # note that the fee/revenue for this portion is accounted for later, within follow_back, using the fee information in the transaction itself
             # note that if the resulting branch is less than the minimum we're tracking but only because of the fee, it is instead followed back
-        amt_untracked = this_txn.amt_in  - sum(branch.amt for branch in new_pool)
+        amt_untracked = this_txn.amt_rcvd  - sum(branch.amt for branch in new_pool)
         if amt_untracked > self.resolution_limit:
             new_pool.append(Branch(None,this_txn,amt_untracked))
         else:
-            tot_untracked = this_txn.amt_out - sum(branch.amt for branch in self)
+            tot_untracked = this_txn.amt_sent - sum(branch.amt for branch in self)
             if tot_untracked > self.resolution_limit:
-                new_branch = Branch(None,this_txn,tot_untracked*(this_txn.amt_in/this_txn.amt_out))
+                new_branch = Branch(None,this_txn,tot_untracked*(this_txn.amt_rcvd/this_txn.amt_sent))
                 new_flows.append(new_branch.follow_back(new_branch.amt,fee=tot_untracked-new_branch.amt))
         # the old pool is emptied or shrunk to reflect the amount removed
             # note that if any resulting are less than the minimum we're tracking, they are removed and followed back
@@ -287,7 +277,7 @@ class Well_mixed_tracker(Tracker):
                 branch.depreciate(stay_factor)
         return new_pool, new_flows
 
-def define_tracker(follow_heuristic,time_cutoff,resolution_limit,infer):
+def define_tracker(follow_heuristic,time_cutoff,resolution_limit,no_infer):
     # Based on the follow_heuristic, define the type of trackers we're giving our accounts
     if follow_heuristic == "no-tracking":
         Tracker_class = Tracker
@@ -298,12 +288,11 @@ def define_tracker(follow_heuristic,time_cutoff,resolution_limit,infer):
     # Define also how we handle cutoffs and special cases
     Tracker_class.time_cutoff          = timedelta(hours=float(time_cutoff)) if time_cutoff else None
     Tracker_class.resolution_limit     = resolution_limit
-    Tracker_class.infer                = infer
+    Tracker_class.infer                = not no_infer
     return Tracker_class
 
-def check_trackers(txn):
-    if txn.src.tracker: yield from txn.src.tracker.stop_tracking(txn.timestamp)
-    if txn.tgt.tracker: yield from txn.tgt.tracker.stop_tracking(txn.timestamp)
+def check_timestamp(acct,timestamp):
+    if acct.tracker: yield from acct.tracker.stop_tracking(timestamp)
 
 def check_balances(txn):
     src_balance, tgt_balance = txn.system.needs_balances(txn)
@@ -316,29 +305,48 @@ def check_balances(txn):
     elif tgt_balance < txn.tgt.balance:
         yield from txn.tgt.adjust_balance_down(txn.tgt.balance - tgt_balance)
 
-def check_consistency(inconsistents,txn):
-    if txn.categ == 'transfer':
-        pass
-    elif txn.categ == 'deposit':
-        if txn.src.tracked: inconsistents.add(txn.src.acct_ID)
-    elif txn.categ == 'withdraw':
-        if txn.tgt.tracked: inconsistents.add(txn.tgt.acct_ID)
-    else:
-        if txn.src.tracked: inconsistents.add(txn.src.acct_ID)
-        if txn.tgt.tracked: inconsistents.add(txn.tgt.acct_ID)
+def check_initialized(txn,Tracker_class,inconsistents):
+    # check source account
+    if txn.src.tracked is None:
+        if txn.categ in ['transfer','withdraw']:
+            txn.src.track(Tracker_class,init=True)
+        else:
+            txn.src.tracked = False
+    elif txn.src.tracked is False:
+        if txn.categ in ['transfer','withdraw']:
+            txn.src.track(Tracker_class)
+            inconsistents.add(txn.src.acct_ID)
+    elif txn.src.tracked is True:
+        if txn.src.tracked not in ['transfer','withdraw']:
+            inconsistents.add(txn.src.acct_ID)
+    # check target account
+    if txn.tgt.tracked is None:
+        if txn.categ in ['deposit','transfer']:
+            txn.tgt.track(Tracker_class,init=True)
+        else:
+            txn.tgt.tracked = False
+    elif txn.tgt.tracked is False:
+        if txn.categ in ['deposit','transfer']:
+            txn.tgt.track(Tracker_class)
+            inconsistents.add(txn.tgt.acct_ID)
+    elif txn.tgt.tracked is True:
+        if txn.categ not in ['deposit','transfer']:
+            inconsistents.add(txn.tgt.acct_ID)
     return inconsistents
 
-def track_transactions(txns,Tracker,report_file):
+def track_transactions(system,txns,Tracker,report_file):
     # Track the transaction. There are three steps:
-    #                               1) Check the accounts for balance consistency
-    #                               2) Check the trackers for old money, and boundary consistency
+    #                               1) Check the accounts for old money, tracking consistency
+    #                               2) Check for the prior existence of required balance
     #                               3) Deposit, transfer, or withdraw the transaction
     inconsistents = set()
     report_file.write("UNTRACKED TRANSACTIONS:\n")
     for txn in txns:
         try:
-            if Tracker.time_cutoff: yield from check_trackers(txn)
-            inconsistents = check_consistency(inconsistents,txn)
+            if Tracker.time_cutoff:
+                yield from check_timestamp(txn.src,system.time_current)
+                yield from check_timestamp(txn.tgt,system.time_current)
+            inconsistents = check_initialized(txn,Tracker,inconsistents)
             yield from check_balances(txn)
         except:
             report_file.write("FAILED: PRE-CHECKING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
@@ -368,11 +376,8 @@ def track_remaining_funds(system,report_file):
     for acct_ID,acct in system.accounts.items():
         try:
             if acct.has_tracker():
-                if acct.tracker.time_cutoff: yield from acct.tracker.stop_tracking(acct.system.timewindow[1])
-                if acct.tracker.infer:
-                    yield from acct.tracker.infer_withdraw(acct.balance) if acct.balance > acct.tracker.resolution_limit else []
-                else:
-                    yield from acct.tracker.stop_tracking() if acct.balance > acct.tracker.resolution_limit else []
+                if acct.tracker.time_cutoff: yield from acct.tracker.stop_tracking(acct.system.time_end)
+                yield from acct.tracker.infer_withdraw(acct.balance,system.time_end,id="final")
         except:
             report_file.write("FAILED: REMAINING FUNDS: "+acct_ID+"\n"+traceback.format_exc()+"\n")
         acct.close_out()
@@ -387,23 +392,20 @@ def update_report(report_filename,args):
         if args.greedy: report_file.write("    Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv"+"\n")
         if args.well_mixed: report_file.write("    Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv"+"\n")
         if args.no_tracking: report_file.write("    Weighted flows with 'no-tracking' heuristic saved with extension: wflows_no-tracking.csv"+"\n")
-        if args.infer: report_file.write("    Record inferred deposits and withdrawals as transactions."+"\n")
+        if args.no_infer: report_file.write("    Avoid inferring unseen deposit and withdrawal transactions."+"\n")
         if args.cutoff: report_file.write("    Stop tracking funds after "+str(args.cutoff)+" hours."+"\n")
         if args.smallest: report_file.write("    Stop tracking funds below "+str(args.smallest)+" in value."+"\n")
-        if args.no_balance: report_file.write("    Ignoring inferred starting balances (no effect if balances are given)."+"\n")
         report_file.write("\n\n")
         report_file.flush()
 
-def filter_out(wflow):
-    return all(txn_type == "inferred" for txn_type in wflow.txn_types)
 
-def run(system,transaction_filename,wflow_filename,report_filename,follow_heuristic,cutoff,smallest,infer,no_balance):
+def run(system,transaction_filename,wflow_filename,report_filename,follow_heuristic,cutoff,smallest,no_infer):
     from initialize import initialize_transactions
     import csv
-    ############# Define the tracker class ##############
-    Tracker = define_tracker(follow_heuristic,cutoff,smallest,infer)
     ################# Reset the system ##################
-    system = system.reset(no_balance=no_balance,Tracker=Tracker)
+    system = system.reset()
+    ############# Define the tracker class ##############
+    Tracker = define_tracker(follow_heuristic,cutoff,smallest,no_infer)
     ###################### RUN! #########################
     with open(transaction_filename,'r') as txn_file, open(wflow_filename,'w') as wflow_file, open(report_filename,'a') as report_file:
         txn_reader  = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
@@ -412,12 +414,10 @@ def run(system,transaction_filename,wflow_filename,report_filename,follow_heuris
         # loop through all transactions, and initialize in reference to the system
         transactions = initialize_transactions(txn_reader,system,report_file,get_categ=True)
         # now process according to the defined tracking procedure
-        for wflow in track_transactions(transactions,Tracker,report_file):
-            if infer and filter_out(wflow): continue
+        for wflow in track_transactions(system,transactions,Tracker,report_file):
             wflow_writer.writerow(wflow.to_print())
         # loop through all accounts, and process the remaining funds
         for wflow in track_remaining_funds(system,report_file):
-            if infer and filter_out(wflow): continue
             wflow_writer.writerow(wflow.to_print())
     return system
 

@@ -1,2 +1,3 @@
-# Wish list of future things to be implemented #
-frac_leaf as well as frac_root, really just a vector of frac_txns --> not hard :)
+# Wish list #
+- credit lines and the issuance/cancellation of endogenous credit money
+- dispensation for the creation/destruction of monetary units (ex. mining)
