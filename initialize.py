@@ -279,7 +279,6 @@ def infer_account_categories(system,transaction_file,report_filename):
             if categ in account.categs:
                 account.categ = categ
                 break
-    system.time_current = system.time_begin
     return system
 
 def infer_starting_balance(system,transaction_file,report_filename):
@@ -291,8 +290,7 @@ def infer_starting_balance(system,transaction_file,report_filename):
             src_balance, tgt_balance = system.needs_balances(txn)
             if src_balance > txn.src.balance: txn.src.infer_init_balance(src_balance - txn.src.balance)
             if tgt_balance > txn.tgt.balance: txn.tgt.infer_init_balance(tgt_balance - txn.tgt.balance)
-            system.process(txn)
-    system.time_current = system.time_begin
+            txn.system.process(txn)
     return system
 
 def discover_account_categories(src,tgt,amt,basics=None,txn_type=None):
