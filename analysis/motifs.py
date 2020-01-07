@@ -17,16 +17,16 @@ def cumsum(a_list):
         yield total
 
 #######################################################################################################
-def find_motifs(wflow_file,motif_file,issues_file,infer=False,join=False,circulate=6):
+def find_motifs(wflow_file,motif_file,issues_file,infer=False,join=False,circulate=6,save_motifs=[]):
     ##########################################################################################
     wflow_header = ['flow_timestamp','flow_amt','flow_frac_root','flow_length','flow_length_wrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_durations','flow_rev_fracs','flow_split_categs']
-    motif_header = ["motif","flows","amount","deposits","users","median_dur_f","median_dur_a","median_dur_d"]
+    motif_header = ["motif","flows","amount","deposits","users"]
     with open(wflow_file,'r') as wflow_file, open(issues_file,'w') as issues_file:
         reader_wflows   = csv.DictReader(wflow_file,delimiter=",",quotechar='"',escapechar="%")
         writer_issues   = csv.writer(issues_file,delimiter=",",quotechar='"',escapechar="%")
         #############################################################
         # motifs is a nested dictionary: split_categ -> motif_ID -> property -> value
-        motifs = defaultdict(lambda: defaultdict(lambda: {"flows":0,"amount":0,"deposits":0,"users":set(),"durations":[]}))
+        motifs = defaultdict(lambda: defaultdict(lambda: {"flows":0,"amount":0,"deposits":0,"users":set(),"details":[]}))
         # populate the motifs dictionary
         for split_categ, wflow in split_by_month(reader_wflows,infer):
             try:
@@ -40,13 +40,16 @@ def find_motifs(wflow_file,motif_file,issues_file,infer=False,join=False,circula
             breakdowns.update(motifs[split_categ].keys())
         # create an overall dists dictionary, and fill in any gaps in the others
         motifs = combine_motifs(motifs,breakdowns)
-        # write the piecharts
+        # write the detailed duration lists
+        if save_motifs: print_motif_details(motifs_filename,save_motifs,motifs)
+        # write the summaries
         for split_categ in motifs:
             write_motifs(motifs[split_categ],motif_file,split_categ,motif_header)
 
 def parse(wflow):
     #####################################################################################
     wflow['flow_txn_types'] = wflow['flow_txn_types'].strip('[]').split(',')
+    wflow['flow_acct_IDs']  = wflow['flow_acct_IDs'].strip('[]').split(',')
     wflow['flow_amt']       = float(wflow['flow_amt'])
     wflow['flow_frac_root'] = float(wflow['flow_frac_root'])
     wflow['flow_duration']  = float(wflow['flow_duration'])
@@ -58,9 +61,10 @@ def consolidate_motif(txn_types, join, circulate):
     exit  = txn_types[-1]
     circ  = "~".join(txn_types[1:-1])
     for i,terms in enumerate(join):
-        if wflow['flow_txn_types'][0] in terms:  enter = "joined_"+str(i)
-        if wflow['flow_txn_types'][-1] in terms: exit  = "joined_"+str(i)
-    if wflow['flow_length'] >= circulate:        circ = "circulate"
+        if txn_types[0] in terms:  enter = "joined_"+str(i)
+        if txn_types[-1] in terms: exit  = "joined_"+str(i)
+    if len(txn_types) >= circulate:
+        circ = "circulate"
     return "~".join([enter]+[circ]+[exit]) if circ else "~".join([enter]+[exit])
 
 def update_motifs(motifs, split_categ, wflow, join, circulate):
@@ -71,7 +75,7 @@ def update_motifs(motifs, split_categ, wflow, join, circulate):
     motifs[split_categ][motif]["amount"]   += wflow['flow_amt']
     motifs[split_categ][motif]["deposits"] += wflow['flow_frac_root']
     motifs[split_categ][motif]["users"].update(wflow['flow_acct_IDs'][1:-1])
-    motifs[split_categ][motif]["durations"].append((wflow['flow_duration'],wflow['flow_amt'],wflow['flow_frac_root']))
+    motifs[split_categ][motif]["details"].append((wflow['flow_acct_IDs'][0],wflow['flow_acct_IDs'][-1],wflow['flow_amt'],wflow['flow_frac_root'],wflow['flow_duration']))
     return motifs
 
 def combine_motifs(motifs,breakdowns):
@@ -81,30 +85,24 @@ def combine_motifs(motifs,breakdowns):
             motifs['TOTAL'][motif]["amount"]   += motifs[split_categ][motif]["amount"]
             motifs['TOTAL'][motif]["deposits"] += motifs[split_categ][motif]["deposits"]
             motifs['TOTAL'][motif]["users"].union(motifs[split_categ][motif]["users"])
-            motifs['TOTAL'][motif]["durations"] = motifs['TOTAL'][motif]["durations"]+motifs[split_categ][motif]["durations"]
+            motifs['TOTAL'][motif]["details"] = motifs['TOTAL'][motif]["details"]+motifs[split_categ][motif]["details"]
     return motifs
 
 def finalize_motif(motif,motif_dict):
     motif_dict["motif"] = motif
     motif_dict["users"] = len(motif_dict["users"])
-    if motif_dict["durations"]:
-        motif_dict["durations"].sort()
-        #flow_cumsum = list(cumsum([1 for x in motif_dict["durations"]]))
-        #flow_mid = next(i for i,v in enumerate(flow_cumsum) if v >= flow_cumsum[-1]/2)
-        flow_mid = math.ceil(len(motif_dict["durations"])/2) - 1
-        motif_dict["median_dur_f"] = motif_dict["durations"][flow_mid][0]
-        amt_cumsum = list(cumsum([x[1] for x in motif_dict["durations"]]))
-        amt_mid = next(i for i,v in enumerate(amt_cumsum) if v >= amt_cumsum[-1]/2)
-        motif_dict["median_dur_a"] = motif_dict["durations"][amt_mid][0]
-        nrm_cumsum = list(cumsum([x[2] for x in motif_dict["durations"]]))
-        nrm_mid = next(i for i,v in enumerate(nrm_cumsum) if v >= nrm_cumsum[-1]/2)
-        motif_dict["median_dur_d"] = motif_dict["durations"][nrm_mid][0]
-    else:
-        motif_dict["median_dur_f"] = ""
-        motif_dict["median_dur_a"] = ""
-        motif_dict["median_dur_d"] = ""
-    del motif_dict["durations"]
+    del motif_dict["details"]
     return motif_dict
+
+def print_motif_details(motifs_filename,save_motifs,motif_dict):
+    for split_categ in motif_dict:
+        motif_details_filename = motifs_filename.split('.csv')[0]+'_'+split_categ+'.details'
+        with open(motif_details_filename,'w') as motif_details_file:
+            motif_details_file.write('motif,entry,exit,flow_amt,frac_root,flow_dur\n')
+            for motif in motif_dict[split_categ]:
+                if any(txn_type in motif for txn_type in save_motifs):
+                    for flow in motif_dict[split_categ][motif]["details"]:
+                        motif_details_file.write(','.join([motif]+[str(x) for x in flow])+'\n')
 
 def write_motifs(motifs,motifs_file,split_categ,motif_header):
     this_file = motifs_file.split(".csv")[0]+"_"+str(split_categ)+".csv"
@@ -114,7 +112,8 @@ def write_motifs(motifs,motifs_file,split_categ,motif_header):
         writer_motif.writeheader()
         # print distribution
         for motif in motifs:
-            writer_motif.writerow(finalize_motif(motif,motifs[motif]))
+            motif_dict = finalize_motif(motif,motifs[motif])
+            writer_motif.writerow(motif_dict)
 
 if __name__ == '__main__':
     import argparse
@@ -130,6 +129,7 @@ if __name__ == '__main__':
     parser.add_argument('--infer', action="store_true", default=False, help='Include flows that begin or end with inferred transactions')
     parser.add_argument('--circulate', type=int, default=4, help='The length at which flows are considered to circulate -- longer ones are folded in.')
     parser.add_argument('--join', action='append', default=[], help='Enter & exit types with these terms are joined (takes tuples).')
+    parser.add_argument('--save', action='append', default=[], help='Save to file the detailed list of flows that contain this type.')
 
     args = parser.parse_args()
 
@@ -140,10 +140,10 @@ if __name__ == '__main__':
 
     wflow_filename = args.input_file
     motifs_filename = os.path.join(args.output_directory,args.prefix+"motifs.csv")
-    report_filename = os.path.join(args.output_directory,args.prefix+"motifs_issues.txt")
+    report_filename = os.path.join(args.output_directory,args.prefix+"motifs.issues")
 
     args.join = [x.strip('()').split(',') for x in args.join]
 
     ######### Creates weighted flow file #################
-    find_motifs(wflow_filename,motifs_filename,report_filename,infer=args.infer,join=args.join,circulate=args.circulate)
+    find_motifs(wflow_filename,motifs_filename,report_filename,infer=args.infer,join=args.join,circulate=args.circulate,save_motifs=args.save)
     #################################################

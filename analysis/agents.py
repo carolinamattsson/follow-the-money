@@ -50,7 +50,7 @@ def find_agents(wflow_file,agent_file,issues_file,infer=False,join=False,circula
         for split_categ in breakdowns:
             dur_breakdowns[split_categ] = {term for term in breakdowns[split_categ] if '_dur' in term}
             for dur_term in dur_breakdowns[split_categ]:
-                breakdowns[split_categ].update([dur_term.split('_dur')[0]+'_median_dur_a',dur_term.split('_dur')[0]+'_median_dur_d'])
+                breakdowns[split_categ].update([dur_term.split('_dur')[0]+'_median_dur_a',dur_term.split('_dur')[0]+'_median_dur_d',dur_term.split('_dur')[0]+'_mean_dur_a',dur_term.split('_dur')[0]+'_mean_dur_d'])
                 breakdowns[split_categ].remove(dur_term)
         # write the piecharts
         for split_categ in agents:
@@ -143,7 +143,7 @@ def combine_agents(agents,breakdowns):
 
 def finalize_agent(agent,dur_breakdown):
     for dur_term in dur_breakdown:
-        try:
+        if agent[dur_term]:
             agent[dur_term].sort()
             amt_cumsum = list(cumsum([x[1] for x in agent[dur_term]]))
             amt_mid = next(i for i,v in enumerate(amt_cumsum) if v >= amt_cumsum[-1]/2)
@@ -153,9 +153,11 @@ def finalize_agent(agent,dur_breakdown):
             nrm_mid = next(i for i,v in enumerate(nrm_cumsum) if v >= nrm_cumsum[-1]/2)
             agent[dur_term.split('_dur')[0]+'_median_dur_d'] = agent[dur_term][nrm_mid][0]
             agent[dur_term.split('_dur')[0]+'_mean_dur_d']   = sum([x[0]*x[2] for x in agent[dur_term]])/sum([x[2] for x in agent[dur_term]])
-        except:
+        else:
             agent[dur_term.split('_dur')[0]+'_median_dur_a'] = ''
             agent[dur_term.split('_dur')[0]+'_median_dur_d'] = ''
+            agent[dur_term.split('_dur')[0]+'_mean_dur_a']   = ''
+            agent[dur_term.split('_dur')[0]+'_mean_dur_d']   = ''
         del agent[dur_term]
     return agent
 
@@ -201,7 +203,7 @@ if __name__ == '__main__':
 
     wflow_filename = args.input_file
     agents_filename = os.path.join(args.output_directory,args.prefix+"agents.csv")
-    report_filename = os.path.join(args.output_directory,args.prefix+"agents_issues.txt")
+    report_filename = os.path.join(args.output_directory,args.prefix+"agents.issues")
 
     args.join = [x.strip('()').split(',') for x in args.join]
 
