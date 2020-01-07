@@ -61,7 +61,7 @@ def update_loop(user_summary, month, txn, txn_categ):
 # Define how the dictionary is written into table format
 def write_user_summary(header, output_filename, user_summary, month_list, txn_types_dict):
     # Make also a file with all the active accounts
-    accounts_filename = output_filename.split('users_activity.csv')[0]+'accounts.txt'
+    accounts_filename = output_filename.split('.csv')[0]+'.accounts'
     # Now write the files
     with open(output_filename,'w') as output_file, open(accounts_filename,'w') as accounts_file:
         w = csv.DictWriter(output_file,header,delimiter=",",quotechar='"',escapechar="%")
