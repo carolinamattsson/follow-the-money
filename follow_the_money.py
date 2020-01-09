@@ -27,7 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--greedy', action="store_true", default=False, help='Track the using the "greedy" heuristic')
     parser.add_argument('--well_mixed', action="store_true", default=False, help='Track the using the "well-mixed" heuristic')
     parser.add_argument('--no_tracking', action="store_true", default=False, help='Track the using the baseline "no-tracking" heuristic')
-    parser.add_argument('--no_balance', action="store_true", default=False, help='Avoid inferring account balances at start, when unseen')
+    parser.add_argument('--no_balance', action="store_true", default=False, help='Avoid inferring account balances at start, when known')
     parser.add_argument('--no_infer', action="store_true", default=False, help='Avoud inferring unseen deposit and withdrawal transactions')
     parser.add_argument('--cutoff', metavar='hours', type=int, default=None, help='Stop tracking funds after this number of hours')
     parser.add_argument('--smallest', metavar='value', type=int, default=0.01, help='Stop tracking funds with a value below this threshold')
@@ -41,13 +41,14 @@ if __name__ == '__main__':
     if not os.path.isdir(args.output_directory):
         raise OSError("Could not find the output directory",args.output_directory)
 
-    report_filename = os.path.join(args.output_directory,args.prefix+"report.txt")
-    init.start_report(report_filename,args)
     ##################### INPUT ########################
     transaction_filename = args.input_file
     ########### Read the configuration file ############
     with open(args.config_file, 'r') as config_file:
         config_data = json.load(config_file)
+    ############## Begin the report file ###############
+    report_filename = os.path.join(args.output_directory,args.prefix+"wflows_report.txt")
+    init.start_report(report_filename,args,config_data)
     ################ Initialize system #################
     system = init.setup_system(config_data)
     ########## Define accounting convention ############

@@ -152,10 +152,13 @@ class Tracker(list):
                 yield from [branch.prev.follow_back(branch.amt) for branch in new_branches]
         else:
             yield from []
-    def adjust_tracker_up(self,amt):
-        self.infer_deposit(amt,self.account.system.time_current)
-    def adjust_tracker_down(self,amt):
-        yield from self.infer_withdraw(amt,self.account.system.time_current)
+    def adjust_tracker(self,amt):
+        if amt > self.resolution_limit:
+            self.infer_deposit(amt,self.account.system.time_current)
+            yield from []
+        elif amt < -self.resolution_limit:
+            yield from self.infer_withdraw(-amt,self.account.system.time_current)
+
     @classmethod
     def process(cls,txn,src_track=True,tgt_track=True):
         if txn.amt_rcvd < 0:
@@ -294,16 +297,19 @@ def define_tracker(follow_heuristic,time_cutoff,resolution_limit,no_infer):
 def check_timestamp(acct,timestamp):
     if acct.tracker: yield from acct.tracker.stop_tracking(timestamp)
 
-def check_balances(txn):
-    src_balance, tgt_balance = txn.system.needs_balances(txn)
-    if src_balance > txn.src.balance:
-        txn.src.adjust_balance_up(src_balance - txn.src.balance)
-    elif src_balance < txn.src.balance:
-        yield from txn.src.adjust_balance_down(txn.src.balance - src_balance)
-    if tgt_balance > txn.tgt.balance:
-        txn.tgt.adjust_balance_up(tgt_balance - txn.tgt.balance)
-    elif tgt_balance < txn.tgt.balance:
-        yield from txn.tgt.adjust_balance_down(txn.tgt.balance - tgt_balance)
+def check_balances(txn,report_file):
+    # retrieve pre-transaction account balances
+    src_init, tgt_init = txn.system.known_balances(txn)
+    if src_init is None: src_init = txn.src.balance
+    if tgt_init is None: tgt_init = txn.tgt.balance
+    # compute balances required by basic accounting
+    src_need, tgt_need = max(src_init,txn.amt_sent), max(tgt_init,-txn.amt_rcvd)
+    # adjust if necessary, and report accounting discrepancies
+    for acct, acct_need in [(txn.src,src_need), (txn.tgt,tgt_need)]:
+        if acct.tracked and acct_need != acct.balance:
+            discrepancy = acct_need - acct.balance
+            yield from acct.adjust_balance(discrepancy)
+            report_file.write("WARNING: BALANCE ADJUSTED for "+acct.acct_ID+" at "+txn.txn_ID+" BY "+str(discrepancy)+"\n")
 
 def check_initialized(txn,Tracker_class,inconsistents):
     # check source account
@@ -314,7 +320,7 @@ def check_initialized(txn,Tracker_class,inconsistents):
             txn.src.tracked = False
     elif txn.src.tracked is False:
         if txn.categ in ['transfer','withdraw']:
-            txn.src.track(Tracker_class)
+            txn.src.track(Tracker_class,init=False)
             inconsistents.add(txn.src.acct_ID)
     elif txn.src.tracked is True:
         if txn.src.tracked not in ['transfer','withdraw']:
@@ -327,27 +333,27 @@ def check_initialized(txn,Tracker_class,inconsistents):
             txn.tgt.tracked = False
     elif txn.tgt.tracked is False:
         if txn.categ in ['deposit','transfer']:
-            txn.tgt.track(Tracker_class)
+            txn.tgt.track(Tracker_class,init=False)
             inconsistents.add(txn.tgt.acct_ID)
     elif txn.tgt.tracked is True:
         if txn.categ not in ['deposit','transfer']:
             inconsistents.add(txn.tgt.acct_ID)
     return inconsistents
 
-def track_transactions(system,txns,Tracker,report_file):
+def track_transactions(system,txns,Tracker,report_file,untracked_file,inconsistents_file):
     # Track the transaction. There are three steps:
     #                               1) Check the accounts for old money, tracking consistency
     #                               2) Check for the prior existence of required balance
     #                               3) Deposit, transfer, or withdraw the transaction
     inconsistents = set()
-    report_file.write("UNTRACKED TRANSACTIONS:\n")
+    untracked_file.write("UNTRACKED TRANSACTIONS:\n")
     for txn in txns:
         try:
             if Tracker.time_cutoff:
                 yield from check_timestamp(txn.src,system.time_current)
                 yield from check_timestamp(txn.tgt,system.time_current)
             inconsistents = check_initialized(txn,Tracker,inconsistents)
-            yield from check_balances(txn)
+            yield from check_balances(txn,report_file)
         except:
             report_file.write("FAILED: PRE-CHECKING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
             report_file.flush()
@@ -359,7 +365,7 @@ def track_transactions(system,txns,Tracker,report_file):
             elif txn.categ == 'withdraw':
                 yield from Tracker.process(txn,src_track=True,tgt_track=False) if Tracker else []
             else:
-                report_file.write(txn.txn_ID+"\n")
+                untracked_file.write(txn.txn_ID+"\n")
                 yield from Tracker.process(txn,src_track=False,tgt_track=False) if Tracker else []
         except:
             report_file.write("FAILED: PROCESSING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
@@ -368,8 +374,8 @@ def track_transactions(system,txns,Tracker,report_file):
     if inconsistents:
         report_file.write("INCONSISTENT BOUNDARY AT ACCOUNTS:\n")
         for account in inconsistents:
-            report_file.write(account+"\n")
-        report_file.flush()
+            inconsistents_file.write(account+"\n")
+        inconsistents_file.flush()
 
 def track_remaining_funds(system,report_file):
     # This function removes all the remaining money from the system, either by inferring a withdraw that brings the balance down to zero or by letting the account forget everything
@@ -385,16 +391,16 @@ def track_remaining_funds(system,report_file):
 def update_report(report_filename,args):
     import os
     with open(report_filename,'a') as report_file:
-        report_file.write("Running 'follow the money' for: "+os.path.abspath(args.input_file)+"\n")
-        report_file.write("Using the configuration file: "+os.path.abspath(args.config_file)+"\n")
+        report_file.write("\n")
         report_file.write("Output is going here:"+os.path.join(os.path.abspath(args.output_directory),args.prefix)+"\n")
-        report_file.write("Options:"+"\n")
-        if args.greedy: report_file.write("    Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv"+"\n")
-        if args.well_mixed: report_file.write("    Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv"+"\n")
-        if args.no_tracking: report_file.write("    Weighted flows with 'no-tracking' heuristic saved with extension: wflows_no-tracking.csv"+"\n")
+        report_file.write("Tracking options:"+"\n")
         if args.no_infer: report_file.write("    Avoid inferring unseen deposit and withdrawal transactions."+"\n")
         if args.cutoff: report_file.write("    Stop tracking funds after "+str(args.cutoff)+" hours."+"\n")
         if args.smallest: report_file.write("    Stop tracking funds below "+str(args.smallest)+" in value."+"\n")
+        report_file.write("Running:"+"\n")
+        if args.greedy: report_file.write("    Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv"+"\n")
+        if args.well_mixed: report_file.write("    Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv"+"\n")
+        if args.no_tracking: report_file.write("    Weighted flows with 'no-tracking' heuristic saved with extension: wflows_no-tracking.csv"+"\n")
         report_file.write("\n\n")
         report_file.flush()
 
@@ -406,15 +412,19 @@ def run(system,transaction_filename,wflow_filename,report_filename,follow_heuris
     system = system.reset()
     ############# Define the tracker class ##############
     Tracker = define_tracker(follow_heuristic,cutoff,smallest,no_infer)
+    ############## Redefine report files ################
+    untracked = report_filename.split(".txt")[0]+".untracked"
+    inconsistents = report_filename.split(".txt")[0]+".inconsistents"
     ###################### RUN! #########################
-    with open(transaction_filename,'r') as txn_file, open(wflow_filename,'w') as wflow_file, open(report_filename,'a') as report_file:
+    with open(transaction_filename,'r') as txn_file, open(wflow_filename,'w') as wflow_file, \
+         open(report_filename,'a') as report_file, open(inconsistents,'a') as inconsistents_file, open(untracked,'a') as untracked_file:
         txn_reader  = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
         wflow_writer = csv.writer(wflow_file,delimiter=",",quotechar='"')
         wflow_writer.writerow(Flow.header)
         # loop through all transactions, and initialize in reference to the system
         transactions = initialize_transactions(txn_reader,system,report_file,get_categ=True)
         # now process according to the defined tracking procedure
-        for wflow in track_transactions(system,transactions,Tracker,report_file):
+        for wflow in track_transactions(system,transactions,Tracker,report_file,untracked_file,inconsistents_file):
             wflow_writer.writerow(wflow.to_print())
         # loop through all accounts, and process the remaining funds
         for wflow in track_remaining_funds(system,report_file):
