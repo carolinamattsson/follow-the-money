@@ -271,6 +271,8 @@ if __name__ == '__main__':
     if not os.path.isdir(args.output_directory):
         raise OSError("Could not find the output directory",args.output_directory)
 
+    if not args.prefix: args.prefix = os.path.basename(args.input_file).split("wflows")[0]
+
     subset_filenames    = []
     timeslices_filename = os.path.join(args.output_directory,args.prefix+args.timeslice+"s_maturity.csv")
     issues_filename     = os.path.join(args.output_directory,args.prefix+args.timeslice+"s_maturity_issues.txt")
