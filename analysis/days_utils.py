@@ -79,3 +79,13 @@ def parse(wflow,get_time_slice):
         timestamps.append(timestamps[-1]+timedelta(hours=dur))
     wflow['timeslices']     = [get_time_slice(datetime.strftime(timestamp,"%Y-%m-%d %H:%M:%S")) for timestamp in timestamps]
     return wflow
+
+###########################################################################################
+# Define a function to get all the exit types
+def get_exit_types(system_dict):
+    exit_types = set()
+    for timeslice in system_dict:
+        for subset in system_dict[timeslice]:
+            exit_types.update(system_dict[timeslice][subset].keys())
+            exit_types.remove('TOTAL')
+    return exit_types

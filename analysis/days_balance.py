@@ -50,15 +50,16 @@ def balance_by_timeslice(wflow_filename,balance_filename,timeslice='day',subsets
     with open(balance_filename+'.csv', 'w') as balance_file:
         write_balance_file(balance_file, timeslices, system_balance)
     if interevent:
-        with open(balance_filename+'_iets_amt.csv', 'w') as amt_file, \
-             open(balance_filename+'_iets_dep.csv', 'w') as dep_file, \
-             open(balance_filename+'_iets_txn.csv', 'w') as txn_file:
+        iets_filename = balance_filename.replace("balance","iets")
+        with open(iets_filename+'_amt.csv', 'w') as amt_file, \
+             open(iets_filename+'_dep.csv', 'w') as dep_file, \
+             open(iets_filename+'_txn.csv', 'w') as txn_file:
             write_interevents_files((amt_file, dep_file, txn_file), timeslices, system_interevents)
     # Write the by-subset numbers to file
     for subset in subsets:
-        subset_filename = '_'.join(balance_filename,subset)
+        subset_filename = '_'.join([balance_filename,subset])
         with open(subset_filename+'.csv', 'w') as balance_file:
-            write_balance_file(balance_file, system_balance, subset = subset)
+            write_balance_file(balance_file, timeslices, system_balance, subset = subset)
         if interevent:
             with open(subset_filename+'_iets_amt.csv', 'w') as amt_file, \
                  open(subset_filename+'_iets_dep.csv', 'w') as dep_file, \
@@ -241,7 +242,7 @@ if __name__ == '__main__':
     parser.add_argument('output_directory', help='Path to the output directory')
     parser.add_argument('--timeslice', default='day', help='What time segmentation to use: "month","day","hour".')
     parser.add_argument('--interevents', action="store_true", default=False, help='Produce the distribution of interevent times from each timeslice.')
-    parser.add_argument('--subset_file', action='append', default=[], help='File with a set of subsets to aggregate over.')
+    parser.add_argument('--subset_file', action='append', default=[], help='File with a set of subsets of users to aggregate over.')
     parser.add_argument('--subset_name', action='append', default=[], help='File with a set of subsets of users to aggregate over.')
     parser.add_argument('--prefix', default="", help='Overwrite the default prefix prepended to output files')
     parser.add_argument('--processes', default=1, help='Integer number of parallel processes to use.')

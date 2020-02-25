@@ -38,7 +38,7 @@ def maturity_by_timeslice(wflow_filename,maturity_filename,timeslice='day',subse
         write_maturity_file(maturity_file, system_maturity)
     # Write the by-subset numbers to file
     for subset in subsets:
-        subset_filename = maturity_filename.split('.csv')[0]+'_'+subset+'.csv'
+        subset_filename = maturity_filename+'_'+subset+'.csv'
         with open(subset_filename, 'w') as maturity_file:
             write_timeslice_file(maturity_file, system_maturity, subset = subset)
 
@@ -52,13 +52,12 @@ def timeslice_maturity(timeslice_tuple):
     get_timeslice, timeslice, filename, subsets = timeslice_tuple
     # Load the subsets
     subsets = util.load_subsets(subsets)
-    subsets['ALL'] = None
     # Get the timeslice
     flows = util.load_time_slice(filename)
     # Define the dictionary summarizing this timeslice --- maturity[subset][EXIT]
     maturity = {}
     base_dict = {'obs_amt':0,'obs_dep':0,'obs_svg':0,'obs_txn':0,'obs_ext':0}
-    for subset in subsets:
+    for subset in ['ALL']+[subset for subset in subsets]:
         maturity[subset] = {'TOTAL':base_dict.copy(),\
                            'REVENUE':base_dict.copy(),\
                            'SAVINGS':base_dict.copy()}
@@ -121,7 +120,7 @@ def update_system_maturity(maturity,flow,subsets):
     TUE = sum([1.0*amt for amt in flow['flow_amts'][1:]])
     DUE = sum([dur*amt for dur,amt in zip(flow['flow_durs'],flow['flow_amts'])])
     # Add the contribution to the total
-    for subset in subsets:
+    for subset in ['ALL']+[subset for subset in subsets]:
         # Skip if this entry_ID is not in the relevant subset
         if subset != 'ALL' and entry_ID not in subsets[subset]['set']:
             continue
@@ -160,21 +159,11 @@ def update_system_maturity(maturity,flow,subsets):
     return maturity
 
 ###########################################################################################
-# Define a function to get all the exit types
-def get_exit_types(system_maturity):
-    exit_types = set()
-    for timeslice in system_maturity:
-        for subset in system_maturity[timeslice]:
-            exit_types.update(system_maturity[timeslice][subset].keys())
-            exit_types.remove('TOTAL')
-    return exit_types
-
-###########################################################################################
 # Define the function that writes the dictionary of maturity computations to output files
 def write_maturity_file(maturity_file, system_maturity, subset = 'ALL'):
     import traceback
     # Find the exit types
-    exit_types = get_exit_types(system_maturity)
+    exit_types = util.get_exit_types(system_maturity)
     # Create the header
     header = ['timeslice']+['TUE_amt','DUE_amt','TUE_dep','DUE_dep','TUE_svg','DUE_svg','TUE_txn','DUE_txn','inf_amt']
     for exit_type in ['TOTAL']+list(exit_types):
@@ -228,7 +217,7 @@ if __name__ == '__main__':
     if not args.prefix: args.prefix = os.path.basename(args.input_file).replace("wflows_","").split(".csv")[0]+"_"
 
     subset_filenames    = []
-    timeslices_filename = os.path.join(args.output_directory,args.prefix+args.timeslice+"s_maturity")
+    maturity_filename = os.path.join(args.output_directory,args.prefix+args.timeslice+"s_maturity")
 
     if len(args.subset_file) == len(args.subset_name):
         subsets = {subset[0]:{'filename':subset[1],'set':set()} for subset in zip(args.subset_name,args.subset_file)}
@@ -244,5 +233,5 @@ if __name__ == '__main__':
     args.processes = int(args.processes)
 
     ######### Creates weighted flow file #################
-    maturity_by_timeslice(args.input_file,timeslices_filename,timeslice=args.timeslice,subsets=subsets,processes=args.processes,premade=args.premade)
+    maturity_by_timeslice(args.input_file,maturity_filename,timeslice=args.timeslice,subsets=subsets,processes=args.processes,premade=args.premade)
     #################################################
