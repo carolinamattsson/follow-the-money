@@ -1,12 +1,13 @@
 TODO
 
+config.json
+	have the sorting column be a config value, and have the internal check
+	be against that rather than the timestamp by default
+
 follow.py
 	balance can magically *appear* that is below the resolution limit, multiple times
 		this leaves the internal balance above the resolution limit
 		so we get an inferred *withdraw* with no corresponding inferred *deposits*
-	more generally, when we're given a balance we should be noting balance discrepancies
-		report.txt aught to include the offending transaction, the internal balance, and the adjustment
-	really, it would be good to separate out *initially/finally inferred* transactions
 
 	so right now we have 'initial', 'final', and 'inferred' as txn_IDs for the 'inferred' type.
 	we'd like to add also 'untracked' which can be used for non-tracked funds in prior existence,
