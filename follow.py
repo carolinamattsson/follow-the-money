@@ -55,7 +55,7 @@ class Flow:
         # "money flows" have a size (flow.amt), a length within the system (flow.tux), and a duration of time that they remained in the system (flow.duration)
         # the specific trajectory is described by a list of transactions, through a list of accounts, where the money stayed for a list of durations
         # when aggregating over "money flows", they can be weighted by their size or by their transactions using flow.frac_root
-        self.timestamp = datetime.strftime(branch.txn.timestamp,branch.txn.system.timeformat)
+        self.timestamp = datetime.strftime(branch.txn.timestamp,"%Y-%m-%d %H:%M:%S")
         self.root_amt  = amt+fee
         self.root_txn  = (amt+fee)/(branch.txn.amt_sent)
         self.amts      = [amt]
@@ -105,7 +105,10 @@ class Tracker(list):
     def __init__(self, account, init):
         # Trackers are initialized to reference:
         self.account = account                    # The Account instance that owns them
-        self.infer_deposit(account.balance,account.system.time_begin if init else account.system.time_current,id="initial")
+        if init:
+            self.infer_deposit(account.balance,account.system.time_begin,id="initial")
+        else:
+            self.infer_deposit(account.balance,account.system.time_current,id="untracked")
     def add_branches(self, branches):
         # this function adds a list of branches to the account
         self.extend(branches)
@@ -126,21 +129,26 @@ class Tracker(list):
         return new_branches, new_flows
     def stop_tracking(self,timestamp):
         # this function makes "leaf branches" out of those in this account older than Account.time_cutoff
-        # if builds the "money flows" that thus end at this account, returns those "money flows", and stops tracking those "leaf branches"
+        # if builds the "money flows" that thus end at this account <with that duration of time>
+        # it returns these "money flows" and stops tracking the corresponding "leaf branches"
         flows = []
         for branch in self:
             if (timestamp-branch.txn.timestamp)>self.time_cutoff:
-                flows.append(branch.follow_back(branch.amt))
+                flow = branch.follow_back(branch.amt)
+                flow.durations.append(self.time_cutoff)
+                flow.duration += self.time_cutoff
+                flow.end_categ = "savings"
+                flows.append(flow)
                 self.remove(branch)
         return flows
-    def infer_deposit(self,amt,timestamp,id='inferred'):
+    def infer_deposit(self,amt,timestamp,id='unknown'):
         if amt > self.resolution_limit:
             # this function creates an inferred Transaction object and deposits it onto the account
             if self.infer:
                 inferred_deposit = self.Transaction(self.account,self.account,{"txn_ID":id,"timestamp":timestamp,"amt":amt,"src_fee":0,"tgt_fee":0,"type":'inferred',"categ":'deposit'})
                 new_branch = Branch(None,inferred_deposit,inferred_deposit.amt_rcvd)
                 self.add_branches([new_branch])
-    def infer_withdraw(self,amt,timestamp,fee=0,id='inferred'):
+    def infer_withdraw(self,amt,timestamp,fee=0,id='unknown'):
         if amt+fee > self.resolution_limit:
             # this function creates an inferred Transaction object and withdraws it from the account
             inferred_withdraw = self.Transaction(self.account,self.account,{"txn_ID":id,"timestamp":timestamp,"amt":amt,"src_fee":fee,"tgt_fee":0,"type":'inferred',"categ":'withdraw'})
