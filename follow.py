@@ -317,34 +317,36 @@ def check_balances(txn,report_file):
         if acct.tracked and acct_need != acct.balance:
             discrepancy = acct_need - acct.balance
             yield from acct.adjust_balance(discrepancy)
-            report_file.write("WARNING: BALANCE ADJUSTED for "+acct.acct_ID+" at "+txn.txn_ID+" BY "+str(discrepancy)+"\n")
+            abs_discrepancy = -1*discrepancy if discrepancy < 0 else discrepancy
+            if abs_discrepancy > acct.tracker.resolution_limit:
+                report_file.write("WARNING: BALANCE ADJUSTED for "+acct.acct_ID+" at "+txn.txn_ID+" BY "+str(discrepancy)+"\n")
 
 def check_initialized(txn,Tracker_class,inconsistents):
     # check source account
-    if txn.src.tracked is None:
+    if txn.src.tracked is None: # first time we're seeing source account
         if txn.categ in ['transfer','withdraw']:
             txn.src.track(Tracker_class,init=True)
         else:
             txn.src.tracked = False
-    elif txn.src.tracked is False:
-        if txn.categ in ['transfer','withdraw']:
+    elif txn.src.tracked is False: # not first time, previously untracked
+        if txn.categ in ['transfer','withdraw']: # inconsistent boundary
             txn.src.track(Tracker_class,init=False)
             inconsistents.add(txn.src.acct_ID)
-    elif txn.src.tracked is True:
-        if txn.src.tracked not in ['transfer','withdraw']:
+    elif txn.src.tracked is True:  # not first time, previously tracked
+        if txn.categ not in ['transfer','withdraw']: # inconsistent boundary
             inconsistents.add(txn.src.acct_ID)
     # check target account
-    if txn.tgt.tracked is None:
+    if txn.tgt.tracked is None: # first time we're seeing target account
         if txn.categ in ['deposit','transfer']:
             txn.tgt.track(Tracker_class,init=True)
         else:
             txn.tgt.tracked = False
-    elif txn.tgt.tracked is False:
-        if txn.categ in ['deposit','transfer']:
+    elif txn.tgt.tracked is False: # not first time, previously untracked
+        if txn.categ in ['deposit','transfer']: # inconsistent boundary
             txn.tgt.track(Tracker_class,init=False)
             inconsistents.add(txn.tgt.acct_ID)
-    elif txn.tgt.tracked is True:
-        if txn.categ not in ['deposit','transfer']:
+    elif txn.tgt.tracked is True:  # not first time, previously tracked
+        if txn.categ not in ['deposit','transfer']: # inconsistent boundary
             inconsistents.add(txn.tgt.acct_ID)
     return inconsistents
 
@@ -380,7 +382,6 @@ def track_transactions(system,txns,Tracker,report_file,untracked_file,inconsiste
             report_file.flush()
         txn.system.process(txn)
     if inconsistents:
-        report_file.write("INCONSISTENT BOUNDARY AT ACCOUNTS:\n")
         for account in inconsistents:
             inconsistents_file.write(account+"\n")
         inconsistents_file.flush()
