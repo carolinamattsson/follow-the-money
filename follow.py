@@ -312,7 +312,7 @@ def check_balances(txn,report_file):
     src_need, tgt_need = max(src_init,txn.amt_sent), max(tgt_init,-txn.amt_rcvd)
     # adjust if necessary, and report accounting discrepancies
     for acct, acct_need in [(txn.src,src_need), (txn.tgt,tgt_need)]:
-        if acct.tracked and acct_need != acct.balance:
+        if acct.has_tracker() and acct_need != acct.balance:
             discrepancy = acct_need - acct.balance
             yield from acct.adjust_balance(discrepancy)
             abs_discrepancy = -1*discrepancy if discrepancy < 0 else discrepancy
