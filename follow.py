@@ -47,7 +47,7 @@ class Flow:
     # These "money flows" allow for useful aggregations at the system level where monetary units are never double-counted
 
     # Class variable defines what flow.to_print() currently outputs
-    header = ['root_timestamp','root_amt','root_txn','flow_length','flow_length_nrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_amts','flow_revs','flow_txns','flow_durs','flow_categs']
+    header = ['flow_timestamp','flow_amt','flow_txn','flow_length','flow_length_nrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_amts','flow_revs','flow_txns','flow_durs','flow_categs']
 
     def __init__(self, branch, amt, fee):
         # "money flows" have a size (flow.amt), a length within the system (flow.tux), and a duration of time that they remained in the system (flow.duration)
@@ -96,7 +96,7 @@ class Tracker(list):
     # Accounts always remember their overall balance, and specifically track transactions that entered the account recently
     from initialize import Transaction
     # Class variable defines how Accounts are tracking money, for how long an account will remember where money came from, and down to what amount it will keep track
-    type = "no-tracking"
+    type = "none"
     time_cutoff = None
     resolution_limit = 0.01
     infer = True
@@ -197,8 +197,8 @@ class Tracker(list):
             else:
                 yield from [branch.follow_back(branch.amt) for branch in new_branches]
 
-class Greedy_tracker(Tracker):
-    type = "greedy"
+class LIFO_tracker(Tracker):
+    type = "lifo"
     # this account type keeps track of transactions within an account in time order -- a last in first out (LIFO) heuristic
     # intuitively, each account is a stack where incoming money lands on top and outgoing money gets taken off the top
     # specifically, it extends the *most recent* incoming branches by the outgoing transaction up to the value of that transaction
@@ -243,14 +243,14 @@ class Greedy_tracker(Tracker):
                 new_flows.append(new_branch.follow_back(new_branch.amt,fee=tot_untracked-new_branch.amt))
         return new_stack, new_flows
 
-class Well_mixed_tracker(Tracker):
-    type = "well-mixed"
-    # this account type keeps track of transactions within an account entirely agnostically -- a well-mixed or max-entropy heuristic
+class Mixed_tracker(Tracker):
+    type = "mixed"
+    # this account type keeps track of transactions within an account entirely agnostically -- a mixed or max-entropy heuristic
     # intuitively, each account is a pool of indistinguishable money
     # specifically, it extends *an equal fraction of all remaining branches* by the outgoing transaction
     # this heuristic takes the perfectly fungible nature of money literally
     def extend_branches(self,this_txn):
-        # according to the well-mixed heuristic, all the "branches" in an account are to be extended, and this depreciates their remaining value
+        # according to the mixed heuristic, all the "branches" in an account are to be extended, and this depreciates their remaining value
         track_factor = this_txn.amt_sent/self.account.balance
         split_factor = this_txn.amt_rcvd/self.account.balance
         stay_factor  = (self.account.balance-this_txn.amt_sent)/self.account.balance
@@ -288,12 +288,12 @@ class Well_mixed_tracker(Tracker):
 
 def define_tracker(follow_heuristic,time_cutoff,resolution_limit,no_infer):
     # Based on the follow_heuristic, define the type of trackers we're giving our accounts
-    if follow_heuristic == "no-tracking":
+    if follow_heuristic == "untracked":
         Tracker_class = Tracker
-    if follow_heuristic == "greedy":
-        Tracker_class = Greedy_tracker
-    if follow_heuristic == "well-mixed":
-        Tracker_class = Well_mixed_tracker
+    if follow_heuristic == "lifo":
+        Tracker_class = LIFO_tracker
+    if follow_heuristic == "mixed":
+        Tracker_class = Mixed_tracker
     # Define also how we handle cutoffs and special cases
     Tracker_class.time_cutoff          = timedelta(hours=float(time_cutoff)) if time_cutoff else None
     Tracker_class.resolution_limit     = resolution_limit
@@ -405,9 +405,9 @@ def update_report(report_filename,args):
         if args.cutoff: report_file.write("    Stop tracking funds after "+str(args.cutoff)+" hours."+"\n")
         if args.smallest: report_file.write("    Stop tracking funds below "+str(args.smallest)+" in value."+"\n")
         report_file.write("Running:"+"\n")
-        if args.greedy: report_file.write("    Weighted flows with 'greedy' heuristic saved with extension: wflows_greedy.csv"+"\n")
-        if args.well_mixed: report_file.write("    Weighted flows with 'well-mixed' heuristic saved with extension: wflows_well-mixed.csv"+"\n")
-        if args.no_tracking: report_file.write("    Weighted flows with 'no-tracking' heuristic saved with extension: wflows_no-tracking.csv"+"\n")
+        if args.lifo: report_file.write("    Weighted flows with 'lifo' heuristic saved with extension: wflows_lifo.csv"+"\n")
+        if args.mixed: report_file.write("    Weighted flows with 'mixed' heuristic saved with extension: wflows_mixed.csv"+"\n")
+        if args.none: report_file.write("    Weighted flows with 'none' heuristic saved with extension: wflows_none.csv"+"\n")
         report_file.write("\n\n")
         report_file.flush()
 

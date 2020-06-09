@@ -3,7 +3,7 @@ Follow The Money - main
 This is the script to run a basic "follow the money" data transformation within the specified system boundaries.
 
 How to execute this code from the linux command line:
-python3 /path/to/input-file.csv /path/to/config-file.json /path/to/output-directory/ --greedy --infer --prefix "foo"
+python3 /path/to/input-file.csv /path/to/config-file.json /path/to/output-directory/ --lifo --infer --prefix "foo"
 
 '''
 
@@ -24,11 +24,11 @@ if __name__ == '__main__':
     parser.add_argument('config_file', help='The configuration file (.json)')
     parser.add_argument('output_directory', help='Path to the output directory')
     parser.add_argument('--prefix', default="", help='Prefix prepended to output files')
-    parser.add_argument('--greedy', action="store_true", default=False, help='Track the using the "greedy" heuristic')
-    parser.add_argument('--well_mixed', action="store_true", default=False, help='Track the using the "well-mixed" heuristic')
-    parser.add_argument('--no_tracking', action="store_true", default=False, help='Track the using the baseline "no-tracking" heuristic')
+    parser.add_argument('--lifo', action="store_true", default=False, help='Track the using the "lifo" heuristic')
+    parser.add_argument('--mixed', action="store_true", default=False, help='Track the using the "mixed" heuristic')
+    parser.add_argument('--none', action="store_true", default=False, help='Track the using the baseline "no-tracking" heuristic')
     parser.add_argument('--no_balance', action="store_true", default=False, help='Avoid inferring account balances at start, when known')
-    parser.add_argument('--no_infer', action="store_true", default=False, help='Avoud inferring unseen deposit and withdrawal transactions')
+    parser.add_argument('--no_infer', action="store_true", default=False, help='Avoid inferring unseen deposit and withdrawal transactions')
     parser.add_argument('--cutoff', metavar='hours', type=int, default=None, help='Stop tracking funds after this number of hours')
     parser.add_argument('--smallest', metavar='value', type=int, default=0.01, help='Stop tracking funds with a value below this threshold')
 
@@ -47,7 +47,7 @@ if __name__ == '__main__':
     with open(args.config_file, 'r') as config_file:
         config_data = json.load(config_file)
     ############## Begin the report file ###############
-    report_filename = os.path.join(args.output_directory,args.prefix+"wflows_report.txt")
+    report_filename = os.path.join(args.output_directory,args.prefix+"flows_report.txt")
     init.start_report(report_filename,args,config_data)
     ################ Initialize system #################
     system = init.setup_system(config_data)
@@ -76,13 +76,13 @@ if __name__ == '__main__':
     if args.no_infer:   file_ending = "_ninf"+file_ending
     if args.cutoff:     file_ending = "_"+str(args.cutoff)+"hr"+file_ending
     ############### Alright, let's go! #################
-    if args.greedy:
-        filename = os.path.join(args.output_directory,args.prefix+"wflows_greedy"+file_ending)
-        follow.run(system,transaction_filename,filename,report_filename,'greedy',args.cutoff,args.smallest,args.no_infer)
-    if args.well_mixed:
-        filename = os.path.join(args.output_directory,args.prefix+"wflows_well-mixed"+file_ending)
-        follow.run(system,transaction_filename,filename,report_filename,'well-mixed',args.cutoff,args.smallest,args.no_infer)
-    if args.no_tracking:
-        filename = os.path.join(args.output_directory,args.prefix+"wflows_no-tracking"+file_ending)
-        follow.run(system,transaction_filename,filename,report_filename,'no-tracking',args.cutoff,args.smallest,args.no_infer)
+    if args.lifo:
+        filename = os.path.join(args.output_directory,args.prefix+"flows_lifo"+file_ending)
+        follow.run(system,transaction_filename,filename,report_filename,'lifo',args.cutoff,args.smallest,args.no_infer)
+    if args.mixed:
+        filename = os.path.join(args.output_directory,args.prefix+"flows_mixed"+file_ending)
+        follow.run(system,transaction_filename,filename,report_filename,'mixed',args.cutoff,args.smallest,args.no_infer)
+    if args.none:
+        filename = os.path.join(args.output_directory,args.prefix+"flows_none"+file_ending)
+        follow.run(system,transaction_filename,filename,report_filename,'none',args.cutoff,args.smallest,args.no_infer)
     ####################################################
