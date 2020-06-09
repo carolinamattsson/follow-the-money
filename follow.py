@@ -9,8 +9,6 @@ from datetime import datetime, timedelta
 import traceback
 import copy
 
-from initialize import initialize_transactions
-
 class Branch:
     # this class allows for chaining together transactions, or parts of those transactions
     def __init__(self, prev_branch, current_txn, amt):
@@ -415,6 +413,7 @@ def update_report(report_filename,args):
 
 
 def run(system,transaction_filename,wflow_filename,report_filename,follow_heuristic,cutoff,smallest,no_infer):
+    from initialize import timewindow_transactions
     from initialize import initialize_transactions
     import csv
     ################# Reset the system ##################
@@ -427,11 +426,12 @@ def run(system,transaction_filename,wflow_filename,report_filename,follow_heuris
     ###################### RUN! #########################
     with open(transaction_filename,'r') as txn_file, open(wflow_filename,'w') as wflow_file, \
          open(report_filename,'a') as report_file, open(inconsistents,'a') as inconsistents_file, open(untracked,'a') as untracked_file:
-        txn_reader  = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
+        transactions = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
         wflow_writer = csv.writer(wflow_file,delimiter=",",quotechar='"')
         wflow_writer.writerow(Flow.header)
         # loop through all transactions, and initialize in reference to the system
-        transactions = initialize_transactions(txn_reader,system,report_file,get_categ=True)
+        transactions = timewindow_transactions(transactions,system,report_file,get_categ=True)
+        transactions = initialize_transactions(transactions,system,report_file,get_categ=True)
         # now process according to the defined tracking procedure
         for wflow in track_transactions(system,transactions,Tracker,report_file,untracked_file,inconsistents_file):
             wflow_writer.writerow(wflow.to_print())

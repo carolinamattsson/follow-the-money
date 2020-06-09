@@ -67,13 +67,6 @@ class System():
     def create_account(self,acct_ID):
         self.accounts[acct_ID] = Account(acct_ID)
         return self.accounts[acct_ID]
-    def update_time(self,timestamp):
-        time_txn = datetime.strptime(timestamp,self.timeformat)
-        #if time_txn < self.time_current:
-        #    raise ValueError("Invalid time ordering (transaction time < system time): ",str(time_txn)," < ",str(self.time_current))
-        #else:
-        self.time_current = time_txn
-        return time_txn
     def reset(self):
         self.time_current = self.time_begin
         for acct_ID,acct in self.accounts.items():
@@ -130,11 +123,10 @@ class Transaction(object):
     def to_print(self):
         return(str(self).split(','))
     @classmethod
-    def create(cls,src,tgt,timestamp,txn_dict,get_categ):
+    def create(cls,src,tgt,txn_dict,get_categ):
         # This method creates a Transaction object from a dictionary and object references to the source and target accounts
         # The dictionary here is read in from the file, and has System.txn_header as the keys
-        txn_dict['timestamp'] = timestamp
-        for term in ['amt','fee','src_fee','tgt_fee','src_balance','tgt_balance']:
+        for term in ['timestamp','amt','fee','src_fee','tgt_fee','src_balance','tgt_balance']:
             try:
                 txn_dict[term] = float(txn_dict[term])
             except ValueError:
@@ -234,17 +226,30 @@ def initialize_transactions(txn_reader,system,report_file,get_categ=False):
     #                               3) Create the transaction object
     for txn in txn_reader:
         try:
-            # update the current time in the system
-            timestamp = system.update_time(txn['timestamp'])
             # define the transaction, creating accounts if needed
             src = system.get_account(txn['src_ID']) if system.has_account(txn['src_ID']) else system.create_account(txn['src_ID'])
             tgt = system.get_account(txn['tgt_ID']) if system.has_account(txn['tgt_ID']) else system.create_account(txn['tgt_ID'])
             # make the transaction object
-            txn = Transaction.create(src,tgt,timestamp,txn,get_categ)
+            txn = Transaction.create(src,tgt,txn,get_categ)
             # return the transaction object
             yield txn
         except:
             report_file.write("ISSUE W/ INITIALIZING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
+
+def timewindow_transactions(txn_reader,system,report_file):
+    import traceback
+    # convert timestamp and ignore transactions that are outside the timewindow
+    for txn in txn_reader:
+        # read in the timestamp
+        try:
+            txn['timestamp'] = datetime.strptime(txn['timestamp'],system.timeformat)
+            if system.time_begin < txn['timestamp'] < system.time_end:
+                # update the current time in the system
+                system.time_current = txn['timestamp']
+                # yield this transaction through the program
+                yield txn
+        except:
+            report_file.write("ISSUE W/ TIMESTAMP: "+str(txn)+"\n"+traceback.format_exc()+"\n")
 
 def infer_account_categories(system,transaction_file,report_filename):
     import csv
@@ -254,6 +259,7 @@ def infer_account_categories(system,transaction_file,report_filename):
     with open(transaction_file,'r') as txn_file, open(report_filename,'a') as report_file:
         report_file.write("    Inferring account categories using config file..."+"\n")
         txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
+        transactions = timewindow_transactions(txn_reader,system,report_file)
         transactions = initialize_transactions(txn_reader,system,report_file)
         for txn in transactions:
             txn.src.update_categ('src',txn.type)
@@ -273,8 +279,9 @@ def infer_starting_balance(system,transaction_file,report_filename):
     ############# Run through with balances #############
     with open(transaction_file,'r') as txn_file, open(report_filename,'a') as report_file:
         report_file.write("    Inferring account balances at start, when unknown..."+"\n")
-        txn_reader = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
-        transactions = initialize_transactions(txn_reader,system,report_file)
+        transactions = csv.DictReader(txn_file,system.txn_header,delimiter=",",quotechar='"',escapechar="%")
+        transactions = timewindow_transactions(transactions,system,report_file)
+        transactions = initialize_transactions(transactions,system,report_file)
         for txn in transactions:
             # retrieve any known pre-transaction account balances
             src_init, tgt_init = system.known_balances(txn)
