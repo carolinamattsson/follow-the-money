@@ -126,7 +126,7 @@ class Transaction(object):
     def create(cls,src,tgt,txn_dict,get_categ):
         # This method creates a Transaction object from a dictionary and object references to the source and target accounts
         # The dictionary here is read in from the file, and has System.txn_header as the keys
-        for term in ['timestamp','amt','fee','src_fee','tgt_fee','src_balance','tgt_balance']:
+        for term in ['amt','fee','src_fee','tgt_fee','src_balance','tgt_balance']:
             try:
                 txn_dict[term] = float(txn_dict[term])
             except ValueError:

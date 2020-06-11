@@ -125,19 +125,19 @@ class Tracker(list):
                 new_branches = []
                 new_flows = new_branch.follow_back(new_branch.amt,fee=this_txn.amt_sent-this_txn.amt_rcvd)
         return new_branches, new_flows
-    def stop_tracking(self,timestamp):
-        # this function makes "leaf branches" out of those in this account older than Account.time_cutoff
-        # if builds the "money flows" that thus end at this account <with that duration of time>
+    def stop_tracking(self,leaf_branches):
+        # this function makes "leaf branches" out of the branches it is given
+        # if builds the "money flows" that thus end at the last account <with that duration of time>
         # it returns these "money flows" and stops tracking the corresponding "leaf branches"
         flows = []
-        for branch in self:
-            if (timestamp-branch.txn.timestamp)>self.time_cutoff:
+        for branch in leaf_branches:
+            if branch.amt > 0.00001: # just don't want to include floating point errors
                 flow = branch.follow_back(branch.amt)
-                flow.durations.append(self.time_cutoff)
-                flow.duration += self.time_cutoff
-                flow.end_categ = "savings"
+                flow.durations.append(self.account.system.time_current-branch.txn.timestamp)
+                flow.duration += self.account.system.time_current-branch.txn.timestamp
+                flow.end_categ = "untracked"
                 flows.append(flow)
-                self.remove(branch)
+            self.remove(branch)
         return flows
     def infer_deposit(self,amt,timestamp,id='unknown'):
         if amt > self.resolution_limit:
@@ -254,17 +254,19 @@ class Mixed_tracker(Tracker):
         track_factor = this_txn.amt_sent/self.account.balance
         split_factor = this_txn.amt_rcvd/self.account.balance
         stay_factor  = (self.account.balance-this_txn.amt_sent)/self.account.balance
-        new_pool, new_flows = [], []
+        new_pool, new_flows, leaf_branches = [], [], []
         # all the "branches" in an account are extended by the outgoing transaction
             # note that if any resulting branches are less than the minimum we're tracking, they are not transferred to the target account
             # if this is because of fees, the branch is immediately followed back instead
         for branch in self:
+            new_branch = Branch(branch,this_txn,split_factor*branch.amt)
             if track_factor*branch.amt > self.resolution_limit:
-                new_branch = Branch(branch,this_txn,split_factor*branch.amt)
                 if new_branch.amt > self.resolution_limit:
                     new_pool.append(new_branch)
                 else:
                     new_flows.append(new_branch.follow_back(new_branch.amt,fee=track_factor*branch.amt-new_branch.amt))
+            else:
+                new_flows.append(new_branch.follow_back(new_branch.amt))
         # when there is untracked money also in the account this new_pool will not cover the amount of the transaction - the transaction also sends untracked money!
         # so, a new "root branch" is created with the balance that references this transaction itself begins to re-track this untracked money again - this branch corresponds to the transaction itself and the newly tracked amount
             # note that the fee/revenue for this portion is accounted for later, within follow_back, using the fee information in the transaction itself
@@ -280,10 +282,9 @@ class Mixed_tracker(Tracker):
         # the old pool is emptied or shrunk to reflect the amount removed
             # note that if any resulting are less than the minimum we're tracking, they are removed and followed back
         for branch in self:
-            if stay_factor*branch.amt < self.resolution_limit:
-                self.remove(branch)
-            else:
                 branch.depreciate(stay_factor)
+        leaf_branches = [branch for branch in self if branch.amt < self.resolution_limit]
+        new_flows = new_flows + self.stop_tracking(leaf_branches)
         return new_pool, new_flows
 
 def define_tracker(follow_heuristic,time_cutoff,resolution_limit,no_infer):
@@ -301,7 +302,9 @@ def define_tracker(follow_heuristic,time_cutoff,resolution_limit,no_infer):
     return Tracker_class
 
 def check_timestamp(acct,timestamp):
-    if acct.tracker: yield from acct.tracker.stop_tracking(timestamp)
+    if acct.tracker and acct.tracker.time_cutoff:
+        leaf_branches = [branch for branch in acct.tracker if (timestamp-branch.txn.timestamp)>acct.tracker.time_cutoff]
+        yield from acct.tracker.stop_tracking(leaf_branches)
 
 def check_balances(txn,report_file):
     # retrieve pre-transaction account balances
@@ -389,7 +392,7 @@ def track_remaining_funds(system,report_file):
     for acct_ID,acct in system.accounts.items():
         try:
             if acct.has_tracker():
-                if acct.tracker.time_cutoff: yield from acct.tracker.stop_tracking(acct.system.time_end)
+                yield from check_timestamp(acct,system.time_end)
                 yield from acct.tracker.infer_withdraw(acct.balance,system.time_end,id="final")
         except:
             report_file.write("FAILED: REMAINING FUNDS: "+acct_ID+"\n"+traceback.format_exc()+"\n")
@@ -430,7 +433,7 @@ def run(system,transaction_filename,wflow_filename,report_filename,follow_heuris
         wflow_writer = csv.writer(wflow_file,delimiter=",",quotechar='"')
         wflow_writer.writerow(Flow.header)
         # loop through all transactions, and initialize in reference to the system
-        transactions = timewindow_transactions(transactions,system,report_file,get_categ=True)
+        transactions = timewindow_transactions(transactions,system,report_file)
         transactions = initialize_transactions(transactions,system,report_file,get_categ=True)
         # now process according to the defined tracking procedure
         for wflow in track_transactions(system,transactions,Tracker,report_file,untracked_file,inconsistents_file):
