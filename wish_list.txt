@@ -1,8 +1,4 @@
 # Wish list #
-- take inferred transactions out of the Tracker
-       - check ahead of time if it is needed
-       - if yes, make the transactions & process normally
-       - print these into a file
+- make the amounts into Decimal type, with desired precision as an input
 - credit lines and the issuance/cancellation of endogenous credit money
 - dispensation for the creation/destruction of monetary units (ex. mining)
-- decentralize time_current to accounts, not system

@@ -109,7 +109,12 @@ class Transaction(object):
             setattr(self, key, value)
         # use the fee convention to determine how much is leaving the souce account, entering the target account, and disappearing in between
         self.amt_sent,self.amt_rcvd,self.fee = self.system.get_amounts(self)
-        if self.amt_sent < self.amt_rcvd: raise ValueError("Invalid transaction (amount sent < amount received): ",str(txn_dict))
+        try:
+            self.continues = self.amt_rcvd/self.amt_sent
+        except:
+            raise ValueError("Invalid transaction -- amount sent is zero")
+        if not (0 <= self.continues <= 1):
+            raise ValueError("Invalid transaction  -- amount sent, received, and fee do not work")
         try:
             self.fee_scaling = self.fee/self.amt_rcvd
         except:
@@ -167,10 +172,6 @@ class Account(dict):
         self.tracker = Tracker_class(self,init)
     def has_tracker(self):
         return self.tracker is not None
-    def adjust_balance(self, amount):
-        if self.has_tracker():
-            yield from self.tracker.adjust_tracker(amount)
-        self.balance += amount
 
 def setup_system(config_data):
     ############### Parse config file ##################

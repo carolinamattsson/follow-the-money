@@ -47,7 +47,7 @@ if __name__ == '__main__':
     with open(args.config_file, 'r') as config_file:
         config_data = json.load(config_file)
     ############## Begin the report file ###############
-    report_filename = os.path.join(args.output_directory,args.prefix+"flows_report.txt")
+    report_filename = os.path.join(args.output_directory,args.prefix+"report.txt")
     init.start_report(report_filename,args,config_data)
     ################ Initialize system #################
     system = init.setup_system(config_data)
@@ -77,12 +77,15 @@ if __name__ == '__main__':
     if args.cutoff:     file_ending = "_"+str(args.cutoff)+"hr"+file_ending
     ############### Alright, let's go! #################
     if args.lifo:
-        filename = os.path.join(args.output_directory,args.prefix+"flows_lifo"+file_ending)
-        follow.run(system,transaction_filename,filename,report_filename,'lifo',args.cutoff,args.smallest,args.no_infer)
+        follow.update_report(report_filename,args,heuristic='lifo')
+        output_filename = os.path.join(args.output_directory,args.prefix+"flows_lifo"+file_ending)
+        follow.run(system,transaction_filename,output_filename,report_filename,'lifo',args.cutoff,args.smallest,args.no_infer)
     if args.mixed:
-        filename = os.path.join(args.output_directory,args.prefix+"flows_mixed"+file_ending)
-        follow.run(system,transaction_filename,filename,report_filename,'mixed',args.cutoff,args.smallest,args.no_infer)
+        follow.update_report(report_filename,args,heuristic='mixed')
+        output_filename = os.path.join(args.output_directory,args.prefix+"flows_mixed"+file_ending)
+        follow.run(system,transaction_filename,output_filename,report_filename,'mixed',args.cutoff,args.smallest,args.no_infer)
     if args.none:
-        filename = os.path.join(args.output_directory,args.prefix+"flows_none"+file_ending)
-        follow.run(system,transaction_filename,filename,report_filename,'none',args.cutoff,args.smallest,args.no_infer)
+        follow.update_report(report_filename,args,heuristic='none')
+        output_filename = os.path.join(args.output_directory,args.prefix+"flows_none"+file_ending)
+        follow.run(system,transaction_filename,output_filename,report_filename,'none',args.cutoff,args.smallest,args.no_infer)
     ####################################################
