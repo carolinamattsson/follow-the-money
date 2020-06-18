@@ -1,0 +1,46 @@
+Size limits on tracing flows
+
+`--smallest value`
+
+  This flag lets you give a value below which you don't care to track funds any
+  further. This example demonstrates this option and lays out what it means.
+
+  Let's first compare the last-in-first-out output files with and without the
+  --smallest flag. That's `account_flows_lifo.csv` from the previous example
+  with `size_flows_lifo.csv` from this example. They are the same!!! This is
+  because we put our size limit at $5 and there is no point at which any one of
+  the accounts is holding onto a portion of a transaction smaller than that.
+
+  Now let's do the same for the mixing heuristic. These files are identical up
+  until the third of the three transaction sequences (starting with `10000021`),
+  so we'll start there. Transaction `10000021` is a `cash-in` that deposits $20
+  from agent `DDD` into account `XYZ`, bringing the balance up to $20 from $0.
+  After transactions `10000022` and `10000023`, there is $5 left of it. That is
+  when a large deposit comes in (`10000024`), bringing the balance up to $205.
+  Still not a problem! Just as in the last-in-first-out we still want account
+  `XYZ` to keep track of the $5 in funds from `10000021`. However, when it comes
+  time to pay transaction `10000025`, a large `bill-payment`. Our account pulls
+  the same fraction of funds from both `cash-ins`, leaving only $0.61 in funds
+  from `10000021`. Since we don't wish to track such small sums any further, the
+  program outputs a flow that ends as "untracked" money within account `XYZ`.
+
+  Similarly, transaction `10000027` leaves less than $5 worth of the latest
+  deposit (`10000024`) in the account. So this flow also ends as "untracked"
+  money within account `XYZ`.
+
+  When it comes time for `XYZ` to fill the last transaction, a $5 payment for
+  `mobile minutes`, there are no tracked funds left in the account at all. Since
+  this is above the size limit, the system starts to track those funds again.
+  This flow begins as "untracked" money within account `XYZ` is withdrawn.
+
+  Hopefully, it is clear what this flag is useful for. It prevents the program
+  from creating many many increasingly tiny flows, which could happen fairly
+  quickly under the mixing heuristic. Money that becomes "untracked" is still
+  accounted for within the output file, and if there is an occasion to re-track
+  funds then the program will go for it. These partial flows are clearly marked
+  using the "flow_categs" column so that they can be filtered out if desired.
+
+  Note that it's probably best to keep the size limit above that of the smallest
+  transactions in the dataset. Not that the code wouldn't run just fine -- it
+  would follow those transactions themselves and stop tracking ahead of any
+  subsequent transactions. But it makes the flag harder to interpret.

@@ -130,18 +130,18 @@ definition is perfect. The real world is messy, payment systems included.
 
 ### 2) Run 'follow the money' on transaction file producing a weighted flow file
 ```
-follow_the_money.py input_file config_file output_directory --greedy --well_mixed --infer
+follow_the_money.py input_file config_file output_directory --lifo --mixed --infer
 ```
 
 This reads through the `input_file` (a `.csv`), using the interpretation detailed
 in `config_file` (a `.json`), and produces three files:
- - `output_directory/wflows_greedy.csv`
- - `output_directory/wflows_well-mixed.csv`
+ - `output_directory/flows_lifo.csv`
+ - `output_directory/flows_mixed.csv`
  - `output_directory/report.csv`
 
 The function calls the methods and functions in `initialize.py` and `follow.py` to
-follow money through the user-facing system using two explicit heuristics: `--greedy`
-and `--well-mixed`. Dropping either flag will avoid running with that heuristic.
+follow money through the user-facing system using two explicit heuristics: `--lifo`
+and `--mixed`. Dropping either flag will avoid running with that heuristic.
 
 If needed, the program first loops through the full data once to infer `account_categories`
 and/or each account's `starting_balance`. Starting balances are the inferred minimum
@@ -150,14 +150,14 @@ to cover the transactions that we see it make without running up a negative bala
 You can skip this step using the `--no_balance` flag, which assumes instead a
 `starting_balance` of zero.
 
-The `--infer` flag makes explicit in the output places where the program saw
-changes to an account's balance with no accompanying transaction. This introduces an
+If needed, the program makes explicit in the output places where it found changes
+to an account's balance with no accompanying transaction. This feature introduces an
 inferred transaction at the beginning of the data that brings the account to it's
 `starting_balance`, and one at the end that brings the account back to zero. If you
 give the program balance information (a `balance_type` to interpret `src/tgt_balance`
-columns), this flag will also make explicit cases where it inferred the existence of
+columns), the program will also make explicit cases where it inferred the existence of
 deposits and withdrawals that it cannot see in order to bring the balance back into
-line with what is given.
+line with what is given. You can avoid this feature using the `--no_infer` flag.
 
 Additional options are available. You can use `--help` to get descriptions, and can
 find a series of examples in `tests/`. These examples show how the output changes
@@ -165,14 +165,14 @@ under the available options for a simple transaction dataset reported in differe
 
 ### 3) Analyze the output
 ```
-distributions.py wflows_greedy.csv output_directory
+distributions.py flows_lifo.csv output_directory
 ```
 This script takes the output of follow-the-money, ie. of weighted flows, and reports
 the distribution of their size, normalized size, and duration.
 Additional options are available. You can use `--help` to get descriptions.
 
 ```
-motifs.py wflows_greedy.csv output_directory --circulate 4
+motifs.py flows_lifo.csv output_directory --circulate 4
 ```
 This script takes the output of follow-the-money, ie. of weighted flows, and reports
 properties over observed transaction-type sequences, ie. motifs. The `--circulate`
@@ -181,7 +181,7 @@ and last transaction type.
 Additional options are available. You can use `--help` to get descriptions.
 
 ```
-users.py wflows_greedy.csv output_directory
+users.py flows_lifo.csv output_directory
 ```
 This script takes the output of follow-the-money, ie. of weighted flows, and reports
 properties over observed `users`. These are accounts that have been observed within
@@ -193,7 +193,7 @@ follows a different sub-motif if it leaves as an ATM withdrawal or a payment.
 Additional options are available. You can use `--help` to get descriptions.
 
 ```
-agents.py wflows_greedy.csv output_directory
+agents.py flows_lifo.csv output_directory
 ```
 This script takes the output of follow-the-money, ie. of weighted flows, and reports
 properties over observed `agents`. These are accounts that have been observed to begin
@@ -203,7 +203,7 @@ These measures are also broken down by motif.
 Additional options are available. You can use `--help` to get descriptions.
 
 ```
-length.py wflows_greedy.csv output_directory
+length.py flows_lifo.csv output_directory
 ```
 This script takes the output of follow-the-money, ie. of weighted flows, and creates
 a summary of the system that can be visualized as a bar-chart. Specifically, this
@@ -212,7 +212,7 @@ transaction type through which it leaves.
 Additional options are available. You can use `--help` to get descriptions.
 
 ```
-duration.py wflows_greedy.csv output_directory
+duration.py flows_lifo.csv output_directory
 ```
 This script takes the output of follow-the-money, ie. of weighted flows, and creates
 a summary of the system that can be visualized as a bar-chart. Specifically, this
@@ -222,13 +222,13 @@ Additional options are available. You can use `--help` to get descriptions.
 
 ### 4) Aggregate the output into entry-exit networks
 ```
-(head -1 wflows_greedy.csv && tail -n +2 wflows_greedy.csv | sort -t, -k6 -s) > wflows_greedy_byagent.csv
+(head -1 flows_lifo.csv && tail -n +2 flows_lifo.csv | sort -t, -k6 -s) > flows_lifo_byagent.csv
 ```
 First, sort the output of follow-the-money by the agent who stared the trajectory,
 which is the entry point to the mobile money network.
 
 ```
-entryexit.py wflows_greedy_byagent.csv output_directory --processes 32
+entryexit.py flows_lifo_byagent.csv output_directory --processes 32
 ```
 This program aggregates trajectories into a network of entry to exit points (`network.csv`).
 The weights for each network link is the sum of the amount, or deposit-normalized amount,

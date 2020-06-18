@@ -1,0 +1,70 @@
+Base functionality
+
+`account_txns.csv`
+
+  This example takes the perspective of a single account, helping demonstrate
+  the basic functionality. It also shows the ambiguity that comes with tracing
+  money, highlighting the difference between available allocation heuristics.
+
+  Let's first take a look at the flows that stem from transaction `10000010`,
+  a `cash-in` with agent `AAA`. This deposit is the first transaction in the
+  data, and it brings the balance of our account, `XYZ`, up to $40. This account
+  goes on make four separate $10 purchases of `mobile-minutes`, bringing its
+  balance back to $0. Clearly, these four purchases were made using the money
+  from transaction `10000010`. In both output files (`account_flows_lifo.csv`
+  and `account_flows_mixed.csv`) you'll find these four entires:
+        - `10000010` --> `10000011`
+        - `10000010` --> `10000012`
+        - `10000010` --> `10000013`
+        - `10000010` --> `10000014`
+  These lists of transactions define the trajectories taken by our four flows,
+  and are found in column "flow_txn_IDs". Many of a flow's properties are also
+  lists. All four of these flows "follow" money from our agent `AAA` through
+  `XZY` and on to the `provider` from whom they made the purchases
+  ("flow_acct_IDs"). They are all $100 in size ("flow_amt"), which is one
+  quarter of the deposit transaction ("flow_txn"). You'll notice that their
+  durations are different ("flow_dur"), corresponding to the different lengths
+  of time from the first incoming transaction to the four outgoing ones.
+
+  Now take a look at the flows that stem from transaction `10000015`, a
+  `cash-in` with agent `BBB`. The first two follow a familiar pattern, wherein
+  this money is spent (unambiguously) on $10 purchases of `mobile-minutes`. They
+  are the same according to both heuristics. However, this changes with the next
+  transaction, `10000018`. This is a `cash-in` with agent `CCC` that brings the
+  account balance of `XYZ` from $10 to $20. Going forward, it will be ambiguous
+  if outgoing transactions use money the $10 remaining from `10000015` or the
+  new $10 from `10000018`. Let's note how the two files differ, exactly.
+
+  In `account_flows_lifo.csv` you'll find these two entires:
+        - `10000018` --> `10000019`
+        - `10000015` --> `10000020`
+  What happened here was that the $10 from `10000018` came in and was placed
+  "on top of" the existing funds. According to the last-in-first-out heuristic,
+  these most recent $10 should be used first. So the next $10 purchase of
+  `mobile-minutes`, ie. transaction `10000019`, uses the $10 from `10000018`. We
+  are then back with $10 from transaction `10000015` in the account, which is
+  used to fill outgoing transaction `10000020` (also $10 for `mobile-minutes`).
+
+  In `account_flows_mixed.csv` you'll find these four entires:
+        - `10000015` --> `10000019`
+        - `10000018` --> `10000019`
+        - `10000015` --> `10000020`
+        - `10000018` --> `10000020`
+  According to the mixing heuristic, an account should use some of all of its
+  existing funds. The $10 from transaction `10000018` came in and was thoroughly
+  mixed with the $10 from transaction `10000015`. Transaction `10000019` then
+  draws $5 from each of `10000015` and `10000018`. Likewise for `10000020`.
+
+  The account is now back to $0, and we start anew. The remaining transactions
+  form a more extreme example of a similar series. There is very little left of
+  transaction `10000021` when a large deposit comes in (`10000024`). When we use
+  LIFO, this small amount is left undisturbed for as long as possible. When we
+  mix all the money up, we trace all possible flows and the size of them varies.
+  Large balances relative to the size of the transactions will create lots and
+  lots of (tiny) flows when we allocate according to the mixing heuristic. That
+  is because only a balance of zero closes off combinatorial possibilities.
+
+`network_txns.csv`
+
+  This example involves a network of accounts, demonstrating what the basic
+  functionality creates out of the transactions of a whole payment system.
