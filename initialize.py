@@ -119,11 +119,11 @@ class Transaction(object):
         except:
             self.type = "-".join([self.src_categ,self.tgt_categ])
     def __str__(self):
-        return ",".join(str(self.__dict__[term]) for term in self.system.txn_header)
+        return ",".join((str(self.__dict__[term]) if term in self.__dict__ else '') for term in self.system.txn_header)
     def to_print(self):
         return(str(self).split(','))
     @classmethod
-    def create(cls,src,tgt,txn_dict,get_categ):
+    def create(cls,src,tgt,txn_dict,get_categ=True):
         # This method creates a Transaction object from a dictionary and object references to the source and target accounts
         # The dictionary here is read in from the file, and has System.txn_header as the keys
         for term in ['amt','fee','src_fee','tgt_fee','src_balance','tgt_balance']:
@@ -218,7 +218,7 @@ def define_system_boundary(system,config_data):
 def load_accounts(accounts_file):
     return accounts
 
-def initialize_transactions(txn_reader,system,report_file,get_categ=False):
+def initialize_transactions(txn_reader,system,report_file):
     import traceback
     # Initialize the transaction. There are three steps:
     #                               1) Update the current time in the system
@@ -230,11 +230,12 @@ def initialize_transactions(txn_reader,system,report_file,get_categ=False):
             src = system.get_account(txn['src_ID']) if system.has_account(txn['src_ID']) else system.create_account(txn['src_ID'])
             tgt = system.get_account(txn['tgt_ID']) if system.has_account(txn['tgt_ID']) else system.create_account(txn['tgt_ID'])
             # make the transaction object
-            txn = Transaction.create(src,tgt,txn,get_categ)
+            txn = Transaction.create(src,tgt,txn)
             # return the transaction object
             yield txn
         except:
             report_file.write("ISSUE W/ INITIALIZING: "+str(txn)+"\n"+traceback.format_exc()+"\n")
+            report_file.flush()
 
 def timewindow_transactions(txn_reader,system,report_file):
     import traceback
@@ -250,6 +251,7 @@ def timewindow_transactions(txn_reader,system,report_file):
                 yield txn
         except:
             report_file.write("ISSUE W/ TIMESTAMP: "+str(txn)+"\n"+traceback.format_exc()+"\n")
+            report_file.flush()
 
 def infer_account_categories(system,transaction_file,report_filename):
     import csv
