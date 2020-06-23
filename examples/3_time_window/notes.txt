@@ -1,1 +1,87 @@
-Coming soon...
+Data over a finite time window
+{
+"timeformat": "%Y-%m-%d %H:%M:%S",
+"timewindow_beg": "2019-08-07 23:59:59",
+"timewindow_end": "2019-09-01 00:00:00",
+}
+
+  This part of the configuration file lets you tell the program that you want to
+  follow the transactions only from within this finite time window. Any records
+  from outside this time window will be ignored silently. Account balances will
+  be initialized so that all accounts stay above zero during this time window.
+  Making the time window explicit like this is especially useful whenever we are
+  looking at data from systems with ongoing activity before and after this data
+  was collected. It tells the program what transactions we *know to be* missing
+  from the dataset and when account balances ought to be explicitly inferred.
+
+`account_config.json`
+
+  Compared to Example #1, our transaction file has more records! We have added
+  transactions `10000004`-`10000009` to make `account_txns+.csv`. This first
+  configuration file, however, is the same as in Example #1 and tells the
+  program to ignore these earlier transactions. And so, `prev_flows_lifo.csv`
+  and `prev_flows_mixed.csv` end up being the same as the two output files
+  `account_flows_lifo.csv` and `account_flows_mixed.csv` from Example #1.
+
+`account_config-.json`
+
+  Let's first look at what would happen if we use the same time window of
+  Example #1... except that we don't include the very first transaction. Instead
+  of starting with a nice `cash-in` that makes a $40 deposit into this account
+  (transaction `10000010`) we start with four `mobile-minutes` purchases of $10.
+
+  During initialization, the code calculates that the balance of account `XYZ`
+  must have been at least $40 at the start of the time window to stay above zero
+  during the whole time window. If you look into the file `minus_inferred.csv`
+  you'll see the main code then infers a $40 deposit into account `XYZ` at the
+  start of the time window. Inferred transactions are created based on accounts'
+  balances at the start (or end) of the time window. This means they will be the
+  same irrespective of the tracking heuristic. Inferred transactions are tracked
+  just like any other transactions, and they are made to be self-loops.
+
+  You'll notice that the inferred deposit transaction makes it so the output
+  files (`minus_flows_lifo.csv` and `minus_flows_mixed.csv`) have all the same
+  flows as the original output `prev_flows_lifo.csv` and `prev_flows_mixed.csv`.
+
+`account_config+.json`
+
+  Here we extend the time window to include all of the transactions in dataset
+  `account_txns+.csv`. The newly visible transactions are two `cash-ins`
+  totalling $60 and four purchases of `mobile-minutes` totalling $40. What this
+  means is that we now know account `XYZ` actually had at least $20 in their
+  account ahead of transaction `10000010`... it just wasn't visible before.
+
+  You'll notice that this expanded time window makes only a minor difference if
+  we are using the last-in-first-out heuristic. At the start of the output file
+  `plus_flows_lifo.csv` you'll find four new flows---they start with one of the
+  newly visible `cash-ins` and end with a newly visible `mobile-minutes`. Then
+  at the very end you see those $20 exit the system as two `inferred` withdrawal
+  transactions. What happened here was that the $20 left over from transactions
+  `10000004` and `10000007` stayed undisturbed at the "bottom" of account `XYZ`
+  through all the later transactions. These trace out the same flows that they
+  did before, because last-in-first-out draws from more recent account activity
+  whenever it can. At the end of the time-window, the program notices that there
+  is $20 remaining and makes this explicitly clear with an inferred transaction.
+  This inferred transaction (a self-loop) is recorded in `plus_inferred.csv`.
+
+  As you can perhaps tell, making these earlier transactions visible does make a
+  substantial difference under the mixing heuristic, though. The fact there were
+  $20 in account `XYZ` ahead of transaction `10000010` changes every single flow
+  that comes after it, starting with `10000010`-->`10000011`. If you look into
+  the output file `plus_flows_mixed.csv` you'll see that even the `bill-payment`
+  transaction towards the end of the month is partially filled using funds from
+  the first newly visible `cash-in` (transaction `10000004`). This is the main
+  drawback of the mixing heuristic---your time window can matter quite a bit.
+
+`--no_infer`
+
+  This flag skips the explicit creation of inferred transactions due to initial
+  balance, final balance, or (as discussed later) erroneous balance. The program
+  will still add balance to accounts during the initialization, but these funds
+  will be treated by the tracking functionality as "untracked" money instead. If
+  an account is left with a non-zero balance at the end of the time window, the
+  flows that remain will end as "untracked" money, as well. Unless you have a
+  good reason to avoid inferring transactions, best to keep it! Making finite
+  data considerations explicit is good practice, always, and this here enforces
+  a useful distinction in the resulting data between money that is "unseen" and
+  assumed to be there versus "seen" but left "untracked" for some other reason.
