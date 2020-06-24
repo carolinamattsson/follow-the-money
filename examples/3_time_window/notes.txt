@@ -11,8 +11,8 @@ Data over a finite time window
   be initialized so that all accounts stay above zero during this time window.
   Making the time window explicit like this is especially useful whenever we are
   looking at data from systems with ongoing activity before and after this data
-  was collected. It tells the program what transactions we *know to be* missing
-  from the dataset and when account balances ought to be explicitly inferred.
+  was collected. It tells the program what transactions we *know to be* outside
+  the dataset and thus when account balances ought to be explicitly inferred.
 
 `account_config.json`
 
@@ -65,23 +65,39 @@ Data over a finite time window
   This inferred transaction (a self-loop) is recorded in `plus_inferred.csv`.
 
   As you can perhaps tell, making these earlier transactions visible does make a
-  substantial difference under the mixing heuristic, though. The fact there were
-  $20 in account `XYZ` ahead of transaction `10000010` changes every single flow
-  that comes after it, starting with `10000010`-->`10000011`. If you look into
+  substantial difference under the mixing heuristic. The fact there were $20 in
+  account `XYZ` ahead of transaction `10000010` changes the balance the account
+  holds also at every subsequent step. This affects the proportions allocated to
+  every subsequent flow starting with `10000010`-->`10000011`. If you look into
   the output file `plus_flows_mixed.csv` you'll see that even the `bill-payment`
   transaction towards the end of the month is partially filled using funds from
   the first newly visible `cash-in` (transaction `10000004`). This is the main
   drawback of the mixing heuristic---your time window can matter quite a bit.
 
+
+
+Uncommon options:
+
+`--no_balance`
+
+  This flag entirely skips the balance initialization step. This initialization
+  process works backwards from the end of the data to find the smallest initial
+  balance whereby the account will stay above zero for the full time window. You
+  end up with one "initial" inferred transaction at the start. With this flag,
+  the initial balance is assumed to be zero and adjusted in an ongoing manner
+  whenever an out-transaction would bring the balance below zero. You would end
+  up with many "erroneous" inferred transactions all along the way.
+
 `--no_infer`
 
   This flag skips the explicit creation of inferred transactions due to initial
-  balance, final balance, or (as discussed later) erroneous balance. The program
-  will still add balance to accounts during the initialization, but these funds
-  will be treated by the tracking functionality as "untracked" money instead. If
-  an account is left with a non-zero balance at the end of the time window, the
-  flows that remain will end as "untracked" money, as well. Unless you have a
-  good reason to avoid inferring transactions, best to keep it! Making finite
-  data considerations explicit is good practice, always, and this here enforces
-  a useful distinction in the resulting data between money that is "unseen" and
-  assumed to be there versus "seen" but left "untracked" for some other reason.
+  balance, final balance, or erroneous balance. This does not change how the
+  program adjusts balances. The only difference is that mismatches are left
+  unacknowledged and later dealt with by the tracking functionality itself. The
+  program will still add balance to accounts during the initialization, but they
+  will be "untracked" funds. If an account is left with non-zero balance at the
+  end of the time window, the flows that remain will end as "untracked" funds.
+  Unless you have a good reason to avoid inferring transactions, best to keep
+  it! Making data limitations explicit is good practice, in general, and here it
+  enforces a useful distinction between money that is "unseen" and assumed to be
+  there versus "seen" but left "untracked" for some other reason.

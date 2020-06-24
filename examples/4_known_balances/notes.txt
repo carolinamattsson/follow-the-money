@@ -1,0 +1,66 @@
+Known account balances
+{
+"transaction_header": [...,"src_balance","tgt_balance"],
+"balance_type": "post",
+}
+
+  This part of the configuration file lets you tell the program that there is a
+  column in the data itself that contains balance information. Given balance
+  information the program will notice if there are transactions missing from the
+  dataset---its internal balance would suddenly be wrong! In such cases the code
+  takes the given balance to be correct, and infers the transaction that would
+  bring its erroneous internal balance back into line. Inferred transactions are
+  tracked just like any other transactions, and they are made to be self-loops.
+
+  Note that providers might record the account balances either "pre" or "post"
+  transaction; the latter convention is more common.
+
+`account_txns_bal.csv`
+
+  This is the same set of transactions as that in Example #1, except it includes
+  the balance of account `XYZ` at every point. We saw from Example #3 that data
+  limitations might mean transactions happening before the start of our time
+  window leave behind a balance---and that this affects especially the `mixing`
+  heuristic. Here, the balance from `account_txns+.csv` in Example #3 are given.
+
+  Notice that the code infers both a $20 deposit *and* a $20 withdrawal.
+
+  This does not affect `bal_flows_lifo.csv` very much. The flows are the same as
+  those from Example #1 and Example #3 except for the inferred transactions.
+
+  But I would suggest that you take a closer look at what is happening with
+  `bal_flows_mixing.csv`. If you compare the flows that start with transaction
+  `10000010` you'll see that the balance information is enough to recover the
+  flows as traced over the full data from Example #3 (`plus_flows_mixed.csv`)
+  while using the limited time window from Example #1.
+
+`account_txns_bal-.csv`
+
+  This is the same transaction data, except that number `10000021` is missing:
+  2019-08-27 07:00:00,cash-in,10000021,DDD,XYZ,20,0,,40
+
+  If you look within `miss_inferred.csv` you'll see that the code noticed the
+  jump in balance and added this inferred transaction:
+  2019-08-27 08:00:00,inferred,accounting,XYZ,XYZ,20.0,0.0,,
+
+  Explicitly inferring this transaction keeps the accounting neat, and makes it
+  so that the output files are not very different at all.
+
+
+
+Uncommon options:
+
+`--no_balance`
+
+  Without this flag the initialization will proceed from the end of the data
+  back to the start, re-setting whenever it is given balance information. This
+  will be added at the start as an "initial" inferred transaction. Note that the
+  code will still impute additional initial balance whenever balance information
+  is missing from a transaction that contributes to it. With this flag, the
+  initial balance is assumed to be zero and adjusted up as soon as it is becomes
+  known from the data (as an "erroneous" inferred transaction).
+
+`--no_infer`
+  This flag will avoid explicitly inferring transactions that adjust the balance
+  in line with the given value. Any mismatches are still adjusted for, but the
+  tracking functionality treats this as "untracked" funds instead.
