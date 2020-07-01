@@ -253,7 +253,7 @@ def check_tracker(acct):
             leaf_branches, leaf_amounts = acct.tracker.extend_phantom_branches(amt_tracked-acct.balance)
             yield from acct.tracker.stop_tracking(leaf_branches,leaf_amounts=leaf_amounts)
         if acct.tracker.time_cutoff:
-            leaf_branches = [branch for branch in acct.tracker if (timestamp-branch.txn.timestamp) > acct.tracker.time_cutoff]
+            leaf_branches = [branch for branch in acct.tracker if (acct.system.time_current-branch.txn.timestamp) > acct.tracker.time_cutoff]
             yield from acct.tracker.stop_tracking(leaf_branches)
 
 def check_balances(txn,inferred_file):
@@ -335,7 +335,7 @@ def check_initialized(txn,Tracker_class,inferred_file):
             pass
 
 def track_transactions(system,txns,Tracker,report_file,untracked_file,inferred_file):
-    # Track the transaction. 
+    # Track the transaction.
     for txn in txns:
         try:
             yield from check_initialized(txn,Tracker,inferred_file)
