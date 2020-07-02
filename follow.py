@@ -112,32 +112,34 @@ class Tracker(list):
         #    only one branch is returned, which is a new "root branch" that corresponds directly to the transaction itself
         new_branches = []
         return new_branches
-    def extend_phantom_branches(self,amt):
-        # this function handles tracked funds allocated to outgoing transactions that are not themselves tracked
-        # the outgoing transaction amount is allocated funds as normal, but instead of the new branches
-        # it returns the prior branches and the share of them that we no longer wish to track
-        this_txn = self.Transaction(self,None,{"amt":amt,"src_fee":0,"tgt_fee":0,"type":'phantom'})
-        phantom_branches = [branch for branch in self.extend_branches(this_txn) if branch.prev is not None]
-        leaf_branches = [branch.prev for branch in phantom_branches]
-        leaf_amounts = [branch.amt for branch in phantom_branches]
-        return leaf_branches, leaf_amounts
-    def stop_tracking(self,leaf_branches,leaf_amounts=None):
+    def stop_tracking(self,leaf_branches):
         # this function makes "leaf branches" out of the branches it is given
-        # if builds the "money flows" that thus end at the last account <with that duration of time>
+        # if builds the "money flows" that thus end as "untracked" funds in this last account
         # it returns these "money flows" and stops tracking the corresponding "leaf branches"
         flows = []
-        leaf_amounts = leaf_amounts if leaf_amounts is not None else [branch.amt for branch in leaf_branches]
-        for branch, amt in zip(leaf_branches,leaf_amounts):
-            if amt > self.float_zero: # just don't want to include floating point errors
-                flow = branch.follow_back(amt)
+        for branch in leaf_branches:
+            self.remove(branch)
+            if branch.amt > self.float_zero: # just don't want to include floating point errors
+                flow = branch.follow_back(branch.amt)
                 flow.durations.append(self.account.system.time_current-branch.txn.timestamp)
                 flow.duration += self.account.system.time_current-branch.txn.timestamp
                 flow.end_categ = "untracked"
                 flows.append(flow)
-            if amt > branch.amt-self.float_zero:
-                self.remove(branch)
-            else:
-                branch.decrement(amt)
+        return flows
+    def stop_tracking_amt(self,amt):
+        # this function handles tracked funds allocated to outgoing transactions that are not themselves tracked
+        # the outgoing transaction amount is allocated funds as normal, but instead of the new branches
+        # getting added to the target account's tracker this share of the prior branch is "untracked"
+        flows = []
+        this_txn = self.Transaction(self,None,{"amt":amt,"src_fee":0,"tgt_fee":0,"type":'phantom'})
+        phantom_branches = [branch for branch in self.extend_branches(this_txn) if branch.prev is not None]
+        for branch in phantom_branches:
+            if branch.amt > self.float_zero: # just don't want to include floating point errors
+                flow = branch.prev.follow_back(branch.amt)
+                flow.durations.append(self.account.system.time_current-branch.prev.txn.timestamp)
+                flow.duration += self.account.system.time_current-branch.prev.txn.timestamp
+                flow.end_categ = "untracked"
+                flows.append(flow)
         return flows
     @classmethod
     def start_tracking(cls,this_txn,amt_sent):
@@ -155,8 +157,7 @@ class Tracker(list):
                 new_branches = txn.src.tracker.extend_branches(txn)
             else:
                 if txn.src.has_tracker() and txn.type != 'inferred':
-                    leaf_branches, leaf_amounts = txn.src.tracker.extend_phantom_branches(txn.amt_sent)
-                    yield from txn.src.tracker.stop_tracking(leaf_branches,leaf_amounts=leaf_amounts)
+                    yield from txn.src.tracker.stop_tracking_amt(txn.amt_sent)
                 if tgt_track:
                     new_branches = cls.start_tracking(txn,txn.amt_sent)
                 else:
@@ -250,8 +251,7 @@ def check_tracker(acct):
     if acct.has_tracker():
         amt_tracked = sum(branch.amt for branch in acct.tracker)
         if amt_tracked > acct.balance+acct.tracker.float_zero:
-            leaf_branches, leaf_amounts = acct.tracker.extend_phantom_branches(amt_tracked-acct.balance)
-            yield from acct.tracker.stop_tracking(leaf_branches,leaf_amounts=leaf_amounts)
+            yield from acct.tracker.stop_tracking_amt(amt_tracked-acct.balance)
         if acct.tracker.time_cutoff:
             leaf_branches = [branch for branch in acct.tracker if (acct.system.time_current-branch.txn.timestamp) > acct.tracker.time_cutoff]
             yield from acct.tracker.stop_tracking(leaf_branches)
