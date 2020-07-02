@@ -1,0 +1,17 @@
+{
+  "transaction_header": ["timestamp","type","txn_ID","src_ID","tgt_ID","amt","fee"],
+  "delimiter": ",",
+  "quotechar": "\"",
+  "escapechar": "%",
+  "timeformat": "%Y-%m-%d %H:%M:%S",
+  "timewindow_beg": "2019-08-17 23:59:59",
+  "timewindow_end": "2019-09-01 00:00:00",
+  "fee/revenue": "sender",
+  "boundary_type": "transactions",
+  "transaction_categories":{
+    "cash-in":"deposit",
+    "cash-out":"deposit",
+    "mobile-minutes":"withdraw",
+    "bill-payment":"withdraw"
+  }
+}

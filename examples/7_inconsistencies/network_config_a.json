@@ -1,0 +1,9 @@
+{
+  "transaction_header": ["txn_ID","src_ID","tgt_ID","timestamp","src_categ","tgt_categ","amt","fee"],
+  "timeformat": "%Y-%m-%d %H:%M:%S",
+  "timewindow_beg": "2017-03-01 00:00:00",
+  "timewindow_end": "2017-03-04 03:00:00",
+  "fee/revenue": "sender",
+  "boundary_type": "accounts",
+  "category_follow": ["user"]
+}

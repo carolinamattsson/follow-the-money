@@ -1,0 +1,3 @@
+# Known issues within these examples:
+
+1) For some reason, inferred_accounts+otc is not actually inferring accounts right now
