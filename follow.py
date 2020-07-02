@@ -374,7 +374,7 @@ def track_remaining_funds(system,report_file,inferred_file):
         try:
             if acct.has_tracker():
                 yield from check_tracker(acct)
-                if inferred_file:
+                if inferred_file and (system.boundary_type=="transactions" or acct.categ in system.categ_follow):
                     yield from infer_withdraw(acct,acct.balance,"final",inferred_file)
                 else:
                     yield from acct.tracker.stop_tracking(acct.tracker.copy())
