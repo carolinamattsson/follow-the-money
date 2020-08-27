@@ -53,7 +53,7 @@ class Flow:
         # "money flows" have a size (flow.amt), a length within the system (flow.tux), and a duration of time that they remained in the system (flow.duration)
         # the specific trajectory is described by a list of transactions, through a list of accounts, where the money stayed for a list of durations
         # when aggregating over "money flows", they can be weighted by their size or by their transactions using flow.frac_root
-        self.timestamp = datetime.strftime(branch.txn.timestamp,"%Y-%m-%d %H:%M:%S")
+        self.timestamp = datetime.strftime(branch.txn.timestamp,branch.txn.system.timeformat)
         self.root_amt  = amt+fee
         self.root_txn  = (amt+fee)/(branch.txn.amt_sent)
         self.amts      = [amt]
@@ -275,7 +275,7 @@ def check_balances(txn,inferred_file):
 def infer_deposit(acct,amt,flag,inferred_file):
     from initialize import Transaction
     if amt >= acct.tracker.size_limit:
-        timestamp = acct.system.time_begin if flag == 'initial' else acct.system.time_current
+        timestamp = acct.system.time_begin-timedelta(milliseconds=0.001) if flag == 'initial' else acct.system.time_current
         inferred_txn = Transaction.create(acct,acct,{'txn_ID':flag,
                                                      'src_ID':acct.acct_ID,
                                                      'tgt_ID':acct.acct_ID,

@@ -245,7 +245,7 @@ def timewindow_transactions(txn_reader,system,report_file):
         # read in the timestamp
         try:
             txn['timestamp'] = datetime.strptime(txn['timestamp'],system.timeformat)
-            if system.time_begin < txn['timestamp'] < system.time_end:
+            if system.time_begin <= txn['timestamp'] < system.time_end:
                 # update the current time in the system
                 system.time_current = txn['timestamp']
                 # yield this transaction through the program
