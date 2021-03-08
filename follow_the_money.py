@@ -29,8 +29,8 @@ if __name__ == '__main__':
     parser.add_argument('--none', action="store_true", default=False, help='Track the using the baseline "no-tracking" heuristic')
     parser.add_argument('--no_balance', action="store_true", default=False, help='Avoid inferring account balances at start, when known')
     parser.add_argument('--no_infer', action="store_true", default=False, help='Avoid inferring unseen deposit and withdrawal transactions')
-    parser.add_argument('--cutoff', metavar='hours', type=int, default=None, help='Stop tracking funds after this number of hours')
-    parser.add_argument('--smallest', metavar='value', type=int, default=0.01, help='Stop tracking funds with a value below this threshold')
+    parser.add_argument('--cutoff', metavar='hours', type=float, default=None, help='Stop tracking funds after this number of hours')
+    parser.add_argument('--smallest', metavar='value', type=float, default=0.01, help='Stop tracking funds with a value below this threshold')
 
     args = parser.parse_args()
 

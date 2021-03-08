@@ -10,7 +10,7 @@
   "boundary_type": "transactions",
   "transaction_categories":{
     "cash-in":"deposit",
-    "cash-out":"deposit",
+    "cash-out":"withdraw",
     "mobile-minutes":"withdraw",
     "bill-payment":"withdraw"
   }

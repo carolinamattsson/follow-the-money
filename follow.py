@@ -274,7 +274,7 @@ def check_balances(txn,inferred_file):
 
 def infer_deposit(acct,amt,flag,inferred_file):
     from initialize import Transaction
-    if amt >= acct.tracker.size_limit:
+    if amt and amt >= acct.tracker.size_limit:
         timestamp = acct.system.time_begin-timedelta(milliseconds=0.001) if flag == 'initial' else acct.system.time_current
         inferred_txn = Transaction.create(acct,acct,{'txn_ID':flag,
                                                      'src_ID':acct.acct_ID,
