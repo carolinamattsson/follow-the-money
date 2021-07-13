@@ -47,7 +47,7 @@ class Flow:
     # These "money flows" allow for useful aggregations at the system level where monetary units are never double-counted
 
     # Class variable defines what flow.to_print() currently outputs
-    header = ['flow_timestamp','flow_amt','flow_txn','flow_length','flow_length_nrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_amts','flow_revs','flow_txns','flow_durs','flow_categs']
+    header = ['trj_timestamp','trj_amt','trj_txn','trj_len','trj_len_nrev','trj_dur','trj_categ','txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']
 
     def __init__(self, branch, amt, fee):
         # "money flows" have a size (flow.amt), a length within the system (flow.tux), and a duration of time that they remained in the system (flow.duration)
@@ -86,10 +86,10 @@ class Flow:
     def to_print(self):
         # this returns a version of this class that can be exported to a file using writer.writerow()
         return [self.timestamp,self.root_amt,self.root_txn,self.length,self.length_nrev,self.duration.total_seconds()/3600.0,\
-                '['+','.join(id for id in self.acct_IDs)+']','['+','.join(id for id in self.txn_IDs)+']','['+','.join(type for type in self.txn_types)+']',\
+                '('+','.join([self.beg_categ,self.end_categ])+')',\
+                '['+','.join(id for id in self.txn_IDs)+']','['+','.join(type for type in self.txn_types)+']',\
                 '['+','.join(str(amt) for amt in self.amts)+']','['+','.join(str(rev) for rev in self.revs)+']','['+','.join(str(txn) for txn in self.txns)+']',\
-                '['+','.join(str(dur.total_seconds()/3600.0) for dur in self.durations)+']',\
-                '('+','.join([self.beg_categ,self.end_categ])+')']
+                '['+','.join(id for id in self.acct_IDs)+']','['+','.join(str(dur.total_seconds()/3600.0) for dur in self.durations)+']']
 
 class Tracker(list):
     # Contains the basic features of an account that keeps track of transactions moving through it
