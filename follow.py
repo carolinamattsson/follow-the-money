@@ -48,7 +48,7 @@ class Flow:
     # These "money flows" allow for useful aggregations at the system level where monetary units are never double-counted
 
     # Class variable defines what flow.to_print() currently outputs
-    header = ['trj_timestamp','trj_amt','trj_txn','trj_len','trj_len_nrev','trj_dur','trj_categ','txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']
+    header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']
 
     def __init__(self, branch, amt, fee):
         # "money flows" have a size (flow.amt), a length within the system (flow.tux), and a duration of time that they remained in the system (flow.duration)
@@ -67,8 +67,7 @@ class Flow:
         self.end_categ = branch.txn.categ
         self.duration  = timedelta(0)
         self.durations = []
-        self.length    = 1 if branch.txn.categ == 'transfer' else 0                                              # "Transfers Until eXit" - deposited money begins at step 0, and any subsequent 'transfer' adds 1 to this measure
-        self.length_nrev = branch.txn.amt_rcvd/(branch.txn.amt_sent) if branch.txn.categ == 'transfer' else 0 #                        - strictly speaking, this measure aught to be adjusted by any revenue/fees incurred at each step
+        self.length    = 1 if branch.txn.categ == 'transfer' else 0
     def extend(self, branch, amt, fee):
         # this funciton builds up a "money flow" by incorporating the information in a subsequent "branch"
         # this is called inside the recursive function branch.follow_back(amt)
@@ -82,12 +81,11 @@ class Flow:
         branch_duration = branch.txn.timestamp - branch.prev.txn.timestamp
         self.duration += branch_duration
         self.durations.append(branch_duration)
-        self.length += 1 if branch.txn.categ == 'transfer' else 0             # neither 'deposit' nor 'withdraw' transactions are included in the "Transfer Until eXit" measure, only transaction within the system itself
-        self.length_nrev += amt/self.root_amt if branch.txn.categ == 'transfer' else 0
+        self.length += 1 if branch.txn.categ == 'transfer' else 0
     def to_print(self):
         # this returns a version of this class that can be exported to a file using writer.writerow()
-        return [self.timestamp,self.root_amt,self.root_txn,self.length,self.length_nrev,self.duration.total_seconds()/3600.0,\
-                '('+','.join([self.beg_categ,self.end_categ])+')',\
+        return [self.timestamp,self.root_amt,self.root_txn,\
+                '('+','.join([self.beg_categ,self.end_categ])+')',self.length,self.duration.total_seconds()/3600.0,\
                 '['+','.join(id for id in self.txn_IDs)+']','['+','.join(type for type in self.txn_types)+']',\
                 '['+','.join(str(amt) for amt in self.amts)+']','['+','.join(str(rev) for rev in self.revs)+']','['+','.join(str(txn) for txn in self.txns)+']',\
                 '['+','.join(id for id in self.acct_IDs)+']','['+','.join(str(dur.total_seconds()/3600.0) for dur in self.durations)+']']
