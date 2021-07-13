@@ -6,6 +6,7 @@ list of money flows, representing weighted trajectories of money through a
 payment system.
 '''
 from datetime import datetime, timedelta
+import random
 import traceback
 import copy
 
@@ -61,7 +62,7 @@ class Flow:
         self.txns      = [(amt+fee)/(branch.txn.amt_sent)]
         self.txn_IDs   = [branch.txn.txn_ID]
         self.txn_types = [branch.txn.type]
-        self.acct_IDs  = [branch.txn.src.acct_ID,branch.txn.tgt.acct_ID]
+        self.acct_IDs  = [branch.txn.src.acct_ID if branch.txn.src else branch.txn.src_ID,branch.txn.tgt.acct_ID if branch.txn.tgt else branch.txn.tgt_ID]
         self.beg_categ = branch.txn.categ if branch.txn.categ == 'deposit' else 'untracked'
         self.end_categ = branch.txn.categ
         self.duration  = timedelta(0)
@@ -75,7 +76,7 @@ class Flow:
         self.revs.append(fee)
         self.txns.append((amt+fee)/(branch.txn.amt_sent))
         self.txn_IDs.append(branch.txn.txn_ID)
-        self.acct_IDs.append(branch.txn.tgt.acct_ID)
+        self.acct_IDs.append(branch.txn.tgt.acct_ID if branch.txn.tgt else branch.txn.tgt_ID)
         self.txn_types.append(branch.txn.type)
         self.end_categ = branch.txn.categ
         branch_duration = branch.txn.timestamp - branch.prev.txn.timestamp
@@ -156,7 +157,7 @@ class Tracker(list):
             if src_track:
                 new_branches = txn.src.tracker.extend_branches(txn)
             else:
-                if txn.src.has_tracker() and txn.type != 'inferred':
+                if txn.src and txn.src.has_tracker():
                     yield from txn.src.tracker.stop_tracking_amt(txn.amt_sent)
                 if tgt_track:
                     new_branches = cls.start_tracking(txn,txn.amt_sent)
@@ -272,35 +273,35 @@ def check_balances(txn,inferred_file):
                 yield from infer_withdraw(acct,acct.balance-acct_need,"accounting",inferred_file)
         acct.balance = acct_need
 
-def infer_deposit(acct,amt,flag,inferred_file):
+def infer_deposit(acct,amt,type,inferred_file):
+    # infer a deposit transaction of the given type, give it a 12-digit hash
     from initialize import Transaction
     if amt and amt >= acct.tracker.size_limit:
-        timestamp = acct.system.time_begin-timedelta(milliseconds=0.001) if flag == 'initial' else acct.system.time_current
-        inferred_txn = Transaction.create(acct,acct,{'txn_ID':flag,
-                                                     'src_ID':acct.acct_ID,
-                                                     'tgt_ID':acct.acct_ID,
+        timestamp = acct.system.time_begin-timedelta(milliseconds=0.001) if type == 'initial' else acct.system.time_current
+        inferred_txn = Transaction.create(None,acct,{'txn_ID':'i_%x' % random.getrandbits(48),
+                                                     'src_ID':"inferred",
                                                      'timestamp':timestamp,
                                                      'amt':amt,
                                                      'src_fee':0,
                                                      'tgt_fee':0,
-                                                     'type':"inferred",
+                                                     'type':type,
                                                      'categ':"deposit"},get_categ=False)
         yield from acct.tracker.process(inferred_txn,src_track=False,tgt_track=True)
         inferred_file.write(str(inferred_txn)+"\n")
         inferred_file.flush()
 
-def infer_withdraw(acct,amt,flag,inferred_file):
+def infer_withdraw(acct,amt,type,inferred_file):
+    # infer a withdrawal transaction of the given type, give it a 12-digit hash
     from initialize import Transaction
     if amt >= acct.tracker.size_limit:
-        timestamp = acct.system.time_end if flag == 'final' else acct.system.time_current
-        inferred_txn = Transaction.create(acct,acct,{'txn_ID':flag,
-                                                     'src_ID':acct.acct_ID,
-                                                     'tgt_ID':acct.acct_ID,
+        timestamp = acct.system.time_end if type == 'final' else acct.system.time_current
+        inferred_txn = Transaction.create(acct,None,{'txn_ID':'i_%x' % random.getrandbits(48), # 12-digit hash
+                                                     'tgt_ID':"inferred",
                                                      'timestamp':timestamp,
                                                      'amt':amt,
                                                      'src_fee':0,
                                                      'tgt_fee':0,
-                                                     'type':"inferred",
+                                                     'type':type,
                                                      'categ':"withdraw"},get_categ=False)
         yield from acct.tracker.process(inferred_txn,src_track=True,tgt_track=False)
         inferred_file.write(str(inferred_txn)+"\n")
