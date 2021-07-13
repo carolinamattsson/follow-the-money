@@ -65,7 +65,7 @@ class Flow:
         self.acct_IDs  = [branch.txn.src.acct_ID if branch.txn.src else branch.txn.src_ID,branch.txn.tgt.acct_ID if branch.txn.tgt else branch.txn.tgt_ID]
         self.beg_categ = branch.txn.categ if branch.txn.categ == 'deposit' else 'untracked'
         self.end_categ = branch.txn.categ
-        self.duration  = timedelta(0)
+        self.duration  = None
         self.durations = []
         self.length    = 1 if branch.txn.categ == 'transfer' else 0
     def extend(self, branch, amt, fee):
@@ -79,13 +79,13 @@ class Flow:
         self.txn_types.append(branch.txn.type)
         self.end_categ = branch.txn.categ
         branch_duration = branch.txn.timestamp - branch.prev.txn.timestamp
-        self.duration += branch_duration
+        self.duration = self.duration + branch_duration if self.duration else branch_duration
         self.durations.append(branch_duration)
         self.length += 1 if branch.txn.categ == 'transfer' else 0
     def to_print(self):
         # this returns a version of this class that can be exported to a file using writer.writerow()
         return [self.timestamp,self.root_amt,self.root_txn,\
-                '('+','.join([self.beg_categ,self.end_categ])+')',self.length,self.duration.total_seconds()/3600.0,\
+                '('+','.join([self.beg_categ,self.end_categ])+')',self.length,self.duration.total_seconds()/3600.0 if self.duration else self.duration,\
                 '['+','.join(id for id in self.txn_IDs)+']','['+','.join(type for type in self.txn_types)+']',\
                 '['+','.join(str(amt) for amt in self.amts)+']','['+','.join(str(rev) for rev in self.revs)+']','['+','.join(str(txn) for txn in self.txns)+']',\
                 '['+','.join(id for id in self.acct_IDs)+']','['+','.join(str(dur.total_seconds()/3600.0) for dur in self.durations)+']']
@@ -121,7 +121,7 @@ class Tracker(list):
             if branch.amt > self.float_zero: # just don't want to include floating point errors
                 flow = branch.follow_back(branch.amt)
                 flow.durations.append(self.account.system.time_current-branch.txn.timestamp)
-                flow.duration += self.account.system.time_current-branch.txn.timestamp
+                flow.duration = flow.duration + self.account.system.time_current-branch.txn.timestamp if flow.duration else self.account.system.time_current-branch.txn.timestamp
                 flow.end_categ = "untracked"
                 flows.append(flow)
         return flows
@@ -136,7 +136,7 @@ class Tracker(list):
             if branch.amt > self.float_zero: # just don't want to include floating point errors
                 flow = branch.prev.follow_back(branch.amt)
                 flow.durations.append(self.account.system.time_current-branch.prev.txn.timestamp)
-                flow.duration += self.account.system.time_current-branch.prev.txn.timestamp
+                flow.duration = flow.duration + self.account.system.time_current-branch.prev.txn.timestamp if flow.duration else self.account.system.time_current-branch.prev.txn.timestamp
                 flow.end_categ = "untracked"
                 flows.append(flow)
         return flows
