@@ -1,9 +1,9 @@
-flow_timestamp,flow_amt,flow_txn,flow_length,flow_length_nrev,flow_duration,flow_acct_IDs,flow_txn_IDs,flow_txn_types,flow_amts,flow_revs,flow_txns,flow_durs,flow_categs
-2017-03-01 00:02:00,3500.0,0.875,0,0,0.1,"[AAA,BBB,QQQ]","[1,2]","[check_deposit,bill_payment]","[3500.0,3500.0]","[0.0,0.0]","[0.875,1.0]",[0.1],"(deposit,withdraw)"
-2017-03-02 00:51:00,500.0,1.0,1,1.0,24.983333333333334,"[AAA,BBB,DDD,AAA]","[5,6,8]","[direct_deposit,p2p_transfer,cash_withdraw]","[500.0,500.0,500.0]","[0.0,0.0,0.0]","[1.0,1.0,0.3333333333333333]","[0.35,24.633333333333333]","(deposit,withdraw)"
-2017-03-01 00:21:00,1000.0,0.5,1,1.0,49.483333333333334,"[AAA,CCC,DDD,AAA]","[3,7,8]","[cash_deposit,p2p_transfer,cash_withdraw]","[1000.0,1000.0,1000.0]","[0.0,0.0,0.0]","[0.5,1.0,0.6666666666666666]","[25.466666666666665,24.016666666666666]","(deposit,withdraw)"
-2017-03-01 00:21:00,100.0,0.05,1,1.0,49.95,"[AAA,CCC,EEE,RRR]","[3,4,9]","[cash_deposit,p2p_transfer,card_payment]","[100.0,100.0,100.0]","[0.0,0.0,0.0]","[0.05,0.1,1.0]","[24.083333333333332,25.866666666666667]","(deposit,withdraw)"
-2017-03-01 00:21:00,900.0,0.45,1,1.0,74.45,"[AAA,CCC,EEE,QQQ]","[3,4,11]","[cash_deposit,p2p_transfer,bill_payment]","[900.0,900.0,900.0]","[0.0,0.0,0.0]","[0.45,0.9,1.0]","[24.083333333333332,50.36666666666667]","(deposit,withdraw)"
-2017-03-01 00:02:00,500.0,0.125,1,1.0,74.91666666666667,"[AAA,BBB,AAA]","[1,10]","[check_deposit,p2p_transfer]","[500.0,500.0]","[0.0,0.0]","[0.125,1.0]","[50.31666666666667,24.6]","(deposit,untracked)"
-2017-03-04 03:00:00,1000.0,1.0,0,0,0.0,"[AAA,AAA]",[final],[inferred],[1000.0],[0.0],[1.0],[],"(untracked,withdraw)"
-2017-03-04 02:57:00,1000.0,1.0,0,0,0.05,"[AAA,CCC,CCC]","[12,final]","[cash_deposit,inferred]","[1000.0,1000.0]","[0.0,0.0]","[1.0,1.0]",[0.05],"(deposit,withdraw)"
+trj_timestamp,trj_amt,trj_txn,trj_categ,trj_len,trj_dur,txn_IDs,txn_types,txn_amts,txn_revs,txn_txns,acct_IDs,acct_durs
+2017-03-01 00:02:00,3500.0,0.875,"(deposit,withdraw)",0,0.1,"[1,2]","[check_deposit,bill_payment]","[3500.0,3500.0]","[0.0,0.0]","[0.875,1.0]","[AAA,BBB,QQQ]",[0.1]
+2017-03-02 00:51:00,500.0,1.0,"(deposit,withdraw)",1,24.983333333333334,"[5,6,8]","[direct_deposit,p2p_transfer,cash_withdraw]","[500.0,500.0,500.0]","[0.0,0.0,0.0]","[1.0,1.0,0.3333333333333333]","[AAA,BBB,DDD,AAA]","[0.35,24.633333333333333]"
+2017-03-01 00:21:00,1000.0,0.5,"(deposit,withdraw)",1,49.483333333333334,"[3,7,8]","[cash_deposit,p2p_transfer,cash_withdraw]","[1000.0,1000.0,1000.0]","[0.0,0.0,0.0]","[0.5,1.0,0.6666666666666666]","[AAA,CCC,DDD,AAA]","[25.466666666666665,24.016666666666666]"
+2017-03-01 00:21:00,100.0,0.05,"(deposit,withdraw)",1,49.95,"[3,4,9]","[cash_deposit,p2p_transfer,card_payment]","[100.0,100.0,100.0]","[0.0,0.0,0.0]","[0.05,0.1,1.0]","[AAA,CCC,EEE,RRR]","[24.083333333333332,25.866666666666667]"
+2017-03-01 00:21:00,900.0,0.45,"(deposit,withdraw)",1,74.45,"[3,4,11]","[cash_deposit,p2p_transfer,bill_payment]","[900.0,900.0,900.0]","[0.0,0.0,0.0]","[0.45,0.9,1.0]","[AAA,CCC,EEE,QQQ]","[24.083333333333332,50.36666666666667]"
+2017-03-01 00:02:00,500.0,0.125,"(deposit,untracked)",1,74.91666666666667,"[1,10]","[check_deposit,p2p_transfer]","[500.0,500.0]","[0.0,0.0]","[0.125,1.0]","[AAA,BBB,AAA]","[50.31666666666667,24.6]"
+2017-03-04 03:00:00,1000.0,1.0,"(untracked,withdraw)",0,,[i_886623474d93],[final],[1000.0],[0.0],[1.0],"[AAA,inferred]",[]
+2017-03-04 02:57:00,1000.0,1.0,"(deposit,withdraw)",0,0.05,"[12,i_8df9f7e94382]","[cash_deposit,final]","[1000.0,1000.0]","[0.0,0.0]","[1.0,1.0]","[AAA,CCC,inferred]",[0.05]
