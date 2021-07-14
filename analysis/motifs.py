@@ -3,33 +3,12 @@ from collections import defaultdict
 import traceback
 import math
 
-#######################################################################################################
-def time_filter(wflows,timewindow,timeformat):
-    for wflow in wflows:
-        if timewindow[0] or timewindow[-1]:
-            timestamp = datetime.strptime(wflow['flow_timestamp'],timeformat)
-        if timewindow[0] and timestamp < timewindow[0]:
-            continue
-        if timewindow[-1] and timestamp >= timewindow[-1]:
-            continue
-        yield wflow
-
-def consolidate_txn_types(wflow, joins):
-    for i,txn_type in enumerate(wflow['flow_txn_types']):
-        for join in joins:
-            if txn_type in joins[join]: wflow['flow_txn_types'][i] = join
-    return wflow
-
-def cumsum(a_list):
-    total = 0
-    for x in a_list:
-        total += x
-        yield total
+from utils import parse, time_filter, consolidate_txn_types, cumsum
 
 #######################################################################################################
-def find_motifs(wflow_file,motif_file,timewindow=(None,None),timeformat=None,joins=False,circulate=6):
+def find_motifs(wflow_file,motif_file,timewindow,timeformat,joins,circulate):
     ##########################################################################################
-    wflow_header = ['flow_timestamp','flow_amt','flow_txn','flow_length','flow_length_nrev','flow_duration','flow_acct_IDs','flow_txn_IDs','flow_txn_types','flow_amts','flow_revs','flow_txns','flow_durs','flow_categs']
+    wflow_header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']
     motif_header = ["motif","flows","amount","deposits","users","median_dur_f","median_dur_a","median_dur_d"]
     with open(wflow_file,'r') as wflow_file:
         reader_wflows   = csv.DictReader(wflow_file,delimiter=",",quotechar='"',escapechar="%")
@@ -39,7 +18,7 @@ def find_motifs(wflow_file,motif_file,timewindow=(None,None),timeformat=None,joi
         # populate the motifs dictionary
         for wflow in time_filter(reader_wflows,timewindow,timeformat):
             try:
-                wflow = parse(wflow)
+                wflow = parse(wflow,timeformat)
                 wflow = consolidate_txn_types(wflow, joins) if joins else wflow
                 motifs = update_motifs(motifs,wflow,circulate)
             except:
@@ -49,32 +28,37 @@ def find_motifs(wflow_file,motif_file,timewindow=(None,None),timeformat=None,joi
         # write the results
         write_motifs(motifs,motif_file,motif_header)
 
-def parse(wflow):
-    #####################################################################################
-    wflow['flow_txn_types'] = wflow['flow_txn_types'].strip('[]').split(',')
-    wflow['flow_amt']       = float(wflow['flow_amt'])
-    wflow['flow_txn'] = float(wflow['flow_txn'])
-    wflow['flow_duration']  = float(wflow['flow_duration'])
-    wflow['flow_length']    = len(wflow['flow_txn_types'])
-    return wflow
-
-def consolidate_motif(txn_types, circulate):
-    enter = txn_types[0]
-    exit  = txn_types[-1]
-    circ  = "~".join(txn_types[1:-1])
+def consolidate_motif(trj_categ,txn_types,circulate):
+    # Handle the start of trajectories
+    if trj_categ[0]=='deposit':
+        enter = txn_types.pop(0)
+    elif trj_categ[0]=='untracked':
+        enter = ""
+    else:
+        raise ValueError("Bad trj_categ:",trj_categ[0])
+    # Handle the end of trajectories
+    if trj_categ[1]=='withdraw':
+        exit = txn_types.pop()
+    elif trj_categ[1]=='untracked':
+        exit = ""
+    else:
+        raise ValueError("Bad trj_categ:",trj_categ[1])
+    # Handle the middle of trajectories
+    circ  = "~".join(txn_types)
     if len(txn_types) >= circulate:
         circ = "circulate"
+    # Return the motif
     return "~".join([enter]+[circ]+[exit]) if circ else "~".join([enter]+[exit])
 
 def update_motifs(motifs, wflow, circulate):
     # define the motif
-    motif = consolidate_motif(wflow['flow_txn_types'], circulate)
+    motif = consolidate_motif(wflow['trj_categ'], wflow['txn_types'], circulate)
     # update the motif
     motifs[motif]["flows"]    += 1
-    motifs[motif]["amount"]   += wflow['flow_amt']
-    motifs[motif]["deposits"] += wflow['flow_txn']
-    motifs[motif]["users"].update(wflow['flow_acct_IDs'][1:-1])
-    motifs[motif]["durations"].append((wflow['flow_duration'],wflow['flow_amt'],wflow['flow_txn']))
+    motifs[motif]["amount"]   += wflow['trj_amt']
+    motifs[motif]["deposits"] += wflow['trj_txn']
+    motifs[motif]["users"].update(wflow['acct_IDs'][1:-1])
+    motifs[motif]["durations"].append((wflow['trj_dur'],wflow['trj_amt'],wflow['trj_txn']))
     return motifs
 
 def finalize_motifs(motifs):
@@ -121,12 +105,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('input_file', help='The input weighted flow file (created by follow_the_money.py)')
     parser.add_argument('output_directory', help='Path to the output directory')
-    parser.add_argument('--prefix', default="", help='Prefix prepended to output files')
-    parser.add_argument('--circulate', type=int, default=4, help='The length at which flows are considered to circulate -- longer ones are folded in.')
-    parser.add_argument('--timewindow', default='(,)', help='Include funds that entered the system within this time window.')
-    parser.add_argument('--timeformat', default="%Y-%m-%d %H:%M:%S", help='Format to read the --timewindow tuple, if different.')
-    parser.add_argument('--join', action='append', default=[], help='Enter & exit types with these terms are joined (takes tuples).')
-    parser.add_argument('--name', action='append', default=[], help='The name to give this group of transaction types.')
+    parser.add_argument('--prefix', default="", help='Prefix prepended to output filenames')
+    parser.add_argument('--suffix', default="", help='Suffix appended to output filenames')
+    parser.add_argument('--circulate', type=int, default=4, help='Consecutive transfers after which money is considered to "circulate", as an integer.')
+    parser.add_argument('--timewindow', default="(,)", help='Include trajectories that begin within this time window, as a tuple.')
+    parser.add_argument('--timeformat', default="%Y-%m-%d %H:%M:%S", help='Format used for timestamps in trajectory file & timewindow, as a string.')
+    parser.add_argument('--join', action='append', default=[], help='Transaction types to join into one, as a tuple. (can be called multiple times)')
+    parser.add_argument('--name', action='append', default=[], help='The name for the joined group, as a string. (called once for each --join)')
 
     args = parser.parse_args()
 
@@ -136,10 +121,9 @@ if __name__ == '__main__':
         raise OSError("Could not find the output directory",args.output_directory)
 
     wflow_filename = args.input_file
-    motifs_filename = os.path.join(args.output_directory,args.prefix+"motifs.csv")
+    motifs_filename = os.path.join(args.output_directory,args.prefix+"motifs"+args.suffix+".csv")
 
-    timewindow = tuple([(datetime.strptime(timestamp,args.timeformat) if timestamp else None) for timestamp in args.timewindow.strip('()').split(',')])
-    timeformat = args.timeformat
+    timewindow = tuple([(datetime.strptime(timestamp,args.timeformat) if timestamp else None) for timestamp in args.timewindow.strip('()').strip('[]').split(',')])
 
     if len(args.join) == len(args.name):
         joins = {join[0]:set(join[1].strip('()').strip('[]').split(',')) for join in zip(args.name,args.join)}
@@ -152,9 +136,6 @@ if __name__ == '__main__':
     if len(all_joins_list) != len(set(all_joins_list)):
         raise ValueError("Please do not duplicate joined transaction types:",args.join)
 
-    if 'inferred' in all_joins_list and not args.infer:
-        raise ValueError("The transaction type 'inferred' cannot be changed unless the --infer flag is also used:",args.join,args.infer)
-
     ######### Creates weighted flow file #################
-    find_motifs(wflow_filename,motifs_filename,timewindow=timewindow,timeformat=timeformat,joins=joins,circulate=args.circulate)
+    find_motifs(wflow_filename,motifs_filename,timewindow,args.timeformat,joins,args.circulate)
     #################################################
