@@ -3,10 +3,10 @@ from collections import defaultdict
 import traceback
 import math
 
-from utils import parse, time_filter, consolidate_txn_types, cumsum
+from utils import parse, timewindow_trajectories, consolidate_txn_types, cumsum
 
 #######################################################################################################
-def find_motifs(wflow_file,motif_file,timewindow,timeformat,joins,circulate):
+def find_motifs(wflow_file,motif_file,circulate=None,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S",joins=False):
     ##########################################################################################
     wflow_header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']
     motif_header = ["motif","flows","amount","deposits","users","median_dur_f","median_dur_a","median_dur_d"]
@@ -16,7 +16,7 @@ def find_motifs(wflow_file,motif_file,timewindow,timeformat,joins,circulate):
         # motifs is a nested dictionary: motif_ID -> property -> value
         motifs = defaultdict(lambda: {"flows":0,"amount":0,"deposits":0,"users":set(),"durations":[]})
         # populate the motifs dictionary
-        for wflow in time_filter(reader_wflows,timewindow,timeformat):
+        for wflow in timewindow_trajectories(reader_wflows,timewindow,timeformat):
             try:
                 wflow = parse(wflow,timeformat)
                 wflow = consolidate_txn_types(wflow, joins) if joins else wflow
@@ -45,7 +45,7 @@ def consolidate_motif(trj_categ,txn_types,circulate):
         raise ValueError("Bad trj_categ:",trj_categ[1])
     # Handle the middle of trajectories
     circ  = "~".join(txn_types)
-    if len(txn_types) >= circulate:
+    if circulate and len(txn_types) >= circulate:
         circ = "circulate"
     # Return the motif
     return "~".join([enter]+[circ]+[exit]) if circ else "~".join([enter]+[exit])
@@ -107,7 +107,7 @@ if __name__ == '__main__':
     parser.add_argument('output_directory', help='Path to the output directory')
     parser.add_argument('--prefix', default="", help='Prefix prepended to output filenames')
     parser.add_argument('--suffix', default="", help='Suffix appended to output filenames')
-    parser.add_argument('--circulate', type=int, default=4, help='Consecutive transfers after which money is considered to "circulate", as an integer.')
+    parser.add_argument('--circulate', default=None, help='Consecutive transfers after which money is considered to "circulate", as an integer.')
     parser.add_argument('--timewindow', default="(,)", help='Include trajectories that begin within this time window, as a tuple.')
     parser.add_argument('--timeformat', default="%Y-%m-%d %H:%M:%S", help='Format used for timestamps in trajectory file & timewindow, as a string.')
     parser.add_argument('--join', action='append', default=[], help='Transaction types to join into one, as a tuple. (can be called multiple times)')
@@ -137,5 +137,5 @@ if __name__ == '__main__':
         raise ValueError("Please do not duplicate joined transaction types:",args.join)
 
     ######### Creates weighted flow file #################
-    find_motifs(wflow_filename,motifs_filename,timewindow,args.timeformat,joins,args.circulate)
+    find_motifs(wflow_filename,motifs_filename,circulate=args.circulate,timewindow=timewindow,timeformat=args.timeformat,joins=joins)
     #################################################
