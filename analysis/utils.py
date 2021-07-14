@@ -37,6 +37,16 @@ def timewindow_trajectories(wflows,timewindow,timeformat):
             continue
         yield wflow
 
+def timewindow_accounts(wflow,timewindow,timeformat):
+    '''
+    This creates a boolean property for the trajectory denoting for each account
+    whether or not it recieved funds within the given timewindow.
+    '''
+    offset_min = (timewindow[0]  - wflow['trj_timestamp']).total_seconds()/60/60 if timewindow[0] else -float('inf')
+    offset_max = (timewindow[-1] - wflow['trj_timestamp']).total_seconds()/60/60 if timewindow[-1] else float('inf')
+    mask = [False]+[offset_min <= offset < offset_max for offset in [0.0]+wflow['acct_durs']]
+    return mask
+
 def consolidate_txn_types(wflow, joins):
     for i,txn_type in enumerate(wflow['txn_types']):
         for join in joins:
@@ -48,3 +58,5 @@ def cumsum(a_list):
     for x in a_list:
         total += x
         yield total
+
+#######################################################################################################

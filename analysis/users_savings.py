@@ -3,49 +3,34 @@ from datetime import datetime, timedelta
 import traceback
 import math
 
-#######################################################################################################
-# Define various utility functions
-def parse(wflow):
-    wflow['flow_categs']    = tuple(wflow['flow_categs'].strip('()').split(','))
-    wflow['flow_acct_IDs']  = wflow['flow_acct_IDs'].strip('[]').split(',')
-    wflow['flow_txn_types'] = wflow['flow_txn_types'].strip('[]').split(',')
-    wflow['flow_txns']      = [float(txn) for txn in wflow['flow_txns'].strip('[]').split(',')]
-    wflow['flow_amts']      = [float(amt) for amt in wflow['flow_amts'].strip('[]').split(',')]
-    wflow['flow_revs']      = [float(rev) for rev in wflow['flow_revs'].strip('[]').split(',')]
-    wflow['flow_durs']      = [] if wflow['flow_durs'] == "[]" else [float(dur) for dur in wflow['flow_durs'].strip('[]').split(',')]
-    return wflow
-
-def timewindow_mask(wflow,timewindow,timeformat):
-    '''
-    This creates a boolean property for the flow, denoting whether or not each
-    transaction occured within the given timewindow.
-    '''
-    timestamp = datetime.strptime(wflow['flow_timestamp'],timeformat)
-    offset_min = (timewindow[0]  - timestamp).total_seconds()/60/60 if timewindow[0] else -float('inf')
-    offset_max = (timewindow[-1] - timestamp).total_seconds()/60/60 if timewindow[-1] else float('inf')
-    mask = [offset_min <= offset < offset_max for offset in [0.0]+wflow['flow_durs']]
-    return mask
+from utils import parse, timewindow_trajectories, timewindow_accounts
 
 ###########################################################################################
 # Define the savings summary per-trajectory updating function
 def update_savings(savings_dist, wflow, max_days):
-    # Loop over the users who held money for some period of time
-    for i,this_user in enumerate(wflow['flow_acct_IDs'][1:-1]):
-        # so long as money entered this account within the timewindow we have
-        if wflow['timewindow'][i]:
-            # get the number of days this money stayed within this account
-            days = int(wflow['flow_durs'][i]//24)
-            days = days if days <= max_days else max_days+1
-            # update the duration distribution
-            savings_dist[this_user][days]['txn'] += wflow['flow_txns'][i]
-            savings_dist[this_user][days]['amt'] += wflow['flow_amts'][i]
-            savings_dist[this_user][days]['flw'] += 1
+    # Loop over the accounts that recieved money, and the transactions recieved
+    # Note: wflow['trj_durs'] will limit the loop except for "untracked" funds
+    for acct_ID,acct_tw,dur,amt,txn in zip(wflow['acct_IDs'][1:],\
+                                           wflow['acct_tws'][1:],
+                                           wflow['acct_durs'],\
+                                           wflow['txn_amts'],\
+                                           wflow['txn_txns']):
+        # skip if this did not occur within the relevant timewindow
+        if not acct_tw: continue
+        # get the number of days this money stayed within this account
+        days = int(dur//24)
+        days = days if max_days is None else (days if days < max_days else max_days)
+        # update the duration distribution
+        savings_dist[acct_ID][days]['amt'] += amt
+        savings_dist[acct_ID][days]['txn'] += txn
+        savings_dist[acct_ID][days]['flw'] += 1
     # kick it back
     return savings_dist
 
 ###########################################################################################
 # Define how the dictionary is written into table format
-def cumulative_savings(savings_dist,max_days):
+def cumulative_savings(savings_dist,max_days=None):
+    max_key = max_days if max_days is not None else max([max(savings_dist[acct_ID].keys()) for acct_ID in savings_dist])
     for user in savings_dist:
         try:
             # fill in so eveyone has a total entry
@@ -53,14 +38,14 @@ def cumulative_savings(savings_dist,max_days):
                 savings_dist[user][0] = {'amt':0,'txn':0,'flw':0,'amt_c':0,'txn_c':0,'flw_c':0,'amt_cr':0,'txn_cr':0,'flw_cr':0}
             # could up the cumulative values
             prv_dict = {'amt':0,'txn':0,'flw':0,'amt_c':0,'txn_c':0,'flw_c':0,'amt_cr':0,'txn_cr':0,'flw_cr':0}
-            for day in range(max_days+1,-1,-1):
+            for day in range(max_key,-1,-1):
                 if day in savings_dist[user]:
                     savings_dist[user][day]['amt_c'] = prv_dict['amt_c']+savings_dist[user][day]['amt']
                     savings_dist[user][day]['txn_c'] = prv_dict['txn_c']+savings_dist[user][day]['txn']
                     savings_dist[user][day]['flw_c'] = prv_dict['flw_c']+savings_dist[user][day]['flw']
                     prv_dict = savings_dist[user][day]
             # and divide out by the total turnover
-            for day in range(max_days+1,-1,-1):
+            for day in range(max_key,-1,-1):
                 if day in savings_dist[user]:
                     savings_dist[user][day]['amt_cr'] = savings_dist[user][day]['amt_c']/savings_dist[user][0]['amt_c']
                     savings_dist[user][day]['txn_cr'] = savings_dist[user][day]['txn_c']/savings_dist[user][0]['txn_c']
@@ -71,7 +56,7 @@ def cumulative_savings(savings_dist,max_days):
 
 #######################################################################################################
 # Define the function that brings it all together
-def users_savings(wflow_filename, savings_filename, timewindow=(None,None), timeformat=None, max_days=None):
+def users_savings(wflow_filename, savings_filename, max_days=None, timewindow_trj=(None,None), timewindow_accts=(None,None), timeformat="%Y-%m-%d %H:%M:%S"):
     ##########################################################################################
     # Define the user summary -- savings_dist[USER_ID][DAYS][TERM]
     savings_dist = defaultdict(lambda: defaultdict(lambda: {'amt':0,'txn':0,'flw':0,'amt_c':0,'txn_c':0,'flw_c':0,'amt_cr':0,'txn_cr':0,'flw_cr':0}))
@@ -80,11 +65,11 @@ def users_savings(wflow_filename, savings_filename, timewindow=(None,None), time
         reader_wflows = csv.DictReader(wflow_file,delimiter=",",quotechar='"',escapechar="%")
         #############################################################
         # populate the users dictionary
-        for wflow in reader_wflows:
+        for wflow in timewindow_trajectories(reader_wflows,timewindow_trj,timeformat):
             # Update the dictionary
             try:
-                wflow = parse(wflow)
-                wflow['timewindow'] = timewindow_mask(wflow,timewindow,timeformat)
+                wflow = parse(wflow,timeformat)
+                wflow['acct_tws'] = timewindow_accounts(wflow,timewindow_accts,timeformat)
                 savings_dist = update_savings(savings_dist,wflow,max_days)
             except:
                 print(str([wflow[term] for term in wflow])+"\n"+traceback.format_exc())
@@ -97,16 +82,11 @@ def users_savings(wflow_filename, savings_filename, timewindow=(None,None), time
         w = csv.DictWriter(savings_file,header,delimiter=",",quotechar='"',escapechar="%")
         w.writeheader()
         for user in savings_dist:
-            for day in range(0,max_days+1):
-                try:
-                    if day in savings_dist[user]:
-                        record = savings_dist[user][day]
-                        record['user_ID'] = user
-                        record['days'] = day
-                        w.writerow(record)
-                except:
-                    print("user: "+str(user)+"\n"+"day: "+str(day)+"\n"+traceback.format_exc())
-
+            for day in savings_dist[user]:
+                record = savings_dist[user][day]
+                record['user_ID'] = user
+                record['days'] = day
+                w.writerow(record)
 
 if __name__ == '__main__':
     import argparse
@@ -118,10 +98,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('input_file', help='The input weighted flow file (created by follow_the_money.py)')
     parser.add_argument('output_directory', help='Path to the output directory')
-    parser.add_argument('--prefix', default="", help='Prefix prepended to output files')
-    parser.add_argument('--timewindow', default='(,)', help='Include funds that entered accounts within this time window.')
-    parser.add_argument('--timeformat', default="%Y-%m-%d %H:%M:%S", help='Format to read the --timewindow tuple, if different.')
-    parser.add_argument('--max_days', default=None, help='Aggregate by day up to this number of days. It is most useful to cooridinate this with the timewindow.')
+    parser.add_argument('--prefix', default="", help='Prefix prepended to output filenames')
+    parser.add_argument('--suffix', default="", help='Suffix appended to output filenames')
+    parser.add_argument('--max_days', default=None, help='Aggregate by day up to this number of days, as an integer.')
+    parser.add_argument('--timewindow', default='(,)', help='Include funds that entered accounts within this time window, as a tuple.')
+    parser.add_argument('--timewindow_trj', default='(,)', help='Include trajectories that begin within this time window, as a tuple.')
+    parser.add_argument('--timeformat', default="%Y-%m-%d %H:%M:%S", help='Format used for timestamps in trajectory file & timewindow(s), as a string.')
 
     args = parser.parse_args()
 
@@ -131,11 +113,12 @@ if __name__ == '__main__':
         raise OSError("Could not find the output directory",args.output_directory)
 
     wflow_filename = args.input_file
-    savings_filename = os.path.join(args.output_directory,args.prefix+"users_savings.csv")
+    savings_filename = os.path.join(args.output_directory,args.prefix+"savings"+args.suffix+".csv")
 
-    timewindow = tuple([(datetime.strptime(timestamp,args.timeformat) if timestamp else None) for timestamp in args.timewindow.strip('()').split(',')])
-    max_days = int(args.max_days)
+    timewindow = tuple([(datetime.strptime(timestamp,args.timeformat) if timestamp else None) for timestamp in args.timewindow.strip('()').strip('[]').split(',')])
+    timewindow_trj = tuple([(datetime.strptime(timestamp,args.timeformat) if timestamp else None) for timestamp in args.timewindow_trj.strip('()').split(',')])
+    max_days = int(args.max_days) if args.max_days else None
 
     ######### Creates weighted flow file #################
-    users_savings(wflow_filename, savings_filename, timewindow=timewindow, timeformat=args.timeformat, max_days=max_days)
+    users_savings(wflow_filename, savings_filename, max_days=max_days, timewindow_trj=timewindow_trj, timewindow_accts=timewindow, timeformat=args.timeformat)
     #################################################
