@@ -5,12 +5,3 @@ users_processing.py
 
 users_maturity.py
 	overhaul to elegantly handle non-inferred starts and ends to flows
-
-distributions.py
-	overhaul to work with V2 flows... or just delete
-
-duration.py
-	overhaul to work with V2 flows... or just delete
-
-length.py
- 	overhaul to work with V2 flows... or just delete
