@@ -1,5 +1,10 @@
 TODO
 
+trj_summarize.py
+  implement partial trajectories from fees (--partials)
+	implement additional --split_by options ('month','week','day','enter','exit')
+	implement additional options for summarizing duration distributions
+	
 users_processing.py
 	overhaul to elegantly handle non-inferred starts and ends to flows
 

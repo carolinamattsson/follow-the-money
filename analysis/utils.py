@@ -34,7 +34,19 @@ def timewindow_trajectories(wflows,timewindow,timeformat):
             continue
         yield wflow
 
-def timewindow_accounts(wflow,timewindow,timeformat):
+def partial_trajectories(wflows,fees=False):
+    '''
+    This generator yields the partial trajectories that ended in fees/revenue,
+    as well as the remainder of the given trajectories.
+    '''
+    for wflow in wflows:
+        if not fees:
+            yield wflow
+        else:
+            #TODO
+            yield wflow
+
+def timewindow_accounts(wflow, timewindow, timeformat):
     '''
     This creates a boolean property for the trajectory denoting for each account
     whether or not it recieved funds within the given timewindow.
@@ -50,6 +62,17 @@ def consolidate_txn_types(wflow, joins):
             if txn_type in joins[join]: wflow['txn_types'][i] = join
     return wflow
 
+def get_categ(wflow):
+    # Return the category-combo
+    return "~".join(wflow['trj_categ'])
+
+def get_length(wflow,max_transfers=None):
+    # Handle the max length
+    transfers = wflow["trj_len"]
+    if max_transfers and wflow["trj_len"] > max_transfers:
+        transfers = str(max_transfers+1)+"+"
+    # Return the trajectory length
+    return transfers
 
 def get_motif(wflow,max_transfers=None):
     txn_types = wflow['txn_types'].copy()
