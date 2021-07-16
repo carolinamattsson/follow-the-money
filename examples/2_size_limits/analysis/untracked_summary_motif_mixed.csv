@@ -1,0 +1,5 @@
+motif,flows,amount,deposits,entrys,exits,users,median_dur_f,median_dur_a,median_dur_d
+cash-in~mobile-minutes,14,114.51219512195121,3.8475609756097557,5,1,1,16.0,16.0,16.0
+cash-in~bill-payment,2,180.0,1.0975609756097562,2,1,1,2.0,2.0,2.0
+cash-in~,2,5.487804878048779,0.0548780487804878,2,0,1,31.0,48.0,31.0
+~mobile-minutes,1,5.0,1.0,0,1,1,,,
