@@ -11,10 +11,7 @@ def parse(wflow,timeformat):
     wflow['trj_len']   = int(wflow['trj_len']) # where was this len('txn_IDs')?
     # convert whole-trajectory values
     for term in ['trj_amt','trj_txn','trj_dur']:
-        try:
-            wflow[term] = float(wflow[term])
-        except:
-            None
+        wflow[term] = None if wflow[term]=="" else float(wflow[term])
     # unpack lists
     for term in ['txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']:
         wflow[term] = [] if wflow[term]=="[]" else wflow[term].strip('[]').split(',')
@@ -52,6 +49,30 @@ def consolidate_txn_types(wflow, joins):
         for join in joins:
             if txn_type in joins[join]: wflow['txn_types'][i] = join
     return wflow
+
+
+def get_motif(wflow,max_transfers=None):
+    txn_types = wflow['txn_types'].copy()
+    # Handle the start of trajectories
+    if wflow['trj_categ'][0]=='deposit':
+        enter = txn_types.pop(0)
+    elif wflow['trj_categ'][0]=='untracked':
+        enter = ""
+    else:
+        raise ValueError("Bad trj_categ:",wflow['trj_categ'][0])
+    # Handle the end of trajectories
+    if wflow['trj_categ'][1]=='withdraw':
+        exit = txn_types.pop()
+    elif wflow['trj_categ'][1]=='untracked':
+        exit = ""
+    else:
+        raise ValueError("Bad trj_categ:",wflow['trj_categ'][1])
+    # Handle the middle of trajectories
+    circ  = "~".join(txn_types)
+    if max_transfers and len(txn_types) > max_transfers:
+        circ = ">"+str(max_transfers)+"transfers"
+    # Return the motif
+    return "~".join([enter]+[circ]+[exit]) if circ else "~".join([enter]+[exit])
 
 def cumsum(a_list):
     total = 0

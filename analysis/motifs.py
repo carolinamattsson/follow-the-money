@@ -3,7 +3,8 @@ from collections import defaultdict
 import traceback
 import math
 
-from utils import parse, timewindow_trajectories, consolidate_txn_types, cumsum
+from utils import parse, timewindow_trajectories, consolidate_txn_types
+from utils import get_motif, cumsum
 
 #######################################################################################################
 def find_motifs(wflow_file,motif_file,circulate=None,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S",joins=False):
@@ -20,7 +21,8 @@ def find_motifs(wflow_file,motif_file,circulate=None,timewindow=(None,None),time
             try:
                 wflow = parse(wflow,timeformat)
                 wflow = consolidate_txn_types(wflow, joins) if joins else wflow
-                motifs = update_motifs(motifs,wflow,circulate)
+                motif = get_motif(wflow,max_transfers=circulate)
+                motifs = update_motifs(motifs,wflow,motif)
             except:
                 print(str([wflow[term] for term in wflow])+"\n"+traceback.format_exc())
         # finalize the records
@@ -28,32 +30,8 @@ def find_motifs(wflow_file,motif_file,circulate=None,timewindow=(None,None),time
         # write the results
         write_motifs(motifs,motif_file,motif_header)
 
-def consolidate_motif(trj_categ,txn_types,circulate):
-    # Handle the start of trajectories
-    if trj_categ[0]=='deposit':
-        enter = txn_types.pop(0)
-    elif trj_categ[0]=='untracked':
-        enter = ""
-    else:
-        raise ValueError("Bad trj_categ:",trj_categ[0])
-    # Handle the end of trajectories
-    if trj_categ[1]=='withdraw':
-        exit = txn_types.pop()
-    elif trj_categ[1]=='untracked':
-        exit = ""
-    else:
-        raise ValueError("Bad trj_categ:",trj_categ[1])
-    # Handle the middle of trajectories
-    circ  = "~".join(txn_types)
-    if circulate and len(txn_types) >= circulate:
-        circ = "circulate"
-    # Return the motif
-    return "~".join([enter]+[circ]+[exit]) if circ else "~".join([enter]+[exit])
-
-def update_motifs(motifs, wflow, circulate):
-    # define the motif
-    motif = consolidate_motif(wflow['trj_categ'], wflow['txn_types'], circulate)
-    # update the motif
+def update_motifs(motifs, wflow, motif):
+    # update the motif summary
     motifs[motif]["flows"]    += 1
     motifs[motif]["amount"]   += wflow['trj_amt']
     motifs[motif]["deposits"] += wflow['trj_txn']
