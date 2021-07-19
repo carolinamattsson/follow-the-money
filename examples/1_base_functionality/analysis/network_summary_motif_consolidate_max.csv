@@ -1,0 +1,4 @@
+motif,flows,amount,deposits,entrys,exits,users,median_dur_f,median_dur_a,median_dur_d
+deposit~0+_transfers~bill_payment,2,4400.0,1.325,1,1,3,0.1,0.1,0.1
+deposit~0+_transfers~cash_withdraw,3,2000.0,1.625,1,1,3,49.483333333333334,49.483333333333334,24.983333333333334
+deposit~0+_transfers~card_payment,1,100.0,0.05,1,1,2,49.95,49.95,49.95
