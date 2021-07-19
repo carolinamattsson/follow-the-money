@@ -56,26 +56,30 @@ def timewindow_accounts(wflow, timewindow, timeformat):
     mask = [False]+[offset_min <= offset < offset_max for offset in [0.0]+wflow['acct_durs']]
     return mask
 
-def consolidate_txn_types(wflow, joins):
-    for i,txn_type in enumerate(wflow['txn_types']):
+def consolidate_txn_types(txn_types, joins):
+    for i,txn_type in enumerate(txn_types):
         for join in joins:
-            if txn_type in joins[join]: wflow['txn_types'][i] = join
-    return wflow
+            if txn_type in joins[join]: txn_types[i] = join
+    return txn_types
 
 def get_categ(wflow):
     # Return the category-combo
     return "~".join(wflow['trj_categ'])
 
 def get_length(wflow,max_transfers=None):
-    # Handle the max length
+    # Handle the max length (defined as # of transfers)
     transfers = wflow["trj_len"]
-    if max_transfers and wflow["trj_len"] > max_transfers:
-        transfers = str(max_transfers+1)+"+"
+    if max_transfers is not None and wflow["trj_len"] >= max_transfers:
+        transfers = str(max_transfers)+"+"
     # Return the trajectory length
     return transfers
 
-def get_motif(wflow,max_transfers=None):
+
+def get_motif(wflow,consolidate=None,max_transfers=None):
     txn_types = wflow['txn_types'].copy()
+    # consolidate transaction types
+    if consolidate is not None:
+        txn_types = consolidate_txn_types(txn_types,consolidate)
     # Handle the start of trajectories
     if wflow['trj_categ'][0]=='deposit':
         enter = txn_types.pop(0)
@@ -92,8 +96,8 @@ def get_motif(wflow,max_transfers=None):
         raise ValueError("Bad trj_categ:",wflow['trj_categ'][1])
     # Handle the middle of trajectories
     circ  = "~".join(txn_types)
-    if max_transfers and len(txn_types) > max_transfers:
-        circ = ">"+str(max_transfers)+"transfers"
+    if max_transfers is not None and len(txn_types) >= max_transfers:
+        circ = str(max_transfers)+"+_transfers"
     # Return the motif
     return "~".join([enter]+[circ]+[exit]) if circ else "~".join([enter]+[exit])
 

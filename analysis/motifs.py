@@ -7,7 +7,7 @@ from utils import parse, timewindow_trajectories, consolidate_txn_types
 from utils import get_motif, cumsum
 
 #######################################################################################################
-def find_motifs(wflow_file,motif_file,circulate=None,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S",joins=False):
+def find_motifs(wflow_file,motif_file,circulate=None,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S",joins=None):
     ##########################################################################################
     wflow_header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']
     motif_header = ["motif","flows","amount","deposits","users","median_dur_f","median_dur_a","median_dur_d"]
@@ -20,8 +20,7 @@ def find_motifs(wflow_file,motif_file,circulate=None,timewindow=(None,None),time
         for wflow in timewindow_trajectories(reader_wflows,timewindow,timeformat):
             try:
                 wflow = parse(wflow,timeformat)
-                wflow = consolidate_txn_types(wflow, joins) if joins else wflow
-                motif = get_motif(wflow,max_transfers=circulate)
+                motif = get_motif(wflow,consolidate=joins,max_transfers=circulate)
                 motifs = update_motifs(motifs,wflow,motif)
             except:
                 print(str([wflow[term] for term in wflow])+"\n"+traceback.format_exc())

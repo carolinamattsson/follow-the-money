@@ -19,14 +19,14 @@ def trj_summarize(wflow_file,output_file,timewindow=(None,None),timeformat="%Y-%
         # motifs is a nested dictionary: split-tuple -> property -> value
         summary = defaultdict(lambda: {"flows":0,"amount":0,"deposits":0,"entrys":set(),"exits":set(),"users":set(),"durations":[]})
         # re-define the global split-getters, if needed
-        if max_transfers is not None:
-            global get_split
-            get_split = {'categ':get_categ,'motif':lambda x: get_motif(x,max_transfers),'length':lambda x: get_length(x,max_transfers)}
+        global get_split
+        if consolidate is not None: get_split.update({'motif':lambda x: get_motif(x,consolidate=consolidate)})
+        if max_transfers is not None: get_split.update({'motif':lambda x: get_motif(x,max_transfers=max_transfers),'length':lambda x: get_length(x,max_transfers=max_transfers)})
+        if max_transfers is not None and consolidate is not None: get_split.update({'motif':lambda x: get_motif(x,consolidate=consolidate,max_transfers=max_transfers)})
         # populate the summary dictionary
         for wflow in partial_trajectories(timewindow_trajectories(reader_wflows,timewindow,timeformat),fees=partials):
             try:
                 wflow = parse(wflow,timeformat)
-                wflow = consolidate_txn_types(wflow, consolidate) if consolidate else wflow
                 split = tuple(get_split[term](wflow) for term in split_bys) if split_bys else 'all'
                 summary = update_summary(summary,split,wflow)
             except:
@@ -116,8 +116,8 @@ if __name__ == '__main__':
     parser.add_argument('--timeformat', default="%Y-%m-%d %H:%M:%S", help='Format used for timestamps in trajectory file & timewindow, as a string.')
     parser.add_argument('--partials', action="store_true", default=False, help='TODO') # Consider partial trajectories that end in fees as own trajectories
     parser.add_argument('--split_by', action='append', default=[], help="Split aggregation by any number of these options: "+str(get_split.keys()))
-    parser.add_argument('--max_transfers', default=None, help='[length,motif] Aggregate separately only up to this number of consecutive transfers, as an integer.')
-    parser.add_argument('--consolidate', action='append', default=[], help="[motif] Transaction types to consolidate, as 'name:[type1,type2,...]'. Feel free to call multiple times.")
+    parser.add_argument('--max_transfers', type=int, default=None, help='Aggregate separately only up to this number of consecutive transfers, as an integer.')
+    parser.add_argument('--consolidate', action='append', default=[], help="Transaction types to consolidate, as 'name:[type1,type2,...]'. Feel free to call multiple times.")
 
     args = parser.parse_args()
 
@@ -142,10 +142,10 @@ if __name__ == '__main__':
         raise IndexError("Please make sure the format of your --join argument(s) is 'name:[type1,type2,...]'")
 
     all_joins_list = []
-    for join in joins:
-        all_joins_list.extend(joins[join])
+    for join in args.consolidate:
+        all_joins_list.extend(args.consolidate[join])
     if len(all_joins_list) != len(set(all_joins_list)):
-        raise ValueError("Please do not duplicate joined transaction types:",args.join)
+        raise ValueError("Please do not duplicate consolidated transaction types:",args.consolidate)
 
     ######### Creates weighted flow file #################
     trj_summarize(wflow_filename,output_filename,timewindow=timewindow,timeformat=args.timeformat,partials=args.partials,split_bys=args.split_by,max_transfers=args.max_transfers,consolidate=joins)

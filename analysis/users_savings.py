@@ -102,8 +102,9 @@ if __name__ == '__main__':
     parser.add_argument('--suffix', default="", help='Suffix appended to output filenames')
     parser.add_argument('--max_days', default=None, help='Aggregate by day up to this number of days, as an integer.')
     parser.add_argument('--timewindow', default='(,)', help='Include funds that entered accounts within this time window, as a tuple.')
-    parser.add_argument('--timewindow_trj', default='(,)', help='Include trajectories that begin within this time window, as a tuple.')
     parser.add_argument('--timeformat', default="%Y-%m-%d %H:%M:%S", help='Format used for timestamps in trajectory file & timewindow(s), as a string.')
+    # trajectory-based filtering
+    parser.add_argument('--timewindow_trj', default='(,)', help='Include trajectories that begin within this time window, as a tuple.')
 
     args = parser.parse_args()
 
