@@ -74,6 +74,16 @@ def get_length(wflow,max_transfers=None):
     # Return the trajectory length
     return transfers
 
+def get_duration(wflow,cutoffs=[],lower=False):
+    # Handle instantaneous trajectories
+    if wflow["trj_dur"] is None: return "0"
+    # Handle the upper/lower bound; upper is the default
+    if not lower and wflow['trj_categ'][1]=='untracked': return "inf"
+    if not lower and wflow['txn_types'][-1]=='final': return "inf"
+    # Handle the cutoffs or lack thereof
+    for start,end in zip([0]+cutoffs,cutoffs+[float("inf")]):
+        if start < wflow["trj_dur"] <= end:
+            return "("+str(start)+","+str(end)+"]" if end<float("inf") else "("+str(start)+","+str(end)+")"
 
 def get_motif(wflow,consolidate=None,max_transfers=None):
     txn_types = wflow['txn_types'].copy()
@@ -100,6 +110,14 @@ def get_motif(wflow,consolidate=None,max_transfers=None):
         circ = str(max_transfers)+"+_transfers"
     # Return the motif
     return "~".join([enter]+[circ]+[exit]) if circ else "~".join([enter]+[exit])
+
+def get_month(wflow,timeformat="%Y-%m-%d %H:%M:%S"):
+    if timeformat[:6]=="%Y-%m-":
+        month_ID = "-".join(wflow['trj_timestamp'].split("-")[:-1])
+        return month_ID
+    else:
+        month_ID = datetime.strftime(datetime.strptime(wflow['trj_timestamp'],timeformat),"%Y-%m")
+        return month_ID
 
 def cumsum(a_list):
     total = 0

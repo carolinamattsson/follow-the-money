@@ -4,12 +4,12 @@ import traceback
 import math
 
 from utils import parse, timewindow_trajectories, partial_trajectories
-from utils import consolidate_txn_types, get_categ, get_motif, get_length, cumsum
+from utils import get_categ, get_motif, get_length, get_duration, cumsum
 
-get_split = {'categ':get_categ,'motif':get_motif,'length':get_length}
+get_split = {'categ':get_categ,'motif':get_motif,'length':get_length,'duration':get_duration}
 
 #######################################################################################################
-def trj_summarize(wflow_file,output_file,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S",partials=False,split_bys=[],max_transfers=None,consolidate=False):
+def trj_summarize(wflow_file,output_file,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S",partials=False,split_bys=[],max_transfers=None,cutoffs=None,consolidate=None,lower=False):
     ##########################################################################################
     wflow_header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']
     summary_header = split_bys+["flows","amount","deposits","entrys","exits","users","median_dur_f","median_dur_a","median_dur_d"]
@@ -20,6 +20,8 @@ def trj_summarize(wflow_file,output_file,timewindow=(None,None),timeformat="%Y-%
         summary = defaultdict(lambda: {"flows":0,"amount":0,"deposits":0,"entrys":set(),"exits":set(),"users":set(),"durations":[]})
         # re-define the global split-getters, if needed
         global get_split
+        if lower: get_split.update({'duration':lambda x: get_duration(x,lower=lower)})
+        if cutoffs is not None: get_split.update({'duration':lambda x: get_duration(x,cutoffs=cutoffs,lower=lower)})
         if consolidate is not None: get_split.update({'motif':lambda x: get_motif(x,consolidate=consolidate)})
         if max_transfers is not None: get_split.update({'motif':lambda x: get_motif(x,max_transfers=max_transfers),'length':lambda x: get_length(x,max_transfers=max_transfers)})
         if max_transfers is not None and consolidate is not None: get_split.update({'motif':lambda x: get_motif(x,consolidate=consolidate,max_transfers=max_transfers)})
@@ -118,6 +120,8 @@ if __name__ == '__main__':
     parser.add_argument('--split_by', action='append', default=[], help="Split aggregation by any number of these options: "+str(get_split.keys()))
     parser.add_argument('--max_transfers', type=int, default=None, help='Aggregate separately only up to this number of consecutive transfers, as an integer.')
     parser.add_argument('--consolidate', action='append', default=[], help="Transaction types to consolidate, as 'name:[type1,type2,...]'. Feel free to call multiple times.")
+    parser.add_argument('--cutoffs', default=None, help="Duration cutoffs, in hours. Takes a list of integers as '[cutoff1,cutoff2,...]'.'")
+    parser.add_argument('--lower', action="store_true", default=False, help="Use lower bound for unknown durations.'")
 
     args = parser.parse_args()
 
@@ -135,11 +139,17 @@ if __name__ == '__main__':
 
     timewindow = tuple([(datetime.strptime(timestamp,args.timeformat) if timestamp else None) for timestamp in args.timewindow.strip('()').strip('[]').split(',')])
 
+    if args.cutoffs is not None:
+        try:
+            args.cutoffs = sorted([int(cutoff) for cutoff in args.cutoffs.strip('()[]').split(',')])
+        except:
+            raise ValueError("Please make sure the format of your --cutoffs argument is '[cutoff1,cutoff2,...]':",args.cutoffs)
+
     try:
         joins = [join.split(':') for join in args.consolidate]
-        joins = {join[0]:set(join[1].strip('()[]').split(',')) for join in joins}
+        args.consolidate = {join[0]:set(join[1].strip('()[]').split(',')) for join in joins}
     except:
-        raise IndexError("Please make sure the format of your --join argument(s) is 'name:[type1,type2,...]'")
+        raise IndexError("Please make sure the format of your --consolidate argument(s) is 'name:[type1,type2,...]'",args.consolidate)
 
     all_joins_list = []
     for join in args.consolidate:
@@ -148,5 +158,5 @@ if __name__ == '__main__':
         raise ValueError("Please do not duplicate consolidated transaction types:",args.consolidate)
 
     ######### Creates weighted flow file #################
-    trj_summarize(wflow_filename,output_filename,timewindow=timewindow,timeformat=args.timeformat,partials=args.partials,split_bys=args.split_by,max_transfers=args.max_transfers,consolidate=joins)
+    trj_summarize(wflow_filename,output_filename,timewindow=timewindow,timeformat=args.timeformat,partials=args.partials,split_bys=args.split_by,max_transfers=args.max_transfers,consolidate=args.consolidate,cutoffs=args.cutoffs,lower=args.lower)
     #################################################
