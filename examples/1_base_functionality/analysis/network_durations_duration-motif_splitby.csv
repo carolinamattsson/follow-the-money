@@ -1,0 +1,7 @@
+duration,complete,amount,deposits,duration,motif
+0.1,True,3500.0,0.875,'(0,1]',deposit~bill_payment
+24.983333333333334,True,500.0,1.0,'(24,48]',deposit~p2p_transfer~cash_withdraw
+49.483333333333334,True,1000.0,0.5,'(48,inf)',deposit~p2p_transfer~cash_withdraw
+49.95,True,100.0,0.05,'(48,inf)',deposit~p2p_transfer~card_payment
+50.31666666666667,True,500.0,0.125,'(48,inf)',deposit~cash_withdraw
+74.45,True,900.0,0.45,'(48,inf)',deposit~p2p_transfer~bill_payment

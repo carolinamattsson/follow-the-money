@@ -11,6 +11,10 @@ python3 ../../../analysis/trj_summarize.py ../output/network_flows_lifo.csv ./ -
 python3 ../../../analysis/trj_summarize.py ../output/network_flows_lifo.csv ./ --prefix network_ --split_by duration
 python3 ../../../analysis/trj_summarize.py ../output/network_flows_lifo.csv ./ --prefix network_ --suffix _cutoffs --split_by duration --cutoffs "[1,24,48]"
 
+# Base functionality -- trj_durations.py
+python3 ../../../analysis/trj_durations.py ../output/network_flows_lifo.csv ./ --prefix network_
+python3 ../../../analysis/trj_durations.py ../output/network_flows_lifo.csv ./ --prefix network_ --suffix _splitby --split_by duration --cutoffs "[1,24,48]" --split_by motif --consolidate "deposit:[check_deposit,direct_deposit,cash_deposit]"
+
 # Base functionality -- motifs.py
 python3 ../../../analysis/motifs.py ../output/network_flows_lifo.csv ./ --prefix network_
 python3 ../../../analysis/motifs.py ../output/network_flows_lifo.csv ./ --prefix network_ --suffix _timewindow --timewindow "(2017-03-01 00:00:00,2017-03-02 00:00:00)"
