@@ -10,21 +10,21 @@ get_split = {'categ':get_categ,'motif':get_motif,'length':get_length,'duration':
 
 #######################################################################################################
 def trj_summarize(wflow_file,output_file,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S",partials=False,split_bys=[],max_transfers=None,cutoffs=None,consolidate=None,lower=False):
+    #############################################################
+    summary_header = split_bys+["flows","amount","deposits","entrys","exits","users","median_dur_f","median_dur_a","median_dur_d"]
+    # motifs is a nested dictionary: split-tuple -> property -> value
+    summary = defaultdict(lambda: {"flows":0,"amount":0,"deposits":0,"entrys":set(),"exits":set(),"users":set(),"durations":[]})
+    # re-define the global split-getters, if needed
+    global get_split
+    if lower: get_split.update({'duration':lambda x: get_duration(x,lower=lower)})
+    if cutoffs is not None: get_split.update({'duration':lambda x: get_duration(x,cutoffs=cutoffs,lower=lower)})
+    if consolidate is not None: get_split.update({'motif':lambda x: get_motif(x,consolidate=consolidate)})
+    if max_transfers is not None: get_split.update({'motif':lambda x: get_motif(x,max_transfers=max_transfers),'length':lambda x: get_length(x,max_transfers=max_transfers)})
+    if max_transfers is not None and consolidate is not None: get_split.update({'motif':lambda x: get_motif(x,consolidate=consolidate,max_transfers=max_transfers)})
     ##########################################################################################
     wflow_header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']
-    summary_header = split_bys+["flows","amount","deposits","entrys","exits","users","median_dur_f","median_dur_a","median_dur_d"]
     with open(wflow_file,'r') as wflow_file:
         reader_wflows   = csv.DictReader(wflow_file,delimiter=",",quotechar='"',escapechar="%")
-        #############################################################
-        # motifs is a nested dictionary: split-tuple -> property -> value
-        summary = defaultdict(lambda: {"flows":0,"amount":0,"deposits":0,"entrys":set(),"exits":set(),"users":set(),"durations":[]})
-        # re-define the global split-getters, if needed
-        global get_split
-        if lower: get_split.update({'duration':lambda x: get_duration(x,lower=lower)})
-        if cutoffs is not None: get_split.update({'duration':lambda x: get_duration(x,cutoffs=cutoffs,lower=lower)})
-        if consolidate is not None: get_split.update({'motif':lambda x: get_motif(x,consolidate=consolidate)})
-        if max_transfers is not None: get_split.update({'motif':lambda x: get_motif(x,max_transfers=max_transfers),'length':lambda x: get_length(x,max_transfers=max_transfers)})
-        if max_transfers is not None and consolidate is not None: get_split.update({'motif':lambda x: get_motif(x,consolidate=consolidate,max_transfers=max_transfers)})
         # populate the summary dictionary
         for wflow in partial_trajectories(timewindow_trajectories(reader_wflows,timewindow,timeformat),fees=partials):
             try:
