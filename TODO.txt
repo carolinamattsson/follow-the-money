@@ -4,12 +4,6 @@ config.json
 	have the sorting column be a config value, and have the internal check
 	be against that rather than the timestamp by default
 
-follow.py
-	balance can magically *appear* that is below the resolution limit, multiple times
-		this leaves the internal balance above the resolution limit
-		so we get an inferred *withdraw* with no corresponding inferred *deposits*
-
-	so right now we have 'initial', 'final', and 'inferred' as txn_IDs for the 'inferred' type.
-	we'd like to add also 'untracked' which can be used for non-tracked funds in prior existence,
-	such as when an agent makes a topup transaction and there's no continuation. Note that
-	we will end up wanting to avoid the agents anyways.
+follow_the_money.py
+  have it possible to output an acct_types list, when relevant
+	and to then avoid a txn_types list, when irrelevant
