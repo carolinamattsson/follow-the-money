@@ -1,0 +1,2 @@
+length,categ,flows,deposits,amount,entrys,exits,users,median_dur_f,median_dur_a,median_dur_d
+0,deposit~withdraw,20,4.999999999999999,300.0,5,2,1,31.0,2.0,15.0

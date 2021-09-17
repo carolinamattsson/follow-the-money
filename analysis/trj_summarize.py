@@ -1,26 +1,107 @@
 from datetime import datetime, timedelta
 from collections import defaultdict
 import traceback
-import math
 
-from utils import parse, timewindow_trajectories, partial_trajectories
-from utils import get_categ, get_motif, get_length, get_duration, cumsum
-
-get_split = {'categ':get_categ,'motif':get_motif,'length':get_length,'duration':get_duration}
+from utils import parse, timewindow_trajectories, partial_trajectories, bin_duration
+from utils import consolidate_txn_types, finalize_summary, write_summary
 
 #######################################################################################################
-def trj_summarize(wflow_file,output_file,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S",partials=False,split_bys=[],max_transfers=None,cutoffs=None,consolidate=None,lower=False):
-    #############################################################
-    summary_header = split_bys+["flows","amount","deposits","entrys","exits","users","median_dur_f","median_dur_a","median_dur_d"]
-    # motifs is a nested dictionary: split-tuple -> property -> value
-    summary = defaultdict(lambda: {"flows":0,"amount":0,"deposits":0,"entrys":set(),"exits":set(),"users":set(),"durations":[]})
-    # re-define the global split-getters, if needed
-    global get_split
-    if lower: get_split.update({'duration':lambda x: get_duration(x,lower=lower)})
-    if cutoffs is not None: get_split.update({'duration':lambda x: get_duration(x,cutoffs=cutoffs,lower=lower)})
+#######################################################################################################
+
+def get_categ(wflow):
+    # Return the category-combo
+    return "~".join(wflow['trj_categ'])
+
+def get_length(wflow,max_transfers=None):
+    # Handle the max length (defined as # of transfers)
+    transfers = wflow["trj_len"]
+    if max_transfers is not None and wflow["trj_len"] >= max_transfers:
+        transfers = str(max_transfers)+"+"
+    # Return the trajectory length
+    return transfers
+
+def get_duration(wflow):
+    '''
+    duration of this trajectory, with an indication of whether this value
+    corresponds to a complete observation
+    '''
+    # Flag the ambiguous values
+    complete = True
+    #   durations extending outside the timewindow are ambiguous
+    if wflow['txn_types'][0]=='initial': complete = False
+    if wflow['txn_types'][-1]=='final': complete = False
+    #   untracked funds are ambiguous at the end of a trajectory
+    if wflow['trj_categ'][1]=='untracked': complete = False
+    # Handle instantaneous trajectories
+    if wflow["trj_dur"] is None:
+        duration = float("nan")
+    else:
+        duration = wflow["trj_dur"]
+    # Report the values (unambiguous or upper bounds)
+    return duration, complete
+
+def get_motif(wflow,consolidate=None,max_transfers=None):
+    from utils import consolidate_txn_types
+    ############################################################
+    txn_types = wflow['txn_types'].copy()
+    # consolidate transaction types
+    if consolidate is not None:
+        txn_types = consolidate_txn_types(txn_types,consolidate)
+    # Handle the start of trajectories
+    if wflow['trj_categ'][0]=='deposit':
+        enter = txn_types.pop(0)
+    elif wflow['trj_categ'][0]=='untracked':
+        enter = ""
+    else:
+        raise ValueError("Bad trj_categ:",wflow['trj_categ'][0])
+    # Handle the end of trajectories
+    if wflow['trj_categ'][1]=='withdraw':
+        exit = txn_types.pop()
+    elif wflow['trj_categ'][1]=='untracked':
+        exit = ""
+    else:
+        raise ValueError("Bad trj_categ:",wflow['trj_categ'][1])
+    # Handle the middle of trajectories
+    circ  = "~".join(txn_types)
+    if max_transfers is not None and len(txn_types) >= max_transfers:
+        circ = str(max_transfers)+"+_transfers"
+    # Return the motif
+    return "~".join([enter]+[circ]+[exit]) if circ else "~".join([enter]+[exit])
+
+def get_month(wflow,timeformat="%Y-%m-%d %H:%M:%S"):
+    if timeformat[:6]=="%Y-%m-":
+        month_ID = "-".join(wflow['trj_timestamp'].split("-")[:-1])
+        return month_ID
+    else:
+        month_ID = datetime.strftime(datetime.strptime(wflow['trj_timestamp'],timeformat),"%Y-%m")
+        return month_ID
+
+#######################################################################################################
+
+def define_splits(max_transfers=None,cutoffs=None,consolidate=None,upper=False):
+    '''
+    define the functions used to get the split given a single wflow
+    '''
+    # available splits
+    get_split = {'categ':get_categ,'motif':get_motif,'length':get_length,'interval': lambda x: bin_duration(*get_duration(x))}
+    # re-define using split-getters, if needed
+    if upper: get_split.update({'interval':lambda x: bin_duration(*get_duration(x),upper=upper)})
+    if cutoffs is not None: get_split.update({'interval':lambda x: bin_duration(*get_duration(x),cutoffs=cutoffs,upper=upper)})
     if consolidate is not None: get_split.update({'motif':lambda x: get_motif(x,consolidate=consolidate)})
     if max_transfers is not None: get_split.update({'motif':lambda x: get_motif(x,max_transfers=max_transfers),'length':lambda x: get_length(x,max_transfers=max_transfers)})
     if max_transfers is not None and consolidate is not None: get_split.update({'motif':lambda x: get_motif(x,consolidate=consolidate,max_transfers=max_transfers)})
+    # send it off
+    return get_split
+
+#######################################################################################################
+#######################################################################################################
+
+def trj_aggregate(wflow_file,output_file,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S",partials=False,split_bys=[],max_transfers=None,cutoffs=None,consolidate=None,upper=False):
+    #############################################################
+    summary_header = split_bys+["flows","deposits","amount","entrys","exits","users","median_dur_f","median_dur_a","median_dur_d"]
+    # motifs is a nested dictionary: split-tuple -> property -> value
+    get_split = define_splits(max_transfers=max_transfers,consolidate=consolidate,cutoffs=cutoffs,upper=upper)
+    summary = defaultdict(lambda: {"flows":0,"amount":0,"deposits":0,"entrys":set(),"exits":set(),"users":set(),"durations":[]})
     ##########################################################################################
     wflow_header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']
     with open(wflow_file,'r') as wflow_file:
@@ -30,16 +111,15 @@ def trj_summarize(wflow_file,output_file,timewindow=(None,None),timeformat="%Y-%
             try:
                 wflow = parse(wflow,timeformat)
                 split = tuple(get_split[term](wflow) for term in split_bys) if split_bys else 'all'
-                summary = update_summary(summary,split,wflow)
+                summary = update_summary(summary,split,wflow,upper)
             except:
                 print(str([wflow[term] for term in wflow])+"\n"+traceback.format_exc())
         # finalize the records
-        summary = finalize_summary(summary,split_bys)
+        summary = finalize_summary(summary,split_bys,sets=['entrys','exits','users'],flows=True)
         # write the results
         write_summary(summary,output_file,summary_header)
 
-
-def update_summary(summary,split,wflow):
+def update_summary(summary,split,wflow,upper):
     '''
     update the summary dictionary at this split with this trajectory
     '''
@@ -52,55 +132,44 @@ def update_summary(summary,split,wflow):
     if wflow['trj_categ'][1]=='withdraw': summary[split]["exits"].add(wflow['acct_IDs'].pop())
     summary[split]["users"].update(wflow['acct_IDs'])
     # duration distribution (if the trajectory has a duration)
-    if wflow['trj_dur'] is not None:
-        summary[split]["durations"].append((wflow['trj_dur'],wflow['trj_amt'],wflow['trj_txn']))
+    duration, complete = get_duration(wflow)
+    if duration is not float("nan"):
+        if upper and not complete: duration = float("inf")
+        summary[split]["durations"].append((duration,wflow['trj_amt'],wflow['trj_txn']))
     return summary
 
-def finalize_summary(summary,split_bys):
-    '''
-    finalize the summary dictionary, given this list of split_by terms
-    '''
-    for split in list(summary.keys()):
-        # for each split of the trajectory data
-        split_summary = summary[split]
-        # generate a column for each term used to split the data
-        for term,value in zip(split_bys,split):
-            split_summary[term] = value
-        # retrieve the number of unique entry points, exit points, and users
-        split_summary["entrys"] = len(split_summary["entrys"])
-        split_summary["exits"] = len(split_summary["exits"])
-        split_summary["users"] = len(split_summary["users"])
-        # summarize the duration distribution, if there was one
-        if split_summary["durations"]:
-            split_summary["durations"].sort()
-            #flow_cumsum = list(cumsum([1 for x in split_summary["durations"]]))
-            #flow_mid = next(i for i,v in enumerate(flow_cumsum) if v >= flow_cumsum[-1]/2)
-            flow_mid = math.ceil(len(split_summary["durations"])/2) - 1
-            split_summary["median_dur_f"] = split_summary["durations"][flow_mid][0]
-            amt_cumsum = list(cumsum([x[1] for x in split_summary["durations"]]))
-            amt_mid = next(i for i,v in enumerate(amt_cumsum) if v >= amt_cumsum[-1]/2)
-            split_summary["median_dur_a"] = split_summary["durations"][amt_mid][0]
-            nrm_cumsum = list(cumsum([x[2] for x in split_summary["durations"]]))
-            nrm_mid = next(i for i,v in enumerate(nrm_cumsum) if v >= nrm_cumsum[-1]/2)
-            split_summary["median_dur_d"] = split_summary["durations"][nrm_mid][0]
-        else:
-            split_summary["median_dur_f"] = ""
-            split_summary["median_dur_a"] = ""
-            split_summary["median_dur_d"] = ""
-        # relieve some memory pressure
-        del split_summary["durations"]
-        # update this entry in the above dictionary
-        summary[split] = split_summary
-    return summary
+#######################################################################################################
 
-def write_summary(summary,output_file,summary_header):
-    with open(output_file,'w') as output_file:
-        writer_summary = csv.DictWriter(output_file,summary_header,delimiter=",",quotechar="'",escapechar="%")
-        # print header
-        writer_summary.writeheader()
-        # print distribution
-        for split in summary:
-            writer_summary.writerow(summary[split])
+def trj_durations(wflow_file,output_file,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S",partials=False,split_bys=[],max_transfers=None,cutoffs=None,consolidate=None,upper=False):
+    #############################################################
+    dists_header = ["duration","complete","deposits","amount"]+split_bys
+    get_split = define_splits(max_transfers=max_transfers,consolidate=consolidate,cutoffs=cutoffs,upper=upper)
+    ##########################################################################################
+    with open(wflow_file,'r') as wflow_file, open(output_file,'w') as output_file:
+        #############################################################
+        wflow_header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']
+        reader_wflows = csv.DictReader(wflow_file,delimiter=",",quotechar='"',escapechar="%")
+        # the durations are continuous-valued; we will be streaming them out
+        writer_dists  = csv.writer(output_file,delimiter=",",quotechar="'",escapechar="%")
+        writer_dists.writerow(dists_header)
+        # loop to grab the durations
+        for wflow in partial_trajectories(timewindow_trajectories(reader_wflows,timewindow,timeformat),fees=partials):
+            try:
+                wflow = parse(wflow,timeformat)
+                value = make_value(wflow)
+                split = [get_split[term](wflow) for term in split_bys]
+                writer_dists.writerow(value+split)
+            except:
+                print(str([wflow[term] for term in wflow])+"\n"+traceback.format_exc())
+
+def make_value(wflow):
+    # Get the duration and an indication of whether it's just a lower bound
+    duration, complete = get_duration(wflow)
+    # Duration, minimum duration, amount, and deposit-normalized amount
+    return [duration,complete,wflow['trj_txn'],wflow['trj_amt']]
+
+#######################################################################################################
+#######################################################################################################
 
 if __name__ == '__main__':
     import argparse
@@ -108,20 +177,24 @@ if __name__ == '__main__':
     import csv
     import os
 
+    available_splits = define_splits()
+    available_splits = available_splits.keys()
+
     ################### ARGUMENTS #####################
     parser = argparse.ArgumentParser()
     parser.add_argument('input_file', help='The input weighted flow file (created by follow_the_money.py)')
     parser.add_argument('output_directory', help='Path to the output directory')
     parser.add_argument('--prefix', default="", help='Prefix prepended to output filenames')
     parser.add_argument('--suffix', default="", help='Suffix appended to output filenames')
-    parser.add_argument('--timewindow', default="(,)", help='Include trajectories that begin within this time window, as a tuple.')
-    parser.add_argument('--timeformat', default="%Y-%m-%d %H:%M:%S", help='Format used for timestamps in trajectory file & timewindow, as a string.')
     parser.add_argument('--partials', action="store_true", default=False, help='TODO') # Consider partial trajectories that end in fees as own trajectories
-    parser.add_argument('--split_by', action='append', default=[], help="Split aggregation by any number of these options: "+str(get_split.keys()))
+    parser.add_argument('--split_by', action='append', default=[], help="Split aggregation by any number of these options: "+str(available_splits))
     parser.add_argument('--max_transfers', type=int, default=None, help='Aggregate separately only up to this number of consecutive transfers, as an integer.')
     parser.add_argument('--consolidate', action='append', default=[], help="Transaction types to consolidate, as 'name:[type1,type2,...]'. Feel free to call multiple times.")
     parser.add_argument('--cutoffs', default=None, help="Duration cutoffs, in hours. Takes a list of integers as '[cutoff1,cutoff2,...]'.'")
-    parser.add_argument('--lower', action="store_true", default=False, help="Use lower bound for unknown durations.'")
+    parser.add_argument('--upper', action="store_true", default=False, help="Use upper bound for unknown durations in binning and aggregation.'")
+    parser.add_argument('--duration', action="store_true", default=False, help="Output the full, unbinned, distribution of trajectory durations.'")
+    parser.add_argument('--timeformat', default="%Y-%m-%d %H:%M:%S", help='Format used for timestamps in trajectory file & timewindow, as a string.')
+    parser.add_argument('--timewindow', default="(,)", help='Include trajectories that begin within this time window, as a tuple.')
 
     args = parser.parse_args()
 
@@ -132,18 +205,17 @@ if __name__ == '__main__':
 
     wflow_filename = args.input_file
 
-    if not all([option in get_split.keys() for option in args.split_by]):
-        raise IndexError("Please ensure all --split_by are among the available options "+str(get_split.keys())+"):",args.split_by)
-
-    output_filename = os.path.join(args.output_directory,args.prefix+"summary"+("_"+"-".join(args.split_by) if args.split_by else "")+args.suffix+".csv")
-
-    timewindow = tuple([(datetime.strptime(timestamp,args.timeformat) if timestamp else None) for timestamp in args.timewindow.strip('()').strip('[]').split(',')])
+    if not all([option in available_splits for option in args.split_by]):
+        raise IndexError("Please ensure all --split_by are among the available options "+str(available_splits)+"):",args.split_by)
 
     if args.cutoffs is not None:
         try:
             args.cutoffs = sorted([int(cutoff) for cutoff in args.cutoffs.strip('()[]').split(',')])
         except:
             raise ValueError("Please make sure the format of your --cutoffs argument is '[cutoff1,cutoff2,...]':",args.cutoffs)
+
+    name = "trj_agg" if not args.duration else "trj_duration"
+    output_filename = os.path.join(args.output_directory,args.prefix+name+("_"+"_".join(args.split_by) if args.split_by else "")+args.suffix+".csv")
 
     try:
         joins = [join.split(':') for join in args.consolidate]
@@ -157,6 +229,10 @@ if __name__ == '__main__':
     if len(all_joins_list) != len(set(all_joins_list)):
         raise ValueError("Please do not duplicate consolidated transaction types:",args.consolidate)
 
+    timewindow = tuple([(datetime.strptime(timestamp,args.timeformat) if timestamp else None) for timestamp in args.timewindow.strip('()').strip('[]').split(',')])
+
     ######### Creates weighted flow file #################
-    trj_summarize(wflow_filename,output_filename,timewindow=timewindow,timeformat=args.timeformat,partials=args.partials,split_bys=args.split_by,max_transfers=args.max_transfers,consolidate=args.consolidate,cutoffs=args.cutoffs,lower=args.lower)
+    if not args.duration: trj_aggregate(wflow_filename,output_filename,partials=args.partials,split_bys=args.split_by,max_transfers=args.max_transfers,consolidate=args.consolidate,cutoffs=args.cutoffs,upper=args.upper,timeformat=args.timeformat,timewindow=timewindow)
+    #################################################
+    if args.duration: trj_durations(wflow_filename,output_filename,partials=args.partials,split_bys=args.split_by,max_transfers=args.max_transfers,consolidate=args.consolidate,cutoffs=args.cutoffs,upper=args.upper,timeformat=args.timeformat,timewindow=timewindow)
     #################################################

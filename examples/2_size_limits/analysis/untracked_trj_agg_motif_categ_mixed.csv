@@ -1,0 +1,5 @@
+motif,categ,flows,deposits,amount,entrys,exits,users,median_dur_f,median_dur_a,median_dur_d
+cash-in~mobile-minutes,deposit~withdraw,14,3.8475609756097557,114.51219512195121,5,1,1,16.0,16.0,16.0
+cash-in~bill-payment,deposit~withdraw,2,1.0975609756097562,180.0,2,1,1,2.0,2.0,2.0
+cash-in~,deposit~untracked,2,0.0548780487804878,5.487804878048779,2,0,1,31.0,48.0,31.0
+~mobile-minutes,untracked~withdraw,1,1.0,5.0,0,1,1,nan,nan,nan

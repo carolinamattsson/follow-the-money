@@ -1,0 +1,3 @@
+length,flows,deposits,amount,entrys,exits,users,median_dur_f,median_dur_a,median_dur_d
+0,2,1.0,4000.0,1,2,1,0.1,0.1,0.1
+1,4,2.0,2500.0,1,3,4,49.483333333333334,49.483333333333334,24.983333333333334

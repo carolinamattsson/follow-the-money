@@ -1,0 +1,6 @@
+interval,categ,flows,deposits,amount,entrys,exits,users,median_dur_f,median_dur_a,median_dur_d
+'(1,24]',deposit~withdraw,8,2.7947154471544717,240.609756097561,4,2,1,8.0,2.0,5.0
+'(24,inf)',deposit~withdraw,7,1.6504065040650406,43.90243902439025,4,2,1,48.0,48.0,58.0
+'(0,1]',deposit~withdraw,1,0.5,10.0,1,1,1,1.0,1.0,1.0
+'(24,inf)',deposit~untracked,2,0.0548780487804878,5.487804878048779,2,0,1,inf,inf,inf
+nan,untracked~withdraw,1,1.0,5.0,0,1,1,nan,nan,nan

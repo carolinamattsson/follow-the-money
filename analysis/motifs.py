@@ -3,8 +3,8 @@ from collections import defaultdict
 import traceback
 import math
 
-from utils import parse, timewindow_trajectories, consolidate_txn_types
-from utils import get_motif, cumsum
+from utils import parse, timewindow_trajectories, consolidate_txn_types, cumsum
+from trj_summarize import get_motif
 
 #######################################################################################################
 def find_motifs(wflow_file,motif_file,circulate=None,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S",joins=None):

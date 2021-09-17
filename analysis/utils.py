@@ -62,67 +62,76 @@ def consolidate_txn_types(txn_types, joins):
             if txn_type in joins[join]: txn_types[i] = join
     return txn_types
 
-def get_categ(wflow):
-    # Return the category-combo
-    return "~".join(wflow['trj_categ'])
-
-def get_length(wflow,max_transfers=None):
-    # Handle the max length (defined as # of transfers)
-    transfers = wflow["trj_len"]
-    if max_transfers is not None and wflow["trj_len"] >= max_transfers:
-        transfers = str(max_transfers)+"+"
-    # Return the trajectory length
-    return transfers
-
-def get_duration(wflow,cutoffs=[],lower=False):
-    # Handle instantaneous trajectories
-    if wflow["trj_dur"] is None: return "0"
-    # Handle the upper/lower bound; upper is the default
-    if not lower and wflow['trj_categ'][1]=='untracked': return "inf"
-    if not lower and wflow['txn_types'][-1]=='final': return "inf"
-    # Handle the cutoffs or lack thereof
-    for start,end in zip([0]+cutoffs,cutoffs+[float("inf")]):
-        if start < wflow["trj_dur"] <= end:
+def bin_duration(duration,complete,upper=False,cutoffs=[]):
+    '''
+    bin the given duration by the given cutoffs
+    '''
+    # Change from lower to upper bound where appropriate
+    if upper and not complete:
+        duration = float("inf")
+    # Handle the cutoff points, or lack thereof
+    for start,end in zip([float("-inf")]+cutoffs,cutoffs+[float("inf")]):
+        if start < duration <= end:
             return "("+str(start)+","+str(end)+"]" if end<float("inf") else "("+str(start)+","+str(end)+")"
-
-def get_motif(wflow,consolidate=None,max_transfers=None):
-    txn_types = wflow['txn_types'].copy()
-    # consolidate transaction types
-    if consolidate is not None:
-        txn_types = consolidate_txn_types(txn_types,consolidate)
-    # Handle the start of trajectories
-    if wflow['trj_categ'][0]=='deposit':
-        enter = txn_types.pop(0)
-    elif wflow['trj_categ'][0]=='untracked':
-        enter = ""
-    else:
-        raise ValueError("Bad trj_categ:",wflow['trj_categ'][0])
-    # Handle the end of trajectories
-    if wflow['trj_categ'][1]=='withdraw':
-        exit = txn_types.pop()
-    elif wflow['trj_categ'][1]=='untracked':
-        exit = ""
-    else:
-        raise ValueError("Bad trj_categ:",wflow['trj_categ'][1])
-    # Handle the middle of trajectories
-    circ  = "~".join(txn_types)
-    if max_transfers is not None and len(txn_types) >= max_transfers:
-        circ = str(max_transfers)+"+_transfers"
-    # Return the motif
-    return "~".join([enter]+[circ]+[exit]) if circ else "~".join([enter]+[exit])
-
-def get_month(wflow,timeformat="%Y-%m-%d %H:%M:%S"):
-    if timeformat[:6]=="%Y-%m-":
-        month_ID = "-".join(wflow['trj_timestamp'].split("-")[:-1])
-        return month_ID
-    else:
-        month_ID = datetime.strftime(datetime.strptime(wflow['trj_timestamp'],timeformat),"%Y-%m")
-        return month_ID
+    # If that fails
+    return float("nan")
 
 def cumsum(a_list):
     total = 0
     for x in a_list:
         total += x
         yield total
+
+#######################################################################################################
+
+def finalize_summary(summary,split_bys,sets=[],flows=True):
+    '''
+    finalize the summary dictionary, given this list of split_by terms
+    '''
+    import math
+    from utils import cumsum
+    for split in list(summary.keys()):
+        # for each split of the trajectory data
+        split_summary = summary[split]
+        # generate a column for each term used to split the data
+        for term,value in zip(split_bys,split):
+            split_summary[term] = value
+        # retrieve the number of unique entry points, exit points, and users
+        for set in sets:
+            split_summary[set] = len(split_summary[set])
+        # summarize the duration distribution, if there was one
+        if split_summary["durations"]:
+            split_summary["durations"].sort()
+            #flow_cumsum = list(cumsum([1 for x in split_summary["durations"]]))
+            #flow_mid = next(i for i,v in enumerate(flow_cumsum) if v >= flow_cumsum[-1]/2)
+            if flows:
+                flow_mid = math.ceil(len(split_summary["durations"])/2) - 1
+                split_summary["median_dur_f"] = split_summary["durations"][flow_mid][0]
+            amt_cumsum = list(cumsum([x[1] for x in split_summary["durations"]]))
+            amt_mid = next(i for i,v in enumerate(amt_cumsum) if v >= amt_cumsum[-1]/2)
+            split_summary["median_dur_a"] = split_summary["durations"][amt_mid][0]
+            nrm_cumsum = list(cumsum([x[2] for x in split_summary["durations"]]))
+            nrm_mid = next(i for i,v in enumerate(nrm_cumsum) if v >= nrm_cumsum[-1]/2)
+            split_summary["median_dur_d"] = split_summary["durations"][nrm_mid][0]
+        else:
+            if flows:
+                split_summary["median_dur_f"] = ""
+            split_summary["median_dur_a"] = ""
+            split_summary["median_dur_d"] = ""
+        # relieve some memory pressure
+        del split_summary["durations"]
+        # update this entry in the above dictionary
+        summary[split] = split_summary
+    return summary
+
+def write_summary(summary,output_file,summary_header):
+    import csv
+    with open(output_file,'w') as output_file:
+        writer_summary = csv.DictWriter(output_file,summary_header,delimiter=",",quotechar="'",escapechar="%")
+        # print header
+        writer_summary.writeheader()
+        # print distribution
+        for split in summary:
+            writer_summary.writerow(summary[split])
 
 #######################################################################################################
