@@ -1,10 +1,17 @@
 TODO
 
+follow.py
+  allow for a finite cutoff time
+  bug in fees (see example 5)
+
 trj_summarize.py
   implement partial trajectories from fees (--partials)
 	implement additional --split_by options ('month','week','day','enter','exit')
 	implement additional options for summarizing duration distributions
 	consolidate should take a text file(s)
+
+acct_summarize.py
+  elaborate on issues w/ timewindows in example 3; recommend timewindows on follow
 
 users_processing.py
 	overhaul to elegantly handle non-inferred starts and ends to flows

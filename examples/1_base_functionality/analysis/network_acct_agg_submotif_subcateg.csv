@@ -1,0 +1,7 @@
+submotif,subcateg,txn_pairs,txns_in,amount,fees,accts,median_dur_a,median_dur_d
+deposit~bill_payment,deposit~withdraw,1,0.875,3500.0,0.0,1,0.1,0.1
+deposit~p2p_transfer,deposit~transfer,3,2.0,2500.0,0.0,2,24.083333333333332,0.35
+p2p_transfer~cash_withdraw,transfer~withdraw,2,2.0,1500.0,0.0,1,24.016666666666666,24.016666666666666
+p2p_transfer~card_payment,transfer~withdraw,1,0.1,100.0,0.0,1,25.866666666666667,25.866666666666667
+deposit~cash_withdraw,deposit~withdraw,1,0.125,500.0,0.0,1,50.31666666666667,50.31666666666667
+p2p_transfer~bill_payment,transfer~withdraw,1,0.9,900.0,0.0,1,50.36666666666667,50.36666666666667
