@@ -10,7 +10,7 @@ Output is going here:/Users/mattssonc/Documents/Research/GitHub/follow-the-money
 Tracking options:
     Untracked transaction recorded with extension: untracked.csv
     Inferred transaction recorded with extension: inferred.csv
-    Stop tracking funds after 48.0 hours.
+    Stop tracking funds after 48.0 hours since tracking began.
     Stop tracking funds below 0.01 in value.
 Running:
     Weighted flows with 'lifo' heuristic saved with extension: flows_lifo.csv

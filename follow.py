@@ -28,6 +28,16 @@ class Branch:
         if factor > 1 or factor < 0:
             raise ValueError('Accounting exception -- depreciate branch by impossible factor')
         self.amt  = factor * self.amt
+    def txn_timestamp(self):
+        # This is called by check_tracker function when it handles relative time-cutoffs
+        return self.txn.timestamp
+    def root_timestamp(self):
+        # This is called by check_tracker function when it handles absolute time-cutoffs
+        if self.prev:
+            timestamp = self.prev.root_timestamp()
+        else:
+            timestamp = self.txn.timestamp
+        return timestamp
     def follow_back(self, amt):
         # This is called by the Account class on "leaf branches"
         # This function follows a chain of "branches", beginning with a "leaf branch", and works its way back to the "root branch"
@@ -96,7 +106,8 @@ class Tracker(list):
     from initialize import Transaction
     # Class variable defines how Accounts are tracking money, for how long an account will remember where money came from, and down to what amount it will keep track
     type = "none"
-    time_cutoff = None
+    hr_cutoff = None
+    absolute = False
     size_limit = 0.01
     def __init__(self, account, init):
         # Trackers are initialized to reference the Account instance that owns them
@@ -226,7 +237,7 @@ class Mixed_tracker(Tracker):
             branch.depreciate(stay_factor)
         return new_pool
 
-def define_tracker(follow_heuristic,time_cutoff,size_limit):
+def define_tracker(follow_heuristic,hr_cutoff,absolute,size_limit):
     # Based on the follow_heuristic, define the type of trackers we're giving our accounts
     if follow_heuristic == "untracked":
         Tracker_class = Tracker
@@ -234,8 +245,9 @@ def define_tracker(follow_heuristic,time_cutoff,size_limit):
         Tracker_class = LIFO_tracker
     if follow_heuristic == "mixed":
         Tracker_class = Mixed_tracker
-    # Define also how we handle cutoffs and special cases
-    Tracker_class.time_cutoff = timedelta(hours=float(time_cutoff)) if time_cutoff else None
+    # Define also how we handle cutoff,absolutes and special cases
+    Tracker_class.hr_cutoff = timedelta(hours=float(hr_cutoff)) if hr_cutoff else None
+    Tracker_class.absolute = absolute
     Tracker_class.size_limit  = size_limit
     Tracker_class.float_zero  = 0.000001
     return Tracker_class
@@ -251,8 +263,11 @@ def check_tracker(acct):
         amt_tracked = sum(branch.amt for branch in acct.tracker)
         if amt_tracked > acct.balance+acct.tracker.float_zero:
             yield from acct.tracker.stop_tracking_amt(amt_tracked-acct.balance)
-        if acct.tracker.time_cutoff:
-            leaf_branches = [branch for branch in acct.tracker if (acct.system.time_current-branch.txn.timestamp) > acct.tracker.time_cutoff]
+        if acct.tracker.hr_cutoff:
+            if acct.tracker.absolute:
+                leaf_branches = [branch for branch in acct.tracker if (acct.system.time_current-branch.root_timestamp()) > acct.tracker.hr_cutoff]
+            else:
+                leaf_branches = [branch for branch in acct.tracker if (acct.system.time_current-branch.txn_timestamp()) > acct.tracker.hr_cutoff]
             yield from acct.tracker.stop_tracking(leaf_branches)
 
 def check_balances(txn,inferred_file):
@@ -396,7 +411,8 @@ def update_report(report_filename,args,heuristic=None):
                 report_file.write("    Avoid inferring unseen deposit and withdrawal transactions."+"\n")
             else:
                 report_file.write("    Inferred transaction recorded with extension: inferred.csv"+"\n")
-            if args.cutoff: report_file.write("    Stop tracking funds after "+str(args.cutoff)+" hours."+"\n")
+            modifier = "since tracking began" if args.absolute else "in an account"
+            if args.hr_cutoff: report_file.write("    Stop tracking funds after "+str(args.hr_cutoff)+" hours "+modifier+"."+"\n")
             if args.smallest: report_file.write("    Stop tracking funds below "+str(args.smallest)+" in value."+"\n")
             report_file.write("Running:"+"\n")
         elif heuristic == 'lifo':
@@ -409,7 +425,7 @@ def update_report(report_filename,args,heuristic=None):
 
 
 
-def run(system,txn_filename,flow_filename,report_filename,follow_heuristic,cutoff,smallest,no_infer):
+def run(system,txn_filename,flow_filename,report_filename,follow_heuristic,cutoff,absolute,smallest,no_infer):
     from initialize import timewindow_transactions
     from initialize import initialize_transactions
     import os
@@ -417,7 +433,7 @@ def run(system,txn_filename,flow_filename,report_filename,follow_heuristic,cutof
     ################# Reset the system ##################
     system = system.reset()
     ############# Define the tracker class ##############
-    Tracker = define_tracker(follow_heuristic,cutoff,smallest)
+    Tracker = define_tracker(follow_heuristic,cutoff,absolute,smallest)
     ############## Redefine report files ################
     untracked_filename = report_filename.split("report.txt")[0]+"untracked.csv"
     inferred_filename = report_filename.split("report.txt")[0]+"inferred.csv"
