@@ -7,3 +7,8 @@ config.json
 follow_the_money.py
   have it possible to output an acct_types list, when relevant
 	and to then avoid a txn_types list, when irrelevant
+
+	follow.py
+	  bug in fees (see example 5)
+		if recursion is slow for time checking, have the Branch class remember
+		 the time of it's root transaction when it is created 

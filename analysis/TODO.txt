@@ -1,9 +1,5 @@
 TODO
 
-follow.py
-  allow for a finite cutoff time
-  bug in fees (see example 5)
-
 trj_summarize.py
   implement partial trajectories from fees (--partials)
 	implement additional --split_by options ('month','week','day','enter','exit')
