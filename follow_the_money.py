@@ -27,7 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--lifo', action="store_true", default=False, help='Track the using the "lifo" heuristic')
     parser.add_argument('--mixed', action="store_true", default=False, help='Track the using the "mixed" heuristic')
     parser.add_argument('--none', action="store_true", default=False, help='Track the using the baseline "no-tracking" heuristic')
-    parser.add_argument('--no_balance', action="store_true", default=False, help='Avoid inferring account balances at start, when known')
+    parser.add_argument('--no_balance', action="store_true", default=False, help='Avoid inferring account balances at start. Do not use with --no_infer.')
     parser.add_argument('--no_infer', action="store_true", default=False, help='Avoid inferring unseen deposit and withdrawal transactions')
     parser.add_argument('--hr_cutoff', metavar='hours', type=float, default=None, help='Stop tracking funds after this number of hours in an account')
     parser.add_argument('--absolute', action="store_true", default=False, help='Use time cutoff from start of trajectory, rather than in an account')
@@ -41,6 +41,15 @@ if __name__ == '__main__':
         raise OSError("Could not find the config file",args.config_file)
     if not os.path.isdir(args.output_directory):
         raise OSError("Could not find the output directory",args.output_directory)
+    if args.no_balance and args.no_infer:
+        raise ValueError("Using both --no_balance and --no_infer is not possible, as that leaves no way to resolve accounting mishaps.")
+
+    ################## MODIFIER ######################
+    file_modifier = ""
+    if args.no_balance: file_modifier = "nbal_"+file_modifier
+    if args.no_infer:   file_modifier = "ninf_"+file_modifier
+    if args.hr_cutoff:  file_modifier = str(args.hr_cutoff)+"hr_"+file_modifier if not args.absolute else str(args.hr_cutoff)+"hr_abs_"+file_modifier
+    ####################################################
 
     ##################### INPUT ########################
     transaction_filename = args.input_file
@@ -48,7 +57,7 @@ if __name__ == '__main__':
     with open(args.config_file, 'r') as config_file:
         config_data = json.load(config_file)
     ############## Begin the report file ###############
-    report_filename = os.path.join(args.output_directory,args.prefix+"report.txt")
+    report_filename = os.path.join(args.output_directory,args.prefix+file_modifier+"report.txt")
     init.start_report(report_filename,args,config_data)
     ################ Initialize system #################
     system = init.setup_system(config_data)
@@ -71,22 +80,17 @@ if __name__ == '__main__':
 
     #################### OUTPUT ########################
     follow.update_report(report_filename,args)
-    ####################################################
-    file_ending = ".csv"
-    if args.no_balance: file_ending = "_nbal"+file_ending
-    if args.no_infer:   file_ending = "_ninf"+file_ending
-    if args.hr_cutoff:  file_ending = "_"+str(args.hr_cutoff)+"hr"+file_ending if not args.absolute else "_"+str(args.hr_cutoff)+"hr_abs"+file_ending
     ############### Alright, let's go! #################
     if args.lifo:
         follow.update_report(report_filename,args,heuristic='lifo')
-        output_filename = os.path.join(args.output_directory,args.prefix+"flows_lifo"+file_ending)
+        output_filename = os.path.join(args.output_directory,args.prefix+file_modifier+"flows_lifo.csv")
         follow.run(system,transaction_filename,output_filename,report_filename,'lifo',args.hr_cutoff,args.absolute,args.smallest,args.no_infer)
     if args.mixed:
         follow.update_report(report_filename,args,heuristic='mixed')
-        output_filename = os.path.join(args.output_directory,args.prefix+"flows_mixed"+file_ending)
+        output_filename = os.path.join(args.output_directory,args.prefix+file_modifier+"flows_mixed.csv")
         follow.run(system,transaction_filename,output_filename,report_filename,'mixed',args.hr_cutoff,args.absolute,args.smallest,args.no_infer)
     if args.none:
         follow.update_report(report_filename,args,heuristic='none')
-        output_filename = os.path.join(args.output_directory,args.prefix+"flows_none"+file_ending)
+        output_filename = os.path.join(args.output_directory,args.prefix+file_modifier+"flows_none.csv")
         follow.run(system,transaction_filename,output_filename,report_filename,'none',args.hr_cutoff,args.absolute,args.smallest,args.no_infer)
     ####################################################

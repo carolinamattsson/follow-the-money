@@ -1,8 +1,8 @@
 trj_timestamp,trj_amt,trj_txn,trj_categ,trj_len,trj_dur,txn_IDs,txn_types,txn_amts,txn_revs,txn_txns,acct_IDs,acct_durs
-2019-08-18 00:00:00,10.0,0.25,"(deposit,withdraw)",0,4.9997222225,"[i_d832d90fae3c,10000011]","[initial,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[0.25,1.0]","[inferred,XYZ,provider]",[4.9997222225]
-2019-08-18 00:00:00,10.0,0.25,"(deposit,withdraw)",0,7.9997222225,"[i_d832d90fae3c,10000012]","[initial,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[0.25,1.0]","[inferred,XYZ,provider]",[7.9997222225]
-2019-08-18 00:00:00,10.0,0.25,"(deposit,withdraw)",0,14.9997222225,"[i_d832d90fae3c,10000013]","[initial,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[0.25,1.0]","[inferred,XYZ,provider]",[14.9997222225]
-2019-08-18 00:00:00,10.0,0.25,"(deposit,withdraw)",0,15.9997222225,"[i_d832d90fae3c,10000014]","[initial,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[0.25,1.0]","[inferred,XYZ,provider]",[15.9997222225]
+2019-08-18 00:00:00,10.0,0.25,"(deposit,withdraw)",0,4.9997222225,"[i_d43ccee444ba,10000011]","[initial,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[0.25,1.0]","[inferred,XYZ,provider]",[4.9997222225]
+2019-08-18 00:00:00,10.0,0.25,"(deposit,withdraw)",0,7.9997222225,"[i_d43ccee444ba,10000012]","[initial,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[0.25,1.0]","[inferred,XYZ,provider]",[7.9997222225]
+2019-08-18 00:00:00,10.0,0.25,"(deposit,withdraw)",0,14.9997222225,"[i_d43ccee444ba,10000013]","[initial,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[0.25,1.0]","[inferred,XYZ,provider]",[14.9997222225]
+2019-08-18 00:00:00,10.0,0.25,"(deposit,withdraw)",0,15.9997222225,"[i_d43ccee444ba,10000014]","[initial,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[0.25,1.0]","[inferred,XYZ,provider]",[15.9997222225]
 2019-08-21 06:00:00,10.0,0.3333333333333333,"(deposit,withdraw)",0,5.0,"[10000015,10000016]","[cash-in,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[0.3333333333333333,1.0]","[BBB,XYZ,provider]",[5.0]
 2019-08-21 06:00:00,10.0,0.3333333333333333,"(deposit,withdraw)",0,24.0,"[10000015,10000017]","[cash-in,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[0.3333333333333333,1.0]","[BBB,XYZ,provider]",[24.0]
 2019-08-22 08:00:00,10.0,1.0,"(deposit,withdraw)",0,32.0,"[10000018,10000019]","[cash-in,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[1.0,1.0]","[CCC,XYZ,provider]",[32.0]

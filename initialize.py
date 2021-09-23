@@ -334,7 +334,7 @@ def start_report(report_filename,args,config_data):
         if "boundary_type" in config_data: report_file.write("    Using '"+config_data["boundary_type"]+"' as the network boundary definition."+"\n")
         if "balance_type" in config_data: report_file.write("    Using the '"+config_data["balance_type"]+"-transaction' convention for recorded balances."+"\n")
         if args.no_balance:
-            report_file.write("    Avoid inferring account balances at start, when unknown."+"\n")
+            report_file.write("    Avoid inferring account balances at start."+"\n")
         else:
             report_file.write("Initializing:"+"\n")
         report_file.flush()
