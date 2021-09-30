@@ -89,9 +89,20 @@ class Flow:
         self.txn_types.append(branch.txn.type)
         self.end_categ = branch.txn.categ
         branch_duration = branch.txn.timestamp - branch.prev.txn.timestamp
-        self.duration = self.duration + branch_duration if self.duration else branch_duration
+        self.duration = self.duration + branch_duration if self.duration is not None else branch_duration
         self.durations.append(branch_duration)
         self.length += 1 if branch.txn.categ == 'transfer' else 0
+    def cut(self, duration, total):
+        if total:
+            tot_duration = duration
+            rem_duration = tot_duration - self.duration
+        else:
+            rem_duration = duration
+            tot_duration = rem_duration + self.duration
+        self.duration = tot_duration
+        self.durations.append(rem_duration)
+        self.end_categ = "untracked"
+        return self
     def to_print(self):
         # this returns a version of this class that can be exported to a file using writer.writerow()
         return [self.timestamp,self.root_amt,self.root_txn,\
@@ -106,8 +117,6 @@ class Tracker(list):
     from initialize import Transaction
     # Class variable defines how Accounts are tracking money, for how long an account will remember where money came from, and down to what amount it will keep track
     type = "none"
-    hr_cutoff = None
-    absolute = False
     size_limit = None
     def __init__(self, account, init):
         # Trackers are initialized to reference the Account instance that owns them
@@ -122,6 +131,11 @@ class Tracker(list):
         #    only one branch is returned, which is a new "root branch" that corresponds directly to the transaction itself
         new_branches = []
         return new_branches
+    def allocate_branches(self,this_txn):
+            # funds allocated to a trasaction going to an untracked account
+            new_branches, untracked_branches = self.extend_branches(this_txn)
+            untracked_branches = untracked_branches + [branch.prev for branch in new_branches if branch.prev is not None]
+            return untracked_branches
     def too_small(self):
         # minimum size if defined, or if an override is given
         min_size = self.size_limit if self.size_limit is not None else self.float_zero
@@ -130,22 +144,6 @@ class Tracker(list):
                 self.remove(branch)
                 if branch.amt > self.float_zero:
                     yield branch
-    def too_long(self,timestamp,hr_cutoff=None):
-        # max duration if defined, or if an override is given
-        max_dur = hr_cutoff if hr_cutoff is not None else self.hr_cutoff
-        for branch in self:
-            prev_timestamp = branch.txn_timestamp() if not self.absolute else branch.root_timestamp()
-            if (timestamp-prev_timestamp) > max_dur:
-                self.remove(branch)
-                if branch.amt > self.float_zero:
-                    yield branch
-    def allocated(self,amt):
-            # funds allocated to a trasaction going to an untracked account
-            this_txn = self.Transaction(self,None,{"amt":amt,"src_fee":0,"tgt_fee":0,"type":'phantom'})
-            for branch in self.extend_branches(this_txn):
-                if branch.prev is not None:
-                    if branch.prev.amt > self.float_zero:
-                        yield branch.prev
     @classmethod
     def start_tracking(cls,this_txn,amt_sent):
         if amt_sent >= cls.size_limit:
@@ -154,16 +152,25 @@ class Tracker(list):
         else:
             return []
     @classmethod
+    def stop_tracking(cls,branches,timestamp=None,duration=None,total=True): # not sure what this default should be
+        for branch in leaf_branches:
+            flow = branch.follow_back(branch.amt)
+            if timestamp is not None:
+                duration = timestamp - flow.timestamp
+                total = True
+            yield flow.cut(duration,total)
+    @classmethod
     def process(cls,txn,src_track=True,tgt_track=True):
         if txn.amt_rcvd < 0:
             raise ValueError('Accounting exception -- negative amount recieved')
         if txn.amt_sent > cls.float_zero:
             if src_track:
-                new_branches = txn.src.tracker.extend_branches(txn)
+                new_branches, untracked_branches = txn.src.tracker.extend_branches(txn)
+                yield from cls.stop_tracking(untracked_branches,timestamp=txn.timestamp)
             else:
                 if txn.src is not None and txn.src.has_tracker():
-                    leaf_branches = txn.src.tracker.allocated(txn.amt_sent)
-                    yield from stop_tracking(leaf_branches,timestamp=txn.src.system.time_current)
+                    untracked_branches = txn.src.tracker.allocate_branches(txn)
+                    yield from cls.stop_tracking(untracked_branches,timestamp=txn.timestamp)
                 if tgt_track:
                     new_branches = cls.start_tracking(txn,txn.amt_sent)
                 else:
@@ -171,7 +178,7 @@ class Tracker(list):
             if tgt_track:
                 txn.tgt.tracker.add_branches(new_branches)
             else:
-                yield from [branch.follow_back(branch.amt) for branch in new_branches]
+                yield from cls.stop_tracking(new_branches,timestamp=txn.timestamp)
 
 class LIFO_tracker(Tracker):
     type = "lifo"
@@ -248,32 +255,17 @@ def define_tracker(follow_heuristic,hr_cutoff,absolute,size_limit):
     Tracker_class.float_zero  = 0.000001
     return Tracker_class
 
-def stop_tracking(leaf_branches,timestamp=None,duration=None,total=False):
-    # this function makes "leaf branches" out of the branches it is given
-    # if builds the "money flows" that thus end as "untracked" funds in this last account
-    # it returns these "money flows" and stops tracking the corresponding "leaf branches"
-    flows = []
-    for branch in leaf_branches:
-        flow = branch.follow_back(branch.amt)
-        if timestamp is not None:
-            duration = timestamp - branch.txn.timestamp
-        if duration is not None:
-            duration = duration if not total or flow.duration is None else duration - flow.duration
-        flow.durations.append(duration)
-        flow.duration = flow.duration + duration if flow.duration is not None else duration
-        flow.end_categ = "untracked"
-        flows.append(flow)
-    return flows
-
-def check_smallest(acct):
+def check_cutoffs(acct,hr_cutoff,absolute):
     if acct.has_tracker():
-        leaf_branches = acct.tracker.too_small()
-        yield from stop_tracking(leaf_branches,timestamp=acct.system.time_current)
-
-def check_cutoffs(acct):
-    if acct.has_tracker():
-        leaf_branches = acct.tracker.too_long(acct.system.time_current)
-        yield from stop_tracking(leaf_branches,duration=acct.tracker.hr_cutoff,total=acct.tracker.absolute)
+        for branch in acct.tracker:
+            prev_timestamp = branch.root_timestamp() if absolute else branch.txn_timestamp()
+            duration = timestamp - prev_timestamp
+            leaf_branches = []
+            if duration > hr_cutoff:
+                acct.tracker.remove(branch)
+                if branch.amt > self.float_zero:
+                    leaf_branches.append(branch)
+        yield from stop_tracking(leaf_branches,duration=hr_cutoff,total=absolute)
 
 def check_balances(txn,inferred_file):
     # retrieve pre-transaction account balances
@@ -358,6 +350,7 @@ def check_initialized(txn,Tracker_class,inferred_file):
 def track_transactions(system,txns,Tracker,report_file,untracked_file,inferred_file):
     # Track the transaction.
     for txn in txns:
+        system.time_current = txn.timestamp
         try:
             yield from check_initialized(txn,Tracker,inferred_file)
             yield from check_balances(txn,inferred_file)
