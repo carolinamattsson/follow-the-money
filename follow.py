@@ -130,8 +130,9 @@ class Tracker(list):
         # this "basic" version offers no tracking at all
         #    only one branch is returned, which is a new "root branch" that corresponds directly to the transaction itself
         new_branches = []
-        return new_branches
-    def allocate_branches(self,this_txn):
+        untracked_branches = [Branch(None,this_txn,this_txn.amt_sent)]
+        return new_branches, untracked_branches
+    def untrack_branches(self,this_txn):
             # funds allocated to a trasaction going to an untracked account
             new_branches, untracked_branches = self.extend_branches(this_txn)
             untracked_branches = untracked_branches + [branch.prev for branch in new_branches if branch.prev is not None]
@@ -169,7 +170,7 @@ class Tracker(list):
                 yield from cls.stop_tracking(untracked_branches,timestamp=txn.timestamp)
             else:
                 if txn.src is not None and txn.src.has_tracker():
-                    untracked_branches = txn.src.tracker.allocate_branches(txn)
+                    untracked_branches = txn.src.tracker.untrack_branches(txn)
                     yield from cls.stop_tracking(untracked_branches,timestamp=txn.timestamp)
                 if tgt_track:
                     new_branches = cls.start_tracking(txn,txn.amt_sent)
@@ -186,42 +187,52 @@ class LIFO_tracker(Tracker):
     # intuitively, each account is a stack where incoming money lands on top and outgoing money gets taken off the top
     # specifically, it extends the *most recent* incoming branches by the outgoing transaction up to the value of that transaction
     # this heuristic has the pleasing property of preserving local patterns
-    def extend_branches(self,this_txn):
-        # The Tracker will use funds from the most recent incoming Branches, building up to this Transactions' amount
+    def allocate(amt):
+        untracked = []
         amt_tracked = sum(branch.amt for branch in self)
-        amt = min(this_txn.amt_sent,amt_tracked)
-        branches = []
-        while amt > self.float_zero:
-            # Branches are removed from the end of the account list until the amount of the transaction is reached
-            branch = self[-1]
-            if branch.amt < amt+self.float_zero:
-                # Then the whole Branch is allocated to this transaction
-                branches.append(self.pop())
-                amt = amt - branch.amt
-            else:
-                # Then this Branch is larger than the amount to be removed from the account
-                # It is split into two: one remains in this account and the other is extended
-                branches.append(Branch(branch.prev,branch.txn,amt))
-                branch.decrement(amt)
-                amt = 0
-        # The removed branches are extended
-            # note that the list is reversed to preserve the newest branches at the end
-        new_stack = []
-        for branch in reversed(branches):
-            new_branch = Branch(branch,this_txn,branch.amt)
-            new_stack.append(new_branch)
-        # If the outgoing transaction is larger than the amount being tracked, start tracking
-        if this_txn.amt_sent > amt_tracked:
-            new_branches = self.start_tracking(this_txn,this_txn.amt_sent - amt_tracked)
-            new_stack = new_branches + new_stack
-        return new_stack
+        if amt_tracked < amt+self.float_zero:
+            # Then the whole list is allocated
+            allocated = self
+            self = []
+        else:
+            # Then loop through to get what's allocated
+            allocated = []
+            while amt > self.size_limit:
+                # Branches are removed from the end of the account list until the amount of the transaction is reached
+                branch = self[-1]
+                if branch.amt < amt+self.float_zero:
+                    # Then the whole Branch is allocated to this transaction
+                    allocated.append(self.pop())
+                    amt = amt - branch.amt
+                else:
+                    # Then this Branch is larger than the amount to be removed from the account
+                    # It is split into two: part is allocated and the rest remains in this account
+                    allocated.append(Branch(branch.prev,branch.txn,amt))
+                    branch.decrement(amt)
+                    amt = 0
+                    # Stop tracking the branch if it got too small
+                    if branch.amt < self.size_limit:
+                        untracked.append(self.pop())
+        # reverse the list to preserve the newest branches at the end
+        return reversed(allocated), untracked
+    def extend_branches(self,this_txn):
+        # allocate branches from this account to this transaction
+        allocated, untracked = self.allocate(this_txn.amt_sent)
+        # extend these branches by this transaction
+        new_branches = [Branch(branch,this_txn,branch.amt) for branch in allocated]
+        # start tracking the remainder ti the outgoing transaction amount
+        amt_tracked_txn = sum(branch.amt for branch in allocated)
+        new_branch = self.start_tracking(this_txn,this_txn.amt_sent-amt_tracked_txn)
+        new_branches = new_branch + new_branches
+        # pass the
+        return new_branches, untracked
 
 class Mixed_tracker(Tracker):
     type = "mixed"
     # This Tracker type allocates funds within an account entirely agnostically, using a mixed or max-entropy heuristic
     # intuitively, each account is a pool of indistinguishable funds (taking the perfectly fungible nature of money literally)
     # specifically, it extends *an equal fraction of all existing branches* by the outgoing transaction
-    def extend_branches(self,this_txn):
+    def allocate(self,this_txn):
         # The Tracker will allocate from all Branches an amount proportional to this Transactions' fraction of the total balance
         send_factor = this_txn.amt_sent/self.account.balance
         stay_factor  = (self.account.balance-this_txn.amt_sent)/self.account.balance
@@ -239,6 +250,17 @@ class Mixed_tracker(Tracker):
         for branch in self:
             branch.depreciate(stay_factor)
         return new_pool
+    def extend_branches(self,this_txn):
+        # allocate branches from this account to this transaction
+        allocated, untracked = self.allocate(this_txn.amt_sent)
+        # extend these branches by this transaction
+        new_branches = [Branch(branch,this_txn,branch.amt) for branch in allocated]
+        # start tracking the remainder ti the outgoing transaction amount
+        amt_tracked_txn = sum(branch.amt for branch in allocated)
+        new_branch = self.start_tracking(this_txn,this_txn.amt_sent-amt_tracked_txn)
+        new_branches = new_branch + new_branches
+        # pass the
+        return new_branches, untracked
 
 def define_tracker(follow_heuristic,hr_cutoff,absolute,size_limit):
     # Based on the follow_heuristic, define the type of trackers we're giving our accounts
