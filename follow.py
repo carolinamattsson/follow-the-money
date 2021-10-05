@@ -278,7 +278,7 @@ class Mixed_tracker(Tracker):
                 extended.append(Branch(branch,this_txn,amt))
             # unless it would go below the threshold
             elif amt >= self.float_zero:
-                untracked.append(Branch(branch.prev,branch.prev.txn,amt))
+                untracked.append(Branch(branch.prev,branch.txn,amt))
             else:
                 print(0) # if this shows up we're creating/keeping poorly
             # All the "branches" in an account are decremented to suit
