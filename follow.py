@@ -166,13 +166,14 @@ class Tracker(list):
     def root_timestamp(self,branch):
         return branch.root_timestamp()
     def overstayed_branches(self,timestamp):
-        # removes and returns the overstayed branches
+        # identifies, removes, and returns the overstayed branches
         leaf_branches = []
         for branch in self:
             duration = timestamp - self.prev_timestamp(branch)
             if duration > self.hr_cutoff:
                 leaf_branches.append(branch)
-                self.remove(branch)
+        for branch in leaf_branches:
+            self.remove(branch)
         return leaf_branches
     @classmethod
     def start_tracking(cls,this_txn,amt_sent):
