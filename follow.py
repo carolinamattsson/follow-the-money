@@ -94,18 +94,18 @@ class Flow:
         if total:
             tot_duration = duration
             try:
-                rem_duration = [tot_duration - self.duration]
+                rem_duration = tot_duration - self.duration
             except Exception:
-                rem_duration = []
+                rem_duration = tot_duration
         else:
-            rem_duration = [duration]
+            rem_duration = duration
             try:
                 tot_duration = rem_duration + self.duration
             except Exception:
-                tot_duration = None
+                tot_duration = rem_duration
         self.end_categ = "untracked"
         self.duration = tot_duration
-        self.durations = self.durations + rem_duration
+        self.durations = self.durations + [rem_duration]
         return self
     def to_print(self,timeformat,digits):
         # this returns a version of this class that can be exported to a file using writer.writerow()
