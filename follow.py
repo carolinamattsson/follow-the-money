@@ -71,7 +71,7 @@ class Flow:
         self.txn_IDs   = [branch.txn.txn_ID]
         self.txn_types = [branch.txn.type]
         self.acct_IDs  = [branch.txn.src.acct_ID if branch.txn.src is not None else branch.txn.src_ID,branch.txn.tgt.acct_ID if branch.txn.tgt is not None else branch.txn.tgt_ID]
-        self.beg_categ = branch.txn.categ if branch.txn.categ == 'deposit' else 'untracked'
+        self.beg_categ = branch.txn.categ if branch.txn.categ == 'deposit' else 'existing'
         self.end_categ = branch.txn.categ
         self.duration  = None
         self.durations = []
@@ -90,7 +90,7 @@ class Flow:
         self.duration = self.duration + branch_duration if self.duration is not None else branch_duration
         self.durations.append(branch_duration)
         self.length += 1 if branch.txn.categ == 'transfer' else 0
-    def cut(self, duration, total):
+    def cut(self, duration, total, exact):
         if total:
             tot_duration = duration
             try:
@@ -103,7 +103,7 @@ class Flow:
                 tot_duration = rem_duration + self.duration
             except Exception:
                 tot_duration = rem_duration
-        self.end_categ = "untracked"
+        self.end_categ = "cut" if exact else "untracked"
         self.duration = tot_duration
         self.durations = self.durations + [rem_duration]
         return self
@@ -151,11 +151,12 @@ class Tracker(list):
         #    only one branch is returned, which is a new "root branch" that corresponds directly to the transaction itself
         #    any branches from before are returned untracked
         untracked = []
+        cut = []
         for branch in self:
             untracked.append(branch)
             self.remove(branch)
         extended = [Branch(None,this_txn,this_txn.amt_sent)]
-        return extended, untracked
+        return extended, cut, untracked
     def untrack_branches(self,this_txn):
         # funds allocated to a trasaction going to an untracked account
         new_branches, untracked_branches = self.extend_branches(this_txn)
@@ -177,13 +178,9 @@ class Tracker(list):
         return leaf_branches
     @classmethod
     def start_tracking(cls,this_txn,amt_sent):
-        if amt_sent >= cls.size_limit:
-            new_branch = Branch(None,this_txn,amt_sent)
-            return [new_branch]
-        else:
-            return []
+        return Branch(None,this_txn,amt_sent)
     @classmethod
-    def stop_tracking(cls,leaf_branches,complete=True,timestamp=None,duration=None,total=True): # not sure what this default should be
+    def stop_tracking(cls,leaf_branches,complete=True,exact=True,timestamp=None,duration=None,total=True): # not sure what this default should be
         for branch in leaf_branches:
             flow = branch.follow_back(branch.amt)
             if complete:
@@ -192,25 +189,27 @@ class Tracker(list):
                 if timestamp is not None:
                     duration = timestamp - flow.timestamp
                     total = True
-                yield flow.cut(duration,total)
+                yield flow.cut(duration,total,exact)
     @classmethod
     def check_cutoffs(cls,acct,timestamp):
         leaf_branches = acct.tracker.overstayed_branches(timestamp)
-        yield from cls.stop_tracking(leaf_branches,complete=False,duration=acct.tracker.hr_cutoff,total=acct.tracker.absolute)
+        yield from cls.stop_tracking(leaf_branches,complete=False,exact=False,duration=acct.tracker.hr_cutoff,total=acct.tracker.absolute)
     @classmethod
     def process(cls,txn,src_track=True,tgt_track=True):
         if txn.amt_rcvd < 0:
             raise ValueError('Accounting exception -- negative amount recieved')
         if txn.amt_sent > cls.float_zero:
             if src_track:
-                new_branches, untracked_branches = txn.src.tracker.extend_branches(txn)
-                yield from cls.stop_tracking(untracked_branches,complete=False,timestamp=txn.timestamp)
+                new_branches, cut_branches, untracked_branches = txn.src.tracker.extend_branches(txn)
+                yield from cls.stop_tracking(cut_branches,complete=False,timestamp=txn.timestamp)
+                yield from cls.stop_tracking(untracked_branches,complete=False,exact=False,timestamp=txn.timestamp)
             else:
                 if txn.src is not None and txn.src.has_tracker():
-                    untracked_branches = txn.src.tracker.untrack_branches(txn)
-                    yield from cls.stop_tracking(untracked_branches,complete=False,timestamp=txn.timestamp)
+                    cut_branches, untracked_branches = txn.src.tracker.untrack_branches(txn)
+                    yield from cls.stop_tracking(cut_branches,complete=False,timestamp=txn.timestamp)
+                    yield from cls.stop_tracking(untracked_branches,complete=False,exact=False,timestamp=txn.timestamp)
                 if tgt_track:
-                    new_branches = cls.start_tracking(txn,txn.amt_sent)
+                    new_branches = [cls.start_tracking(txn,txn.amt_sent)]
                 else:
                     new_branches = []
             if tgt_track:
@@ -228,6 +227,7 @@ class LIFO_tracker(Tracker):
         amt = this_txn.amt_sent
         amt_tracked = sum(branch.amt for branch in self)
         untracked = []
+        cut = []
         # If we're tracking less than we send, the whole list is allocated & extended
         if amt_tracked < amt+self.float_zero:
             extended = [Branch(branch,this_txn,branch.amt) for branch in self]
@@ -255,11 +255,13 @@ class LIFO_tracker(Tracker):
                         if branch.amt >= self.float_zero:
                             untracked.append(branch)
         # Fill in with a new branch if we aren't tracking enough
-        amt_untracked = this_txn.amt_sent-sum(branch.amt for branch in extended)
-        new_branch = self.start_tracking(this_txn,amt_untracked)
-        extended = extended + new_branch
+        amt_tracked = sum(branch.amt for branch in extended)
+        amt_existing = this_txn.amt_sent-amt_tracked
+        if amt_existing >= self.size_limit:
+            new_branch = self.start_tracking(this_txn,amt_existing)
+            extended.append(new_branch)
         # reverse the list to preserve the newest branches at the end
-        return reversed(extended), untracked
+        return reversed(extended), cut, untracked
 
 class Mixed_tracker(Tracker):
     type = "mixed"
@@ -270,8 +272,9 @@ class Mixed_tracker(Tracker):
         # The Tracker will allocate from all Branches an amount proportional to this Transactions' fraction of the total balance
         send_factor = this_txn.amt_sent/self.account.balance
         to_remove = []
-        untracked = []
         extended = []
+        untracked = []
+        cut = []
         for branch in self:
             # All the "branches" in an account are extended by the outgoing transaction
             amt = send_factor*branch.amt
@@ -279,7 +282,7 @@ class Mixed_tracker(Tracker):
                 extended.append(Branch(branch,this_txn,amt))
             # unless it would go below the threshold
             elif amt >= self.float_zero:
-                untracked.append(Branch(branch.prev,branch.txn,amt))
+                cut.append(Branch(branch.prev,branch.txn,amt))
             else:
                 print(0) # if this shows up we're creating/keeping poorly
             # All the "branches" in an account are decremented to suit
@@ -287,16 +290,18 @@ class Mixed_tracker(Tracker):
             # If the remaining branch got too small, it goes on the chopping block
             if branch.amt < self.size_limit:
                 to_remove.append(branch)
-        # Remove the tiny branches, and if not so tiny also record it
+        # Remove the tiny branches, and if not soooo tiny also record it
         for branch in to_remove:
             self.remove(branch)
             if branch.amt >= self.float_zero:
                 untracked.append(branch)
         # Fill in with a new branch if we aren't tracking enough
-        amt_untracked = this_txn.amt_sent-sum(branch.amt for branch in extended)
-        new_branch = self.start_tracking(this_txn,amt_untracked)
-        extended = extended + new_branch
-        return extended, untracked
+        amt_tracked = sum(branch.amt for branch in extended)
+        amt_existing = this_txn.amt_sent-amt_tracked
+        if amt_existing >= self.size_limit:
+            new_branch = self.start_tracking(this_txn,amt_existing)
+            extended.append(new_branch)
+        return extended, cut, untracked
 
 def define_tracker(follow_heuristic,hr_cutoff,absolute,size_limit,rounding):
     # Based on the follow_heuristic, define the type of trackers we're giving our accounts
@@ -432,7 +437,7 @@ def track_remaining_funds(system,Tracker,report_file,inferred_file):
                 if inferred_file and (system.boundary_type=="transactions" or acct.categ in system.categ_follow):
                     yield from infer_withdraw(acct,acct.balance,"final",inferred_file)
                 else:
-                    yield from Tracker.stop_tracking(acct.tracker,complete=False,timestamp=system.time_end)
+                    yield from Tracker.stop_tracking(acct.tracker,complete=False,exact=False,timestamp=system.time_end)
                     acct.tracker.clear()
         except Exception:
             report_file.write("FAILED: REMAINING FUNDS: "+acct_ID+"\n"+traceback.format_exc()+"\n")
