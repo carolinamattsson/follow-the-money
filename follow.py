@@ -144,19 +144,39 @@ class Tracker(list):
     def add_branches(self, branches):
         # this function adds a list of branches to the account
         self.extend(branches)
-    def extend_branches(self,this_txn):
+    def allocate_branches(self,this_txn):
         # this function extends the branches in this account by the outgoing transaction, and returns a list of these new branches
         # how the account extends the branches that it's tracking is governed by the tracking heuristic noted in the Account.type
         # this "basic" version offers no tracking at all
         #    only one branch is returned, which is a new "root branch" that corresponds directly to the transaction itself
         #    any branches from before are returned untracked
-        untracked = []
+        allocation = [(branch,branch.amt) for branch in self]
+        return allocation
+    def extend_branches(self,allocation,track=True):
+        extended = []
+        untrack = []
         cut = []
-        for branch in self:
-            untracked.append(branch)
-            self.remove(branch)
-        extended = [Branch(None,this_txn,this_txn.amt_sent)]
+        for branch, amt in allocation:
+            # Extend the branch or note the cut
+            if track and amt >= self.size_limit:
+                extended.append(Branch(branch,this_txn,amt))
+            else:
+                cut.append(Branch(branch.prev,branch.prev.txn,amt))
+            # Decrement and possibly remove
+            branch.decrement(amt)
+            if branch.amt < self.size_limit:
+                self.remove(branch)
+                if branch.amt >= self.float_zero:
+                    untracked.append(branch)
         return extended, cut, untracked
+    def fill_txn(self,this_txn,extended):
+        # Fill in with a new branch if we aren't tracking enough
+        amt_tracked = sum(branch.amt for branch in extended)
+        amt_existing = this_txn.amt_sent-amt_tracked
+        if amt_existing >= self.size_limit:
+            new_branch = self.start_tracking(this_txn,amt_existing)
+            extended = [new_branch] + extended
+        return extended
     def untrack_branches(self,this_txn):
         # funds allocated to a trasaction going to an untracked account
         new_branches, untracked_branches = self.extend_branches(this_txn)
