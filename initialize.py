@@ -167,9 +167,9 @@ class Account(dict):
             self.categs.add(self.system.acct_categs[txn_type][src_tgt])
     def has_balance(self):
         return self.balance is not None
-    def track(self, Tracker_class, init=False):
+    def track(self, Tracker_class):
         self.tracked = True
-        self.tracker = Tracker_class(self,init)
+        self.tracker = Tracker_class(self)
     def has_tracker(self):
         return self.tracker is not None
 

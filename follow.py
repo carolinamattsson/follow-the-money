@@ -138,7 +138,7 @@ class Tracker(list):
     size_limit = None
     hr_cutoff = None
     absolute = True
-    def __init__(self, account, init):
+    def __init__(self, account):
         # Trackers are initialized to reference the Account instance that owns them
         self.account = account
     def add_branches(self, branches):
