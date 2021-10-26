@@ -134,7 +134,6 @@ class Tracker(list):
     # Accounts always remember their overall balance, and specifically track transactions that entered the account recently
     from initialize import Transaction
     # Class variable defines how Accounts are tracking money, for how long an account will remember where money came from, and down to what amount it will keep track
-    type = "none"
     size_limit = None
     hr_cutoff = None
     absolute = True
@@ -144,44 +143,50 @@ class Tracker(list):
     def add_branches(self, branches):
         # this function adds a list of branches to the account
         self.extend(branches)
-    def allocate_branches(self,this_txn):
-        # this function extends the branches in this account by the outgoing transaction, and returns a list of these new branches
-        # how the account extends the branches that it's tracking is governed by the tracking heuristic noted in the Account.type
-        # this "basic" version offers no tracking at all
-        #    only one branch is returned, which is a new "root branch" that corresponds directly to the transaction itself
-        #    any branches from before are returned untracked
-        allocation = [(branch,branch.amt) for branch in self]
+    def heuristic_Mixed(self,amount):
+        # Allocates from all Branches an amount proportional to its size
+        # intuitively, each account is a pool of indistinguishable funds (taking the perfectly fungible nature of money literally)
+        # specifically, it extends *an equal fraction of all existing branches* by the outgoing transaction
+        send_factor = amount/self.account.balance
+        allocation = [(branch,send_factor*branch.amt) for branch in self]
         return allocation
-    def extend_branches(self,allocation,track=True):
+    def heuristic_LIFO(self,amount):
+        # Allocates funds within an account in time order, using a last in first out (LIFO) heuristic
+        # intuitively, each account is a stack where incoming money lands on top and outgoing money gets taken off the top
+        # specifically, it extends the *most recent* incoming branches by the outgoing transaction up to the value of that transaction
+        # this heuristic has the pleasing property of preserving local patterns
+        allocation = []
+        # Allocate branches from the end of the stack until the amount of the transaction is reached
+        for branch in reversed(self):
+            # If it fits, the whole Branch is allocated
+            if branch.amt < amount+self.float_zero:
+                allocation.append((branch,branch.amt))
+                amount = amount - branch.amt
+            # Otherwise, only allocate a part of the Branch
+            else:
+                allocation.append((branch,amount))
+                break
+        # un-reverse the list to preserve the newest branches at the end
+        return reversed(allocation)
+    def extend_branches(self,this_txn,extend=True):
         extended = []
         untrack = []
         cut = []
-        for branch, amt in allocation:
-            # Extend the branch or note the cut
-            if track and amt >= self.size_limit:
-                extended.append(Branch(branch,this_txn,amt))
-            else:
-                cut.append(Branch(branch.prev,branch.prev.txn,amt))
-            # Decrement and possibly remove
-            branch.decrement(amt)
-            if branch.amt < self.size_limit:
-                self.remove(branch)
-                if branch.amt >= self.float_zero:
-                    untracked.append(branch)
-        return extended, cut, untracked
-    def fill_txn(self,this_txn,extended):
-        # Fill in with a new branch if we aren't tracking enough
-        amt_tracked = sum(branch.amt for branch in extended)
-        amt_existing = this_txn.amt_sent-amt_tracked
-        if amt_existing >= self.size_limit:
-            new_branch = self.start_tracking(this_txn,amt_existing)
-            extended = [new_branch] + extended
-        return extended
-    def untrack_branches(self,this_txn):
-        # funds allocated to a trasaction going to an untracked account
-        new_branches, untracked_branches = self.extend_branches(this_txn)
-        untracked_branches = untracked_branches + [branch.prev for branch in new_branches if branch.prev is not None]
-        return untracked_branches
+        for branch, amt in self.allocate_branches(this_txn.amt_sent):
+            if amt >= self.float_zero:
+                # Extend the branch or note the cut
+                if extend and amt >= self.size_limit:
+                    extended.append(Branch(branch,this_txn,amt))
+                else:
+                    cut.append(Branch(branch.prev,branch.txn,amt))
+                # Decrement
+                branch.decrement(amt)
+                # Remove if the remainder becomes too small
+                if branch.amt < self.size_limit:
+                    self.remove(branch)
+                    if branch.amt >= self.float_zero:
+                        untrack.append(branch)
+        return extended, cut, untrack
     def txn_timestamp(self,branch):
         return branch.txn_timestamp()
     def root_timestamp(self,branch):
@@ -197,8 +202,15 @@ class Tracker(list):
             self.remove(branch)
         return leaf_branches
     @classmethod
-    def start_tracking(cls,this_txn,amt_sent):
-        return Branch(None,this_txn,amt_sent)
+    def start_tracking(cls,this_txn,extended):
+        # Fill in with a new branch if we aren't tracking enough
+        amt_tracked = sum(branch.amt for branch in extended)
+        amt_existing = this_txn.amt_sent-amt_tracked
+        if amt_existing >= cls.size_limit:
+            new_branch = [Branch(None,this_txn,amt_existing)]
+        else:
+            new_branch = []
+        return new_branch
     @classmethod
     def stop_tracking(cls,leaf_branches,complete=True,exact=True,timestamp=None,duration=None,total=True): # not sure what this default should be
         for branch in leaf_branches:
@@ -220,118 +232,34 @@ class Tracker(list):
             raise ValueError('Accounting exception -- negative amount recieved')
         if txn.amt_sent > cls.float_zero:
             if src_track:
-                new_branches, cut_branches, untracked_branches = txn.src.tracker.extend_branches(txn)
-                yield from cls.stop_tracking(cut_branches,complete=False,timestamp=txn.timestamp)
-                yield from cls.stop_tracking(untracked_branches,complete=False,exact=False,timestamp=txn.timestamp)
+                extended_branches, to_cut, to_untrack = txn.src.tracker.extend_branches(txn)
+                yield from cls.stop_tracking(to_cut,complete=False,timestamp=txn.timestamp)
+                yield from cls.stop_tracking(to_untrack,complete=False,exact=False,timestamp=txn.timestamp)
             else:
                 if txn.src is not None and txn.src.has_tracker():
-                    cut_branches, untracked_branches = txn.src.tracker.untrack_branches(txn)
-                    yield from cls.stop_tracking(cut_branches,complete=False,timestamp=txn.timestamp)
-                    yield from cls.stop_tracking(untracked_branches,complete=False,exact=False,timestamp=txn.timestamp)
-                if tgt_track:
-                    new_branches = [cls.start_tracking(txn,txn.amt_sent)]
+                    extended_branches, to_cut, to_untrack = txn.src.tracker.extend_branches(txn,extend=False)
+                    yield from cls.stop_tracking(to_cut,complete=False,timestamp=txn.timestamp)
+                    yield from cls.stop_tracking(to_untrack,complete=False,exact=False,timestamp=txn.timestamp)
                 else:
-                    new_branches = []
+                    extended_branches = []
             if tgt_track:
-                txn.tgt.tracker.add_branches(new_branches)
+                new_branch = cls.start_tracking(txn,extended_branches)
+                txn.tgt.tracker.add_branches(new_branch+extended_branches)
             else:
-                yield from cls.stop_tracking(new_branches)
+                new_branch = cls.start_tracking(txn,extended_branches)
+                yield from cls.stop_tracking(new_branch+extended_branches)
 
-class LIFO_tracker(Tracker):
-    type = "lifo"
-    # This  Tracker type allocates funds within an account in time order, using a last in first out (LIFO) heuristic
-    # intuitively, each account is a stack where incoming money lands on top and outgoing money gets taken off the top
-    # specifically, it extends the *most recent* incoming branches by the outgoing transaction up to the value of that transaction
-    # this heuristic has the pleasing property of preserving local patterns
-    def extend_branches(self,this_txn):
-        amt = this_txn.amt_sent
-        amt_tracked = sum(branch.amt for branch in self)
-        untracked = []
-        cut = []
-        # If we're tracking less than we send, the whole list is allocated & extended
-        if amt_tracked < amt+self.float_zero:
-            extended = [Branch(branch,this_txn,branch.amt) for branch in self]
-            self.clear()
-        # Otherwise we loop through to get what's allocated & extended
-        else:
-            extended = []
-            # Branches are removed from the end of the account list until the amount of the transaction is reached
-            while amt >= self.size_limit:
-                # Start with just looking at the branch
-                branch = self[-1]
-                # If it fits, the whole Branch is allocated & extended
-                if branch.amt < amt+self.float_zero:
-                    branch = self.pop()
-                    extended.append(Branch(branch,this_txn,branch.amt))
-                    amt = amt - branch.amt
-                # Otherwise, only a part of the Branch is extended
-                else:
-                    extended.append(Branch(branch,this_txn,amt))
-                    branch.decrement(amt)
-                    amt = 0
-                    # If the remaining branch got too small, untrack it
-                    if branch.amt < self.size_limit:
-                        branch = self.pop()
-                        if branch.amt >= self.float_zero:
-                            untracked.append(branch)
-        # Fill in with a new branch if we aren't tracking enough
-        amt_tracked = sum(branch.amt for branch in extended)
-        amt_existing = this_txn.amt_sent-amt_tracked
-        if amt_existing >= self.size_limit:
-            new_branch = self.start_tracking(this_txn,amt_existing)
-            extended.append(new_branch)
-        # reverse the list to preserve the newest branches at the end
-        return reversed(extended), cut, untracked
-
-class Mixed_tracker(Tracker):
-    type = "mixed"
-    # This Tracker type allocates funds within an account entirely agnostically, using a mixed or max-entropy heuristic
-    # intuitively, each account is a pool of indistinguishable funds (taking the perfectly fungible nature of money literally)
-    # specifically, it extends *an equal fraction of all existing branches* by the outgoing transaction
-    def extend_branches(self,this_txn):
-        # The Tracker will allocate from all Branches an amount proportional to this Transactions' fraction of the total balance
-        send_factor = this_txn.amt_sent/self.account.balance
-        to_remove = []
-        extended = []
-        untracked = []
-        cut = []
-        for branch in self:
-            # All the "branches" in an account are extended by the outgoing transaction
-            amt = send_factor*branch.amt
-            if amt >= self.size_limit:
-                extended.append(Branch(branch,this_txn,amt))
-            # unless it would go below the threshold
-            elif amt >= self.float_zero:
-                cut.append(Branch(branch.prev,branch.txn,amt))
-            else:
-                print(0) # if this shows up we're creating/keeping poorly
-            # All the "branches" in an account are decremented to suit
-            branch.decrement(amt)
-            # If the remaining branch got too small, it goes on the chopping block
-            if branch.amt < self.size_limit:
-                to_remove.append(branch)
-        # Remove the tiny branches, and if not soooo tiny also record it
-        for branch in to_remove:
-            self.remove(branch)
-            if branch.amt >= self.float_zero:
-                untracked.append(branch)
-        # Fill in with a new branch if we aren't tracking enough
-        amt_tracked = sum(branch.amt for branch in extended)
-        amt_existing = this_txn.amt_sent-amt_tracked
-        if amt_existing >= self.size_limit:
-            new_branch = self.start_tracking(this_txn,amt_existing)
-            extended.append(new_branch)
-        return extended, cut, untracked
+#class Pairwise_tracker(Tracker):
+#    # This Tracker type
 
 def define_tracker(follow_heuristic,hr_cutoff,absolute,size_limit,rounding):
     # Based on the follow_heuristic, define the type of trackers we're giving our accounts
-    if follow_heuristic == "none":
-        Tracker_class = Tracker
-    if follow_heuristic == "lifo":
-        Tracker_class = LIFO_tracker
-    if follow_heuristic == "mixed":
-        Tracker_class = Mixed_tracker
+    Tracker_class = Tracker
     # Define also how we handle cutoff,absolutes and special cases
+    if follow_heuristic == "lifo":
+        Tracker_class.allocate_branches = Tracker_class.heuristic_LIFO
+    if follow_heuristic == "mixed":
+        Tracker_class.allocate_branches = Tracker_class.heuristic_Mixed
     Tracker_class.hr_cutoff = timedelta(hours=float(hr_cutoff)) if hr_cutoff else timedelta(days=999999999, seconds=86399, microseconds=999999)
     Tracker_class.prev_timestamp = Tracker_class.root_timestamp if absolute else Tracker_class.txn_timestamp
     Tracker_class.absolute = absolute
@@ -484,8 +412,6 @@ def update_report(report_filename,args,heuristic=None):
             if args.lifo:  report_file.write("    Weighted flows with 'lifo' heuristic saved with extension: flows_lifo.csv"+"\n")
         elif heuristic == 'mixed':
             if args.mixed: report_file.write("    Weighted flows with 'mixed' heuristic saved with extension: flows_mixed.csv"+"\n")
-        elif heuristic == 'none':
-            if args.none:  report_file.write("    Weighted flows with 'none' heuristic saved with extension: flows_none.csv"+"\n")
         report_file.flush()
 
 def run(system,txn_filename,flow_filename,report_filename,follow_heuristic,cutoff,absolute,smallest,rounding,no_infer):
