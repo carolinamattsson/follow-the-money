@@ -249,22 +249,60 @@ class Tracker(list):
                 new_branch = cls.start_tracking(txn,extended_branches)
                 yield from cls.stop_tracking(new_branch+extended_branches)
 
-#class Pairwise_tracker(Tracker):
-#    # This Tracker type
+class Pairer(Tracker):
+    # in this pairwise version of a Tracker, we return only two-step flows
+    # and we pass on a fresh new root branch for this transaction
+    # there is no need for cut as two-step flows are "complete" 
+    def extend_branches(self,this_txn,extend=True):
+        extended = []
+        untrack = []
+        for branch, amt in self.allocate_branches(this_txn.amt_sent):
+            if amt >= self.float_zero:
+                # Extend the branch
+                extended.append(Branch(branch,this_txn,amt))
+                # Decrement
+                branch.decrement(amt)
+                # Remove if the remainder becomes too small
+                if branch.amt < self.size_limit:
+                    self.remove(branch)
+                    if branch.amt >= self.float_zero:
+                        untrack.append(branch)
+        return extended, untrack
+    @classmethod
+    def process(cls,txn,src_track=True,tgt_track=True):
+        if txn.amt_rcvd < 0:
+            raise ValueError('Accounting exception -- negative amount recieved')
+        if txn.amt_sent > cls.float_zero:
+            if src_track:
+                extended_branches, to_untrack = txn.src.tracker.extend_branches(txn)
+                extended_branches = extended_branches + cls.start_tracking(txn,extended_branches)
+                yield from cls.stop_tracking(to_untrack,complete=False,exact=False,timestamp=txn.timestamp)
+                yield from cls.stop_tracking(extended_branches,complete=True,exact=True)
+            else:
+                if txn.src is not None and txn.src.has_tracker():
+                    extended_branches, to_untrack = txn.src.tracker.extend_branches(txn,extend=False)
+                    yield from cls.stop_tracking(to_untrack,complete=False,exact=False,timestamp=txn.timestamp)
+                else:
+                    extended_branches = []
+            if tgt_track:
+                extended_branches = []
+                new_branch = cls.start_tracking(txn,extended_branches)
+                txn.tgt.tracker.add_branches(new_branch)
 
-def define_tracker(follow_heuristic,hr_cutoff,absolute,size_limit,rounding):
-    # Based on the follow_heuristic, define the type of trackers we're giving our accounts
-    Tracker_class = Tracker
-    # Define also how we handle cutoff,absolutes and special cases
+def define_tracker(pairwise,follow_heuristic,hr_cutoff,absolute,size_limit,rounding):
+    # We're modifying the Tracker or the Pairer class
+    Tracker_class = Tracker if not pairwise else Pairer
+    # Define the way we allocate branches, based on the follow_heuristic
     if follow_heuristic == "lifo":
         Tracker_class.allocate_branches = Tracker_class.heuristic_LIFO
-    if follow_heuristic == "mixed":
+    elif follow_heuristic == "mixed":
         Tracker_class.allocate_branches = Tracker_class.heuristic_Mixed
+    # Define also how we handle cutoff,absolutes and special cases
     Tracker_class.hr_cutoff = timedelta(hours=float(hr_cutoff)) if hr_cutoff else timedelta(days=999999999, seconds=86399, microseconds=999999)
     Tracker_class.prev_timestamp = Tracker_class.root_timestamp if absolute else Tracker_class.txn_timestamp
     Tracker_class.absolute = absolute
-    Tracker_class.size_limit  = size_limit
-    Tracker_class.float_zero  = 5*10**(-(rounding+1))
+    Tracker_class.size_limit = size_limit
+    Tracker_class.float_zero = 5*10**(-(rounding+1))
     return Tracker_class
 
 def check_balances(txn,inferred_file):
@@ -408,13 +446,12 @@ def update_report(report_filename,args,heuristic=None):
             if args.hr_cutoff: report_file.write("    Stop tracking funds after "+str(args.hr_cutoff)+" hours "+modifier+"."+"\n")
             if args.smallest: report_file.write("    Stop tracking funds below "+str(args.smallest)+" in value."+"\n")
             report_file.write("Running:"+"\n")
-        elif heuristic == 'lifo':
-            if args.lifo:  report_file.write("    Weighted flows with 'lifo' heuristic saved with extension: flows_lifo.csv"+"\n")
-        elif heuristic == 'mixed':
-            if args.mixed: report_file.write("    Weighted flows with 'mixed' heuristic saved with extension: flows_mixed.csv"+"\n")
+        else:
+            snippet = ("Weighted trajectories","flows") if not args.pairwise else ("Pairwise allocation","pairs")
+            report_file.write("    "+snippet[0]+" under '"+heuristic+"' heuristic saved with extension: "+snippet[1]+"_"+heuristic+".csv"+"\n")
         report_file.flush()
 
-def run(system,txn_filename,flow_filename,report_filename,follow_heuristic,cutoff,absolute,smallest,rounding,no_infer):
+def run(system,txn_filename,flow_filename,report_filename,follow_heuristic,cutoff,absolute,smallest,rounding,no_infer,pairwise=False):
     from initialize import timewindow_transactions
     from initialize import initialize_transactions
     import os
@@ -422,7 +459,7 @@ def run(system,txn_filename,flow_filename,report_filename,follow_heuristic,cutof
     ################# Reset the system ##################
     system = system.reset()
     ############# Define the tracker class ##############
-    Tracker = define_tracker(follow_heuristic,cutoff,absolute,smallest,rounding)
+    Tracker = define_tracker(pairwise,follow_heuristic,cutoff,absolute,smallest,rounding)
     ############## Redefine report files ################
     untracked_filename = report_filename.replace("report.txt","untracked.csv")
     inferred_filename = report_filename.replace("report.txt","inferred.csv")

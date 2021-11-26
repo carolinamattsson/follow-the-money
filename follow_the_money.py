@@ -32,6 +32,7 @@ if __name__ == '__main__':
     parser.add_argument('--absolute', action="store_true", default=False, help='Use time cutoff from start of trajectory, rather than in an account')
     parser.add_argument('--smallest', metavar='value', type=float, default=0.01, help='Stop tracking funds with a value below this threshold')
     parser.add_argument('--rounding', metavar='digits', type=int, default=6, help='Stop tracking funds with a value below this threshold')
+    parser.add_argument('--pairwise', action="store_true", default=False, help='Track only in --> out for all accounts, individually.')
 
     args = parser.parse_args()
 
@@ -80,13 +81,18 @@ if __name__ == '__main__':
 
     #################### OUTPUT ########################
     follow.update_report(report_filename,args)
+    ################# Type of output ###################
+    if not args.pairwise:
+        output_modifier = os.path.join(args.output_directory,args.prefix+file_modifier+"flows")
+    else:
+        output_modifier = os.path.join(args.output_directory,args.prefix+file_modifier+"pairs")
     ############### Alright, let's go! #################
     if args.lifo:
         follow.update_report(report_filename,args,heuristic='lifo')
-        output_filename = os.path.join(args.output_directory,args.prefix+file_modifier+"flows_lifo.csv")
-        follow.run(system,transaction_filename,output_filename,report_filename,'lifo',args.hr_cutoff,args.absolute,args.smallest,args.rounding,args.no_infer)
+        output_filename = output_modifier+"_lifo.csv"
+        follow.run(system,transaction_filename,output_filename,report_filename,'lifo',args.hr_cutoff,args.absolute,args.smallest,args.rounding,args.no_infer,pairwise=args.pairwise)
     if args.mixed:
         follow.update_report(report_filename,args,heuristic='mixed')
-        output_filename = os.path.join(args.output_directory,args.prefix+file_modifier+"flows_mixed.csv")
-        follow.run(system,transaction_filename,output_filename,report_filename,'mixed',args.hr_cutoff,args.absolute,args.smallest,args.rounding,args.no_infer)
+        output_filename = output_modifier+"_mixed.csv"
+        follow.run(system,transaction_filename,output_filename,report_filename,'mixed',args.hr_cutoff,args.absolute,args.smallest,args.rounding,args.no_infer,pairwise=args.pairwise)
     ####################################################

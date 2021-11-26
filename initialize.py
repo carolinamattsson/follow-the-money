@@ -326,7 +326,8 @@ def discover_account_categories(src,tgt,amt,basics=None,txn_type=None):
 
 def start_report(report_filename,args,config_data):
     import os
-    with open(report_filename,'w') as report_file:
+    with open(report_filename,'a') as report_file:
+        report_file.write("\n"+"====================================================================="+"\n")
         report_file.write("'Follow the money' for: "+os.path.abspath(args.input_file)+"\n")
         report_file.write("Using the configuration file: "+os.path.abspath(args.config_file)+"\n")
         report_file.write("System options:"+"\n")
