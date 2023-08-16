@@ -62,17 +62,14 @@ def consolidate_txn_types(txn_types, joins):
             if txn_type in joins[join]: txn_types[i] = join
     return txn_types
 
-def bin_duration(duration,complete,upper=False,cutoffs=[]):
+def bin_duration(duration,bound=float("inf"),cutoffs=[]):
     '''
     bin the given duration by the given cutoffs
     '''
-    # Change from lower to upper bound where appropriate
-    if upper and not complete:
-        duration = float("inf")
     # Handle the cutoff points, or lack thereof
-    for start,end in zip([float("-inf")]+cutoffs,cutoffs+[float("inf")]):
+    for start,end in zip([float("-inf")]+cutoffs,cutoffs+[bound]):
         if start < duration <= end:
-            return "("+str(start)+","+str(end)+"]" if end<float("inf") else "("+str(start)+","+str(end)+")"
+            return "("+str(start)+","+str(end)+"]" if end<bound else "("+str(start)+","+str(end)+")"
     # If that fails
     return float("nan")
 
@@ -99,27 +96,41 @@ def finalize_summary(summary,split_bys,sets=[],flows=True):
         # retrieve the number of unique entry points, exit points, and users
         for set in sets:
             split_summary[set] = len(split_summary[set])
+        # normalize the weighted average durations
+        split_summary["avg_dur_f"] = split_summary["avg_dur_f"]/split_summary["flows"]
+        split_summary["avg_dur_a"] = split_summary["avg_dur_a"]/split_summary["amount"]
+        try:
+            split_summary["avg_dur_d"] = split_summary["avg_dur_d"]/split_summary["deposits"]
+        except:
+            split_summary["avg_dur_d"] = float("nan")
+        # normalize the fraction complete trajectories
+        split_summary["frc_cpl_f"] = split_summary["frc_cpl_f"]/split_summary["flows"]
+        split_summary["frc_cpl_a"] = split_summary["frc_cpl_a"]/split_summary["amount"]
+        try:
+            split_summary["frc_cpl_d"] = split_summary["frc_cpl_d"]/split_summary["deposits"]
+        except:
+            split_summary["frc_cpl_d"] = float("nan")
         # summarize the duration distribution, if there was one
-        if split_summary["durations"]:
-            split_summary["durations"].sort()
-            #flow_cumsum = list(cumsum([1 for x in split_summary["durations"]]))
-            #flow_mid = next(i for i,v in enumerate(flow_cumsum) if v >= flow_cumsum[-1]/2)
-            if flows:
-                flow_mid = math.ceil(len(split_summary["durations"])/2) - 1
-                split_summary["median_dur_f"] = split_summary["durations"][flow_mid][0]
-            amt_cumsum = list(cumsum([x[1] for x in split_summary["durations"]]))
-            amt_mid = next(i for i,v in enumerate(amt_cumsum) if v >= amt_cumsum[-1]/2)
-            split_summary["median_dur_a"] = split_summary["durations"][amt_mid][0]
-            nrm_cumsum = list(cumsum([x[2] for x in split_summary["durations"]]))
-            nrm_mid = next(i for i,v in enumerate(nrm_cumsum) if v >= nrm_cumsum[-1]/2)
-            split_summary["median_dur_d"] = split_summary["durations"][nrm_mid][0]
-        else:
-            if flows:
-                split_summary["median_dur_f"] = ""
-            split_summary["median_dur_a"] = ""
-            split_summary["median_dur_d"] = ""
+        #if split_summary["durations"]:
+        #    split_summary["durations"].sort()
+        #    #flow_cumsum = list(cumsum([1 for x in split_summary["durations"]]))
+        #    #flow_mid = next(i for i,v in enumerate(flow_cumsum) if v >= flow_cumsum[-1]/2)
+        #    if flows:
+        #        flow_mid = math.ceil(len(split_summary["durations"])/2) - 1
+        #        split_summary["median_dur_f"] = split_summary["durations"][flow_mid][0]
+        #    amt_cumsum = list(cumsum([x[1] for x in split_summary["durations"]]))
+        #    amt_mid = next(i for i,v in enumerate(amt_cumsum) if v >= amt_cumsum[-1]/2)
+        #    split_summary["median_dur_a"] = split_summary["durations"][amt_mid][0]
+        #    nrm_cumsum = list(cumsum([x[2] for x in split_summary["durations"]]))
+        #    nrm_mid = next(i for i,v in enumerate(nrm_cumsum) if v >= nrm_cumsum[-1]/2)
+        #    split_summary["median_dur_d"] = split_summary["durations"][nrm_mid][0]
+        #else:
+        #    if flows:
+        #        split_summary["median_dur_f"] = ""
+        #    split_summary["median_dur_a"] = ""
+        #    split_summary["median_dur_d"] = ""
         # relieve some memory pressure
-        del split_summary["durations"]
+        #del split_summary["durations"]
         # update this entry in the above dictionary
         summary[split] = split_summary
     return summary

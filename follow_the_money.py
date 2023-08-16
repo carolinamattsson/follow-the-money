@@ -26,12 +26,13 @@ if __name__ == '__main__':
     parser.add_argument('--prefix', default="", help='Prefix prepended to output files')
     parser.add_argument('--lifo', action="store_true", default=False, help='Track the using the "lifo" heuristic')
     parser.add_argument('--mixed', action="store_true", default=False, help='Track the using the "mixed" heuristic')
-    parser.add_argument('--none', action="store_true", default=False, help='Track the using the baseline "no-tracking" heuristic')
     parser.add_argument('--no_balance', action="store_true", default=False, help='Avoid inferring account balances at start. Do not use with --no_infer.')
     parser.add_argument('--no_infer', action="store_true", default=False, help='Avoid inferring unseen deposit and withdrawal transactions')
     parser.add_argument('--hr_cutoff', metavar='hours', type=float, default=None, help='Stop tracking funds after this number of hours in an account')
     parser.add_argument('--absolute', action="store_true", default=False, help='Use time cutoff from start of trajectory, rather than in an account')
     parser.add_argument('--smallest', metavar='value', type=float, default=0.01, help='Stop tracking funds with a value below this threshold')
+    parser.add_argument('--rounding', metavar='digits', type=int, default=6, help='Stop tracking funds with a value below this threshold')
+    parser.add_argument('--pairwise', action="store_true", default=False, help='Track only in --> out for all accounts, individually.')
 
     args = parser.parse_args()
 
@@ -80,17 +81,18 @@ if __name__ == '__main__':
 
     #################### OUTPUT ########################
     follow.update_report(report_filename,args)
+    ################# Type of output ###################
+    if not args.pairwise:
+        output_modifier = os.path.join(args.output_directory,args.prefix+file_modifier+"flows")
+    else:
+        output_modifier = os.path.join(args.output_directory,args.prefix+file_modifier+"pairs")
     ############### Alright, let's go! #################
     if args.lifo:
         follow.update_report(report_filename,args,heuristic='lifo')
-        output_filename = os.path.join(args.output_directory,args.prefix+file_modifier+"flows_lifo.csv")
-        follow.run(system,transaction_filename,output_filename,report_filename,'lifo',args.hr_cutoff,args.absolute,args.smallest,args.no_infer)
+        output_filename = output_modifier+"_lifo.csv"
+        follow.run(system,transaction_filename,output_filename,report_filename,'lifo',args.hr_cutoff,args.absolute,args.smallest,args.rounding,args.no_infer,pairwise=args.pairwise)
     if args.mixed:
         follow.update_report(report_filename,args,heuristic='mixed')
-        output_filename = os.path.join(args.output_directory,args.prefix+file_modifier+"flows_mixed.csv")
-        follow.run(system,transaction_filename,output_filename,report_filename,'mixed',args.hr_cutoff,args.absolute,args.smallest,args.no_infer)
-    if args.none:
-        follow.update_report(report_filename,args,heuristic='none')
-        output_filename = os.path.join(args.output_directory,args.prefix+file_modifier+"flows_none.csv")
-        follow.run(system,transaction_filename,output_filename,report_filename,'none',args.hr_cutoff,args.absolute,args.smallest,args.no_infer)
+        output_filename = output_modifier+"_mixed.csv"
+        follow.run(system,transaction_filename,output_filename,report_filename,'mixed',args.hr_cutoff,args.absolute,args.smallest,args.rounding,args.no_infer,pairwise=args.pairwise)
     ####################################################

@@ -1,0 +1,46 @@
+Time cutoffs
+
+--hr_cutoff HRS 
+
+This option serves to limit the *duration* for which flows are tracked. A
+flow will become "untracked" after HRS hours and the duration HRS will be 
+noted as the final duration for that flow. If these funds are used later, 
+they will begin new flows starting from "existing" funds. These categories
+are important to note for downstream analysis in that the largest possible
+duration will now be HRS and many will be from flows hitting the cutoff.  
+
+--hr_cutoff HRS --absolute
+
+This option also serves to limit the duration for which flows are tracked,
+except they count HRS from the initial transaction of the flow. This is 
+useful in cases where the timewindow should be absolute from deposits.
+
+`account_txns.csv` 
+
+  Here we use a cutoff of 72 hours.
+
+  This example takes the perspective of a single account, so you'll see 
+  that there is no difference between the regular and --absolute option.
+  Compared to Example #1, there are two LIFO flows with a duration at 
+  account XYZ that is greater than 72hrs. Here these two flows are left
+  untracked after precisely 72.0 hours and the funds are pooled together
+  with any other untracked funds. These are now considered existing funds
+  within that account and these start new flows when they are allocated 
+  to a transaction; knock-on effects differ per the allocation heuristic.
+
+`network_txns.csv`
+
+  --hr_cutoff 48
+
+  We are considering the same set of transactions as in Example #1, and so 
+  we can see there are two flows with durations longer than 48 hours at any
+  particular account. Namely, at accounts AAA and EEE ahead of transactions 
+  10 and 11. Under the `--hr_cutoff 48` option only, the two flows become 
+  untracked after precisely 48.0 hours in these accounts. Note that the last
+  duration in the sequence of durations ("acct_durs") is HRS for these flows.
+  
+  --hr_cutoff 48 --absolute
+  
+  With also the `--absolute` option, the *total* duration of the two flows
+  are limited to 48.0 hours. There are substantially more of these. Note that
+  now the total duration ("trj_dur") is HRS for these flows.

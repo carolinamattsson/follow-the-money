@@ -167,9 +167,9 @@ class Account(dict):
             self.categs.add(self.system.acct_categs[txn_type][src_tgt])
     def has_balance(self):
         return self.balance is not None
-    def track(self, Tracker_class, init=False):
+    def track(self, Tracker_class):
         self.tracked = True
-        self.tracker = Tracker_class(self,init)
+        self.tracker = Tracker_class(self)
     def has_tracker(self):
         return self.tracker is not None
 
@@ -326,7 +326,8 @@ def discover_account_categories(src,tgt,amt,basics=None,txn_type=None):
 
 def start_report(report_filename,args,config_data):
     import os
-    with open(report_filename,'w') as report_file:
+    with open(report_filename,'a') as report_file:
+        report_file.write("\n"+"====================================================================="+"\n")
         report_file.write("'Follow the money' for: "+os.path.abspath(args.input_file)+"\n")
         report_file.write("Using the configuration file: "+os.path.abspath(args.config_file)+"\n")
         report_file.write("System options:"+"\n")

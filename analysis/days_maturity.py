@@ -6,7 +6,7 @@ import days_utils as util
 
 ###########################################################################################
 # Define the function that opens the files, runs aggregating functions, and writes the results
-def maturity_by_timeslice(wflow_filename,maturity_filename,timeslice='day',subsets={},processes=1,premade=False):
+def maturity_by_timeslice(wflow_filename,maturity_filename,timeslice='day',subsets={},agents={},processes=1,premade=False):
     from multiprocessing import Pool
     from collections import defaultdict
     from collections import Counter
@@ -40,7 +40,7 @@ def maturity_by_timeslice(wflow_filename,maturity_filename,timeslice='day',subse
     for subset in subsets:
         subset_filename = maturity_filename+'_'+subset+'.csv'
         with open(subset_filename, 'w') as maturity_file:
-            write_timeslice_file(maturity_file, system_maturity, subset = subset)
+            write_maturity_file(maturity_file, system_maturity, subset = subset)
 
 ###########################################################################################
 # Define the (parallel) function that loads the file, the subsets, and runs the maturity computations
@@ -51,6 +51,7 @@ def timeslice_maturity(timeslice_tuple):
     # Note globally accessible variables: issues_file, issues_writer
     get_timeslice, timeslice, filename, subsets = timeslice_tuple
     # Load the subsets
+    agents = {} # <<<< TODO implement also this
     subsets = util.load_subsets(subsets)
     # Get the timeslice
     flows = util.load_time_slice(filename)
@@ -68,7 +69,7 @@ def timeslice_maturity(timeslice_tuple):
             # Parse the lists of numbers that define the flow
             flow = util.parse(flow,get_timeslice)
             # Sum up the contribution of this flow to system-wide measures and totals
-            maturity = update_system_maturity(maturity,flow,subsets)
+            maturity = update_system_maturity(maturity,flow,subsets,agents)
         except:
             issues_writer.writerow(['could not calculate measures:',flow['flow_txn_IDs'],traceback.format_exc()])
             issues_file.flush()
@@ -84,7 +85,7 @@ def timeslice_maturity(timeslice_tuple):
     # Return!
     return timeslice, maturity
 
-def update_system_maturity(maturity,flow,subsets):
+def update_system_maturity(maturity,flow,subsets,agents):
     '''
     '''
     # Establish the kind of flow we're dealing with
@@ -96,10 +97,12 @@ def update_system_maturity(maturity,flow,subsets):
     # Determine the entry details for this flow
     if enter_categ == 'deposit':
         entry_ID  = flow['flow_acct_IDs'][0]
+        deposit_subsets = [subset for subset in agents if entry_ID in agents[subset]['set']]
         entry_amt = flow['flow_amts'][0]+flow['flow_revs'][0]
         entry_dep = flow['flow_txns'][0]
     else:
-        entry_ID  = None
+        user_ID   = flow['flow_acct_IDs'][0]
+        savings_subsets = [subset for subset in subsets if user_ID in subsets[subset]['set']]
         entry_amt = flow['flow_amts'][0]+flow['flow_revs'][0]
         entry_txn = flow['flow_txns'][0]
         flow['flow_txn_types'] = ['SAVINGS']+flow['flow_txn_types']
@@ -119,15 +122,10 @@ def update_system_maturity(maturity,flow,subsets):
     # Find the contribution of this flow to system measures
     TUE = sum([1.0*amt for amt in flow['flow_amts'][1:]])
     DUE = sum([dur*amt for dur,amt in zip(flow['flow_durs'],flow['flow_amts'])])
-    # Add the contribution to the total
-    for subset in ['ALL']+[subset for subset in subsets]:
-        # Skip if this entry_ID is not in the relevant subset
-        if subset != 'ALL' and entry_ID not in subsets[subset]['set']:
-            continue
-        # Initialize the relevant dictionary
-        maturity[subset].setdefault(exit_type,{'obs_amt':0,'obs_dep':0,'obs_svg':0,'obs_txn':0,'obs_ext':0})
-        # Total observations & measures
-        if enter_categ == 'deposit':
+    # Total up observations & measures
+    if enter_categ == 'deposit':
+        for subset in ['ALL']+deposit_subsets:
+            maturity[subset].setdefault(exit_type,{'obs_amt':0,'obs_dep':0,'obs_svg':0,'obs_txn':0,'obs_ext':0})
             maturity[subset]['TOTAL']['obs_amt']   += entry_amt
             maturity[subset][exit_type]['obs_amt'] += exit_amt
             maturity[subset]['REVENUE']['obs_amt'] += exit_rev
@@ -139,7 +137,9 @@ def update_system_maturity(maturity,flow,subsets):
             maturity[subset]['REVENUE']['obs_dep'] += exit_rev*norm
             maturity[subset]['TOTAL']['TUE_dep']   += TUE*norm
             maturity[subset]['TOTAL']['DUE_dep']   += DUE*norm
-        else:
+    else:
+        for subset in ['ALL']+savings_subsets:
+            maturity[subset].setdefault(exit_type,{'obs_amt':0,'obs_dep':0,'obs_svg':0,'obs_txn':0,'obs_ext':0})
             maturity[subset]['TOTAL']['obs_svg']   += entry_amt
             maturity[subset][exit_type]['obs_svg'] += exit_amt
             maturity[subset]['REVENUE']['obs_svg'] += exit_rev
@@ -197,8 +197,10 @@ if __name__ == '__main__':
     parser.add_argument('input_file', help='The input weighted flow file (created by follow_the_money.py)')
     parser.add_argument('output_directory', help='Path to the output directory')
     parser.add_argument('--timeslice', default='day', help='What time segmentation to use: "month","day","hour".')
-    parser.add_argument('--subset_file', action='append', default=[], help='File with a set of subsets of "entry" points (ex. agents) to aggregate over.')
+    parser.add_argument('--subset_file', action='append', default=[], help='File with a set of subsets of users to aggregate over (ie. for savings).')
     parser.add_argument('--subset_name', action='append', default=[], help='Name of this subset, used as file extension.')
+    parser.add_argument('--agents_file', action='append', default=[], help='File with a set of subsets of "entry" points (ex. agents) to aggregate over (ie. for deposits).')
+    parser.add_argument('--agents_name', action='append', default=[], help='Name of this subset, used as file extension.')
     parser.add_argument('--prefix', default="", help='Overwrite the default prefix prepended to output files')
     parser.add_argument('--processes', default=1, help='Integer number of parallel processes to use.')
     parser.add_argument('--premade', action="store_true", default=False, help='Use premade directory of wflow files by timeslice.')
@@ -217,6 +219,7 @@ if __name__ == '__main__':
     if not args.prefix: args.prefix = os.path.basename(args.input_file).replace("wflows_","").split(".csv")[0]+"_"
 
     subset_filenames    = []
+    agents_filenames    = []
     maturity_filename = os.path.join(args.output_directory,args.prefix+args.timeslice+"s_maturity")
 
     if len(args.subset_file) == len(args.subset_name):
@@ -227,11 +230,19 @@ if __name__ == '__main__':
         if not os.path.isfile(subsets[subset]['filename']):
             raise OSError("Could not find the subset file.",subsets[subset]['filename'])
 
+    if len(args.agents_file) == len(args.agents_name):
+        agents = {agents[0]:{'filename':agents[1],'set':set()} for agents in zip(args.agents_name,args.agents_file)}
+    else:
+        raise IndexError("Please provide a name for each agents file:",args.agents_file,args.agents_name)
+    for agents in agents:
+        if not os.path.isfile(agents[agents]['filename']):
+            raise OSError("Could not find the agents file.",agents[agents]['filename'])
+
     if args.timeslice not in ["month","day","hour"]:
         raise ValueError("Please use 'month','day', or 'hour' as the time slicing interval.",args.timeslice)
 
     args.processes = int(args.processes)
 
     ######### Creates weighted flow file #################
-    maturity_by_timeslice(args.input_file,maturity_filename,timeslice=args.timeslice,subsets=subsets,processes=args.processes,premade=args.premade)
+    maturity_by_timeslice(args.input_file,maturity_filename,timeslice=args.timeslice,subsets=subsets,agents=agents,processes=args.processes,premade=args.premade)
     #################################################

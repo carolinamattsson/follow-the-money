@@ -1,0 +1,31 @@
+Pairwise
+
+-- pairwise
+
+This option outputs *partial* flows into and out of every account along 
+the way of the flows generated using the standard algorithm. This is meant
+to make it simple to extract all the relevant durations. 
+
+`account_txns.csv`
+
+  This example takes the perspective of a single account, so you'll see 
+  that there is actually no difference between the output with and without
+  the --pairwise option. Neither for --lifo nor for --mixed.
+
+`network_txns.csv`
+
+  This example involves a network of accounts, so the --pairwise option
+  results in very different output. It is as if we are taking each account
+  separately, so we end up recording twice each transaction that would 
+  just be extending flows under the base functionality. The durations,
+  however, as they correspond to pairs, are recorded only once.
+  
+  Specifically for the case where boundaries are defined by transactions, 
+  as in this example, the double-recorded transactions are those of a type 
+  mapped to "transfer" in the configuration file. Nothing changes for the 
+  transactions of types mapped to "deposit" or "withdraw".  
+
+  It should be noted that size limits, time windows, known balances, 
+  provider fees, system boundaries, inconsistencies, and time cutoffs 
+  all operate in the same way as without --pairwise. Invoking this 
+  option is *not* the same as making other drastic adjustments.
