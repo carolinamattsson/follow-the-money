@@ -1,0 +1,3 @@
+account,subcateg,submotif,delta_t,txn_pairs,txns_in,amount,fees,accts,median_dur_a,median_dur_d
+XYZ,deposit~withdraw,cash-in~mobile-minutes,'(0,inf)',9,3.0999999999999996,80.0,0.0,1,32.0,32.0
+XYZ,deposit~withdraw,cash-in~bill-payment,'(0,inf)',1,0.9,180.0,0.0,1,2.0,2.0
