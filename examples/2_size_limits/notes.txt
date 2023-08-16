@@ -1,6 +1,6 @@
 Size limits on tracing flows
 
-`--smallest value`
+`--smallest AMT`
 
   This flag lets you give a value below which you don't care to track funds any
   further. This example demonstrates this option and lays out what it means.
@@ -20,18 +20,27 @@ Size limits on tracing flows
   Still not a problem! Just as in the last-in-first-out we still want account
   `XYZ` to keep track of the $5 in funds from `10000021`. However, when it comes
   time to pay transaction `10000025`, a large `bill-payment`. Our account pulls
-  the same fraction of funds from both `cash-ins`, leaving only $0.61 in funds
-  from `10000021`. Since we don't wish to track such small sums any further, the
-  program outputs a flow that ends as "untracked" money within account `XYZ`.
+  the same fraction of funds from both `cash-ins`, which would mean pulling
+  $4.39 from `10000021` to pay `10000025` and leaving only $0.61 in funds from 
+  `10000021` remaining in account `XZY`. Now, since we don't wish to track sums 
+  smaller than $5 these are both too small (but in different ways!). The program 
+  first outputs a "cut" flow that we know stayed in account `XYZ` for precisely
+  31.0 hours before we chose not to track those funds anymore. You'll see that
+  transaction `10000025` is only partially tracked at all. There is $4.39 out of
+  $180 that does not appear in the output file at all; we are truly not tracking
+  what happens with these funds as they are below the `--smallest AMT`. The 
+  program also outputs a flow that notes the $0.61 remaining as "untracked" money 
+  within account `XYZ` after *at least* 31.0 hours. These 
 
-  Similarly, transaction `10000027` leaves less than $5 worth of the latest
-  deposit (`10000024`) in the account. So this flow also ends as "untracked"
-  money within account `XYZ`.
+  Transaction `10000027` pulls $9.76 from the latest deposit (`10000024`), so 
+  this is still tracked. However, it then leaves less than $5 worth of deposit 
+  `10000024` in the account so this flow also ends as "untracked" money 
+  within account `XYZ`. This is pooled with the funds from `10000021`.
 
   When it comes time for `XYZ` to fill the last transaction, a $5 payment for
   `mobile minutes`, there are no tracked funds left in the account at all. Since
   this is above the size limit, the system starts to track those funds again.
-  This flow begins as "untracked" money within account `XYZ` is withdrawn.
+  This flow begins as "existing" money within account `XYZ` and is withdrawn.
 
   Hopefully, it is clear what this flag is useful for. It prevents the program
   from creating many many increasingly tiny flows, which could happen fairly

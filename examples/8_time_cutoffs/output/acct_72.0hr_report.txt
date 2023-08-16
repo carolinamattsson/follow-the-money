@@ -15,3 +15,22 @@ Tracking options:
 Running:
     Weighted flows with 'lifo' heuristic saved with extension: flows_lifo.csv
     Weighted flows with 'mixed' heuristic saved with extension: flows_mixed.csv
+
+=====================================================================
+'Follow the money' for: /Users/carolina/Developer/GitHub/follow-the-money/examples/8_time_cutoffs/account_txns.csv
+Using the configuration file: /Users/carolina/Developer/GitHub/follow-the-money/examples/8_time_cutoffs/account_config.json
+System options:
+    Using the 'sender pay(s)' convention for fee/revenue.
+    Using 'transactions' as the network boundary definition.
+Initializing:
+    Inferring account balances at start, when unknown...
+
+Output is going here:/Users/carolina/Developer/GitHub/follow-the-money/examples/8_time_cutoffs/output/acct_
+Tracking options:
+    Untracked transaction recorded with extension: untracked.csv
+    Inferred transaction recorded with extension: inferred.csv
+    Stop tracking funds after 72.0 hours in an account.
+    Stop tracking funds below 0.01 in value.
+Running:
+    Weighted trajectories under 'lifo' heuristic saved with extension: flows_lifo.csv
+    Weighted trajectories under 'mixed' heuristic saved with extension: flows_mixed.csv
