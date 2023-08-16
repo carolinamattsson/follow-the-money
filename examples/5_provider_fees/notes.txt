@@ -1,0 +1,62 @@
+Known account balances
+{
+"transaction_header": [...,"fee"],
+"fee/revenue": "sender" OR "recipient",
+}
+
+  This part of the configuration file lets you tell the program that there is a
+  column in the data that reports transaction fees. This is vitally important 
+  because fees dramatically affect the tracing of money flows. Transaction fees 
+  reduce the amount of money being tracked at every step, and this is accounted 
+  for within the code at its very deepest level (extending branches).
+
+  Note that providers might record the fee as paid by either the "sender" or the 
+  "recipient" of the transactions; the former convention is more common. The key
+  difference is whether the reported transaction amount does or does not include
+  the fee amount. When the "sender" pays, "amt"+"fee" leaves their account while 
+  "amt" reaches the recipient. When the "recipient" pays, the "amt" leaves their 
+  account while only "amt"-"fee" reaches the recipient.
+
+  Within the code, this is mapped onto to an amount sent and an amount received.
+
+`account_txns_fees.csv`
+
+  This is the same set of transactions as that in Example #1, except it includes
+  a transaction fee for a single transaction:
+
+  2019-08-28 14:00:00,bill-payment,10000025,XYZ,utility,160,20
+
+  This does not affect `fees_flows_lifo.csv` very much. The flows are the same as
+  those from Example #1 except that a smaller share of flow [10000024,10000025] 
+  reaches the utility provider. The "txn_amts" column gives the amount that 
+  continues with the flow at each step (in this case: [180.0,160.0]) and the 
+  "txn_fees" column gives the fees paid at each step (in this case: [0.0,20.0]). 
+  Note that the former ends up (reverse) cumulative while the latter does not.
+ 
+  This also does not affect `fees_flows_mixing.csv` very much. Again the flows
+  are the same as those from Example #1 except that a smaller share of them 
+  are reaching the utility provider. Now, however, you can see that the fee
+  ends up split proportionally across several flows.
+
+`network_txns_fees.csv`
+
+  This is the same transaction data as in Example #1, except it includes
+  a transaction fee for many of the transactions. This time the example is 
+  structured so that the flows start off larger and eventually become what
+  they were in Example #1. This is to illustrate how fees remove money.
+
+  Note again that fees are noted in the "txn_fees" column, each of which lead
+  to a step down in the amount that continues with the flow ("txn_amts).
+
+Uncommon options:
+
+{
+"transaction_header": [...,"src_fee","tgt_fee"],
+"fee/revenue": "split",
+}
+
+  It may be the case that the provider charges fees from both the sender and
+  the recipient. This can be noted using the "split" option and an explicit
+  designation of which column reports the fees charged to the sender ("src_fee",
+  i.e. separate from the reported amount) and which column reports the fees
+  charged to the recipient ("tgt_fee, i.e. taken from the amount).

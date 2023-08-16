@@ -205,7 +205,7 @@ class Tracker(list):
     def start_tracking(cls,this_txn,extended):
         # Fill in with a new branch if we aren't tracking enough
         amt_tracked = sum(branch.amt for branch in extended)
-        amt_existing = this_txn.amt_sent-amt_tracked
+        amt_existing = this_txn.amt_rcvd-amt_tracked
         if amt_existing >= cls.size_limit:
             new_branch = [Branch(None,this_txn,amt_existing)]
         else:

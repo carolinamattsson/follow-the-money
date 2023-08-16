@@ -1,0 +1,7 @@
+motif,flows,amount,deposits,entrys,exits,users,median_dur_f,median_dur_a,median_dur_d
+check_deposit~bill_payment,1,3600.0,0.8674698795180723,1,1,1,0.1,0.1,0.1
+direct_deposit~p2p_transfer~cash_withdraw,1,550.0,1.0,1,1,2,24.983333333333334,24.983333333333334,24.983333333333334
+cash_deposit~p2p_transfer~cash_withdraw,1,1200.0,0.5,1,1,2,49.483333333333334,49.483333333333334,49.483333333333334
+cash_deposit~p2p_transfer~card_payment,1,110.0,0.04583333333333333,1,1,2,49.95,49.95,49.95
+check_deposit~cash_withdraw,1,550.0,0.13253012048192772,1,1,1,50.31666666666667,50.31666666666667,50.31666666666667
+cash_deposit~p2p_transfer~bill_payment,1,1080.0,0.45,1,1,2,74.45,74.45,74.45
