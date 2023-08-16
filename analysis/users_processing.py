@@ -6,7 +6,7 @@ import math
 # Define various utility functions
 def with_month(wflows):
     for wflow in wflows:
-        month_ID = "-".join(wflow['root_timestamp'].split("-")[:-1])
+        month_ID = "-".join(wflow['flow_timestamp'].split("-")[:-1])
         yield month_ID, wflow
 
 def parse(wflow):
@@ -256,7 +256,7 @@ if __name__ == '__main__':
         raise ValueError("Please do not duplicate joined transaction types:",args.join)
 
     if 'inferred' in all_joins_list and not args.infer:
-        raise ValueError("The transaction type 'inferred' cannot be changed, unless the --infer flag is also used:",args.join,args.infer)
+        raise ValueError("The transaction type 'inferred' cannot be changed unless the --infer flag is also used:",args.join,args.infer)
 
     args.cutoff = sorted([int(cutoff) for cutoff in args.cutoff])
 

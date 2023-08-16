@@ -61,10 +61,11 @@ def balance_by_timeslice(wflow_filename,balance_filename,timeslice='day',subsets
         with open(subset_filename+'.csv', 'w') as balance_file:
             write_balance_file(balance_file, timeslices, system_balance, subset = subset)
         if interevent:
-            with open(subset_filename+'_iets_amt.csv', 'w') as amt_file, \
-                 open(subset_filename+'_iets_dep.csv', 'w') as dep_file, \
-                 open(subset_filename+'_iets_txn.csv', 'w') as txn_file:
-                write_interevents_files(system_interevents, amt_file, dep_file, txn_file, subset = subset)
+            iets_filename = subset_filename.replace("balance","iets")
+            with open(iets_filename+'_amt.csv', 'w') as amt_file, \
+                 open(iets_filename+'_dep.csv', 'w') as dep_file, \
+                 open(iets_filename+'_txn.csv', 'w') as txn_file:
+                write_interevents_files((amt_file, dep_file, txn_file), timeslices, system_interevents, subset = subset)
 
 ###########################################################################################
 # Define the (parallel) function that loads the file, the subsets, and runs the maturity computations
@@ -112,10 +113,13 @@ def update_interevents(interevents,flow,subsets):
     # Establish the kind of flow we're dealing with
     enter_categ, exit_categ = flow['flow_categs']
     enter_amt = flow['flow_amts'][0]+flow['flow_revs'][0]
+    # If this flow began before the data was collected, move on
+    if enter_categ == 'deposit' and flow['flow_txn_types'][0] == 'inferred':
+        return interevents
     # Get the durations, binned by hour
     for timeslice, dur, amt, txn, user_ID in zip(flow['timeslices'],flow['flow_durs'],flow['flow_amts'],flow['flow_txns'],flow['flow_acct_IDs'][1:]):
-        dur = math.ceil(dur)
-        for subset in ['ALL']+[subset for subset in subsets if user_ID in subsets[subset]]:
+        dur = int(math.ceil(dur))
+        for subset in ['ALL']+[subset for subset in subsets if user_ID in subsets[subset]['set']]:
             interevents[subset]['amt'][timeslice][dur] += amt
             interevents[subset]['txn'][timeslice][dur] += txn
             if enter_categ == 'deposit':
@@ -135,19 +139,19 @@ def update_balance(balance,flow,subsets):
     # Note the balance changes along flow
     for amount, revenue, timeslice, src_ID, tgt_ID in zip(flow['flow_amts'],flow['flow_revs'],timeslices,flow['flow_acct_IDs'],flow['flow_acct_IDs'][1:]):
         balance['ALL']['tracked_dec'][timeslice] -= revenue
-        for subset in [subset for subset in subsets if src_ID in subsets[subset]]:
+        for subset in [subset for subset in subsets if src_ID in subsets[subset]['set']]:
             balance[subset]['tracked_dec'][timeslice] -= amount
             balance[subset]['tracked_dec'][timeslice] -= revenue
-        for subset in [subset for subset in subsets if tgt_ID in subsets[subset]]:
+        for subset in [subset for subset in subsets if tgt_ID in subsets[subset]['set']]:
             balance[subset]['tracked_inc'][timeslice] += amount
     # Note the balance change at end
     balance['ALL']['tracked_dec'][timeslices[-1]] -= flow['flow_amts'][-1]
     # Note the contribution to the savings balance change
     if enter_categ != 'deposit':
-        for subset in ['ALL']+[subset for subset in subsets if flow['flow_acct_IDs'][0] in subsets[subset]]:
+        for subset in ['ALL']+[subset for subset in subsets if flow['flow_acct_IDs'][0] in subsets[subset]['set']]:
             balance[subset]['savings_dec'][timeslices[0]] -= flow['flow_amts'][0]+flow['flow_revs'][0]
     if exit_categ == 'savings':
-        for subset in ['ALL']+[subset for subset in subsets if flow['flow_acct_IDs'][-1] in subsets[subset]]:
+        for subset in ['ALL']+[subset for subset in subsets if flow['flow_acct_IDs'][-1] in subsets[subset]['set']]:
             balance[subset]['savings_inc'][timeslices[-1]] += flow['flow_amts'][-1]
     # Return the updated dictionary of net change in balance over that day
     return balance
@@ -163,23 +167,24 @@ def gen_absolute_balance(system_balance):
                             )
     # Define the time slice balance summary -- timeslice_summary[SUBSET][BAL_TYPE][TIMESLICE]
     timeslice = timeslices[0]
-    system_balance['ALL']['savings_bal'] = {timeslice:0}
     for subset in system_balance.keys():
         system_balance[subset]['tracked_bal'] = {timeslice:0}
-    for prev, timeslice in zip(timeslices[:-1], timeslices[1:]):
-        net_balance_change = (system_balance['ALL']['savings_inc'][timeslice] if timeslice in system_balance['ALL']['savings_inc'] else 0) + \
-                             (system_balance['ALL']['savings_dec'][timeslice] if timeslice in system_balance['ALL']['savings_dec'] else 0)
-        system_balance['ALL']['savings_bal'][timeslice] = system_balance['ALL']['savings_bal'][prev] + net_balance_change
+        system_balance[subset]['savings_bal'] = {timeslice:0}
     for subset in system_balance:
         for prev, timeslice in zip(timeslices[:-1], timeslices[1:]):
             net_balance_change = (system_balance[subset]['tracked_inc'][timeslice] if timeslice in system_balance[subset]['tracked_inc'] else 0) + \
                                  (system_balance[subset]['tracked_dec'][timeslice] if timeslice in system_balance[subset]['tracked_dec'] else 0)
             system_balance[subset]['tracked_bal'][timeslice] = system_balance[subset]['tracked_bal'][prev] + net_balance_change
+        for prev, timeslice in zip(timeslices[:-1], timeslices[1:]):
+            net_balance_change = (system_balance['ALL']['savings_inc'][timeslice] if timeslice in system_balance[subset]['savings_inc'] else 0) + \
+                                 (system_balance['ALL']['savings_dec'][timeslice] if timeslice in system_balance[subset]['savings_dec'] else 0)
+            system_balance[subset]['savings_bal'][timeslice] = system_balance[subset]['savings_bal'][prev] + net_balance_change
     return timeslices, system_balance
 
 ###########################################################################################
 # Define the function that writes the dictionary of maturity computations to output files
 def write_balance_file(output_file, timeslices, system_balance, subset = 'ALL'):
+    import traceback
     # Create the header
     header = ['timeslice']+['tracked_bal','tracked_inc','tracked_dec','savings_bal','savings_inc','savings_dec']
     # Now write the files
