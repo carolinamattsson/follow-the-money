@@ -1,12 +1,11 @@
 {
-  "transaction_header": ["timestamp","type","txn_ID","src_ID","tgt_ID","amt","fee"],
+  "transaction_header": ["timestamp","type","txn_ID","src_ID","tgt_ID","amt"],
   "delimiter": ",",
   "quotechar": "\"",
   "escapechar": "%",
   "timeformat": "%Y-%m-%d %H:%M:%S",
   "timewindow_beg": "2019-08-18 00:00:01",
   "timewindow_end": "2019-09-01 00:00:00",
-  "fee/revenue": "sender",
   "boundary_type": "transactions",
   "transaction_categories":{
     "cash-in":"deposit",

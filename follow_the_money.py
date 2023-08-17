@@ -31,7 +31,7 @@ if __name__ == '__main__':
     parser.add_argument('--hr_cutoff', metavar='hours', type=float, default=None, help='Stop tracking funds after this number of hours in an account')
     parser.add_argument('--absolute', action="store_true", default=False, help='Use time cutoff from start of trajectory, rather than in an account')
     parser.add_argument('--smallest', metavar='value', type=float, default=0.01, help='Stop tracking funds with a value below this threshold')
-    parser.add_argument('--rounding', metavar='digits', type=int, default=6, help='Stop tracking funds with a value below this threshold')
+    parser.add_argument('--rounding', metavar='digits', type=int, default=6, help='Compute balances to this precision.')
     parser.add_argument('--pairwise', action="store_true", default=False, help='Track only in --> out for all accounts, individually.')
 
     args = parser.parse_args()
@@ -47,9 +47,9 @@ if __name__ == '__main__':
 
     ################## MODIFIER ######################
     file_modifier = ""
+    if args.hr_cutoff:  file_modifier = str(args.hr_cutoff)+"hr_"+file_modifier if not args.absolute else str(args.hr_cutoff)+"hr_abs_"+file_modifier
     if args.no_balance: file_modifier = "nbal_"+file_modifier
     if args.no_infer:   file_modifier = "ninf_"+file_modifier
-    if args.hr_cutoff:  file_modifier = str(args.hr_cutoff)+"hr_"+file_modifier if not args.absolute else str(args.hr_cutoff)+"hr_abs_"+file_modifier
     ####################################################
 
     ##################### INPUT ########################

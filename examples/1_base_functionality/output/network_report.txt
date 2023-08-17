@@ -3,7 +3,6 @@
 'Follow the money' for: /Users/carolina/Developer/GitHub/follow-the-money/examples/1_base_functionality/network_txns.csv
 Using the configuration file: /Users/carolina/Developer/GitHub/follow-the-money/examples/1_base_functionality/network_config.json
 System options:
-    Using the 'sender pay(s)' convention for fee/revenue.
     Using 'transactions' as the network boundary definition.
 Initializing:
     Inferring account balances at start, when unknown...

@@ -1,9 +1,8 @@
 {
-  "transaction_header": ["txn_ID","src_ID","tgt_ID","timestamp","type","amt","fee"],
+  "transaction_header": ["txn_ID","src_ID","tgt_ID","timestamp","type","amt"],
   "timeformat": "%Y-%m-%d %H:%M:%S",
   "timewindow_beg": "2017-03-01 00:00:00",
   "timewindow_end": "2017-03-04 03:00:00",
-  "fee/revenue": "sender",
   "boundary_type": "transactions",
   "transaction_categories":{
     "check_deposit":"deposit",
