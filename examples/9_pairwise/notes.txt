@@ -2,7 +2,7 @@ Pairwise
 
 -- pairwise
 
-This option outputs *partial* flows into and out of every account along 
+This option outputs *pairwise* flows into and out of every account along 
 the way of the flows generated using the standard algorithm. This is meant
 to make it simple to extract all the relevant durations. 
 

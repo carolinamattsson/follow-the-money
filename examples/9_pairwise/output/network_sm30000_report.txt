@@ -1,0 +1,16 @@
+
+=====================================================================
+'Follow the money' for: /Users/carolina/Developer/GitHub/follow-the-money/examples/9_pairwise/network_txns.csv
+Using the configuration file: /Users/carolina/Developer/GitHub/follow-the-money/examples/9_pairwise/network_config.json
+System options:
+    Using 'transactions' as the network boundary definition.
+Initializing:
+    Inferring account balances at start, when unknown...
+
+Output is going here:/Users/carolina/Developer/GitHub/follow-the-money/examples/9_pairwise/output/network_sm30000_
+Tracking options:
+    Untracked transaction recorded with extension: untracked.csv
+    Inferred transaction recorded with extension: inferred.csv
+    Stop tracking funds below 300.0 in value.
+Running:
+    Pairwise allocation under 'mixed' heuristic saved with extension: pairs_mixed.csv

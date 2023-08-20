@@ -71,7 +71,7 @@ class Flow:
         self.txn_IDs   = [branch.txn.txn_ID]
         self.txn_types = [branch.txn.type]
         self.acct_IDs  = [branch.txn.src.acct_ID if branch.txn.src is not None else branch.txn.src_ID,branch.txn.tgt.acct_ID if branch.txn.tgt is not None else branch.txn.tgt_ID]
-        self.beg_categ = branch.txn.categ if branch.txn.categ == 'deposit' else 'existing'
+        self.beg_categ = branch.txn.categ if branch.txn.categ != 'withdraw' else 'existing'
         self.end_categ = branch.txn.categ
         self.duration  = None
         self.durations = []

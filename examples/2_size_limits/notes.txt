@@ -2,14 +2,26 @@ Size limits on tracing flows
 
 `--smallest AMT`
 
-  This flag lets you give a value below which you don't care to track funds any
-  further. This example demonstrates this option and lays out what it means.
+This flag lets you give a value below which you don't care to track funds any
+further. This example demonstrates this option and lays out what it means.
+
+Hopefully, it is clear what this flag is useful for. It prevents the program
+from creating many many increasingly tiny flows, which could happen fairly
+quickly under the mixing heuristic. Money that becomes "untracked" is still
+accounted for within the output file, and if there is an occasion to re-track
+funds then the program will go for it. These partial flows are marked using
+using the "trj_categs" column so that they can be filtered out if desired.
+
+
+`account_sm500_flows_lifo.csv`
 
   Let's first compare the last-in-first-out output files with and without the
-  --smallest flag. That's `account_flows_lifo.csv` from the previous example
-  with `size_flows_lifo.csv` from this example. They are the same!!! This is
+  `--smallest 5` flag. That's comparing `account_flows_lifo.csv` from the 
+  Example #1 with `account_sm500_flows_lifo.csv`. They are the same!!! This is
   because we put our size limit at $5 and there is no point at which any one of
   the accounts is holding onto a portion of a transaction smaller than that.
+
+`account_sm500_flows_lifo.csv`
 
   Now let's do the same for the mixing heuristic. These files are identical up
   until the third of the three transaction sequences (starting with `10000021`),
@@ -40,16 +52,33 @@ Size limits on tracing flows
   When it comes time for `XYZ` to fill the last transaction, a $5 payment for
   `mobile minutes`, there are no tracked funds left in the account at all. Since
   this is above the size limit, the system starts to track those funds again.
-  This flow begins as "existing" money within account `XYZ` and is withdrawn.
+  This flow is a stub, noting that "existing" money within account `XYZ` was 
+  withdrawn at this particular point in time. It has no duration and flows with
+  this category "(existing,withdraw)" should generally be filtered out.
 
-  Hopefully, it is clear what this flag is useful for. It prevents the program
-  from creating many many increasingly tiny flows, which could happen fairly
-  quickly under the mixing heuristic. Money that becomes "untracked" is still
-  accounted for within the output file, and if there is an occasion to re-track
-  funds then the program will go for it. These partial flows are clearly marked
-  using the "flow_categs" column so that they can be filtered out if desired.
+  Note how these different cases are labeled in the "trj_categ" column. This is
+  what is used in subsequent analysis for filtering out irrelevant flows. 
 
-  Note that it's probably best to keep the size limit above that of the smallest
-  transactions in the dataset. Not that the code wouldn't run just fine -- it
-  would follow those transactions themselves and stop tracking ahead of any
-  subsequent transactions. But it makes the flag harder to interpret.
+`network_sm30000_flows_lifo.csv`
+
+  This output file makes it possible to see what happens when the size limit
+  goes above that of the smallest transaction in the dataset. The code runs 
+  just fine, but it makes things a bit tricky to interpret. The code will 
+  note the too-small transaction, but then "cut" the flow ahead of any 
+  subsequent transactions. Now, I've also added a small deposit to the original
+  network transaction file. Since it is smaller than the size limit, it does not 
+  show up in the output file at all. Nor does the inferred withdraw that brings
+  the balance of account XYZ down to zero again, because this is also too small.
+
+  TODO: make this true by changing "cut" to "transfer"
+  TODO: can we print out the entirely untracked small transactions?
+
+`network_sm30000_flows_mixed.csv`
+
+  In the previous example we saw what happens when existing funds pool above the 
+  size limit and are withdrawn; we get a stub of a flow with no duration. Now we
+  see what happens when existing funds are picked up by a transfer transaction and
+  therefore actually followed farther. These are proper flows that happen to start
+  with transfer transactions and the money will be tracked at least one more step.
+
+    TODO: make this true by changing "cut" to "transfer"
