@@ -13,4 +13,4 @@ trj_timestamp,trj_amt,trj_txn,trj_categ,trj_len,trj_dur,txn_IDs,txn_types,txn_am
 2019-08-28 12:00:00,10.0,0.05,"(deposit,withdraw)",0,32.0,"[10000024,10000026]","[cash-in,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[0.05,1.0]","[EEE,XYZ,provider]",[32.0]
 2019-08-28 12:00:00,10.0,0.05,"(deposit,withdraw)",0,48.0,"[10000024,10000027]","[cash-in,mobile-minutes]","[10.0,10.0]","[0.0,0.0]","[0.05,1.0]","[EEE,XYZ,provider]",[48.0]
 2019-08-27 07:00:00,5.0,0.25,"(deposit,withdraw)",0,95.0,"[10000021,10000028]","[cash-in,mobile-minutes]","[5.0,5.0]","[0.0,0.0]","[0.25,1.0]","[DDD,XYZ,provider]",[95.0]
-2019-08-18 00:00:00,20.0,1.0,"(deposit,withdraw)",0,336.0,"[i_58f2b6f4c3b7,i_f6b3969db2be]","[accounting,final]","[20.0,20.0]","[0.0,0.0]","[1.0,1.0]","[inferred,XYZ,inferred]",[336.0]
+2019-08-18 00:00:00,20.0,1.0,"(deposit,withdraw)",0,336.0,"[i_940fd93198ba,i_b44e57bd7cac]","[accounting,final]","[20.0,20.0]","[0.0,0.0]","[1.0,1.0]","[inferred,XYZ,inferred]",[336.0]

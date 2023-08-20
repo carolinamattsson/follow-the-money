@@ -38,7 +38,7 @@ class Branch:
         else:
             timestamp = self.txn.timestamp
         return timestamp
-    def follow_back(self, amt):
+    def follow_back(self, amt, len=0):
         # This is called by the Account class on "leaf branches"
         # This function follows a chain of "branches", beginning with a "leaf branch", and works its way back to the "root branch"
         # On its way up again it builds a "money flow" that represents a unique trajectory that money followed through the system
@@ -46,11 +46,11 @@ class Branch:
         fee = amt*self.txn.fee_scaling
         if self.prev:
             # this is recursive... regular "branches" asks their previous "branch" for its flow, of a given amount, then adds its own
-            flow = self.prev.follow_back(amt+fee)
+            flow = self.prev.follow_back(amt+fee,len=len+1)
             flow.extend(self, amt, fee)
         else:
             # "root branches" begin building the flow with the amount given to it
-            flow = Flow(self, amt, fee)
+            flow = Flow(self, amt, fee, len)
         return flow
 
 class Flow:
@@ -58,10 +58,11 @@ class Flow:
     # These "money flows" allow for useful aggregations at the system level where monetary units are never double-counted
     # Class variable defines what flow.to_print() currently outputs
     header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_fees','txn_txns','acct_IDs','acct_durs']
-    def __init__(self, branch, amt, fee):
+    def __init__(self, branch, amt, fee, len):
         # "money flows" have a size (flow.amt), a length within the system (flow.tux), and a duration of time that they remained in the system (flow.duration)
         # the specific trajectory is described by a list of transactions, through a list of accounts, where the money stayed for a list of durations
         # when aggregating over "money flows", they can be weighted by their size or by their transactions using flow.frac_root
+        stub = (len == 0 and branch.txn.categ != 'deposit')
         self.timestamp = branch.txn.timestamp
         self.root_amt  = amt+fee
         self.root_txn  = (amt+fee)/(branch.txn.amt_sent)
@@ -71,7 +72,7 @@ class Flow:
         self.txn_IDs   = [branch.txn.txn_ID]
         self.txn_types = [branch.txn.type]
         self.acct_IDs  = [branch.txn.src.acct_ID if branch.txn.src is not None else branch.txn.src_ID,branch.txn.tgt.acct_ID if branch.txn.tgt is not None else branch.txn.tgt_ID]
-        self.beg_categ = branch.txn.categ if branch.txn.categ != 'withdraw' else 'existing'
+        self.beg_categ = 'existing' if stub else branch.txn.categ
         self.end_categ = branch.txn.categ
         self.duration  = None
         self.durations = []

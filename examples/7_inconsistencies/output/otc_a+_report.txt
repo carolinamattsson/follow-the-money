@@ -15,3 +15,20 @@ Tracking options:
     Stop tracking funds below 0.01 in value.
 Running:
     Weighted trajectories under 'lifo' heuristic saved with extension: flows_lifo.csv
+
+=====================================================================
+'Follow the money' for: /Users/carolina/Developer/GitHub/follow-the-money/examples/7_inconsistencies/network_txns_a_otc.csv
+Using the configuration file: /Users/carolina/Developer/GitHub/follow-the-money/examples/7_inconsistencies/network_config_a+.json
+System options:
+    Using the 'sender pay(s)' convention for fee/revenue.
+    Using 'accounts+otc' as the network boundary definition.
+Initializing:
+    Inferring account balances at start, when unknown...
+
+Output is going here:/Users/carolina/Developer/GitHub/follow-the-money/examples/7_inconsistencies/output/otc_a+_
+Tracking options:
+    Untracked transaction recorded with extension: untracked.csv
+    Inferred transaction recorded with extension: inferred.csv
+    Stop tracking funds below 0.01 in value.
+Running:
+    Weighted trajectories under 'lifo' heuristic saved with extension: flows_lifo.csv
