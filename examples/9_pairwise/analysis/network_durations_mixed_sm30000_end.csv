@@ -1,0 +1,13 @@
+duration,amount,fraction,categ,motif,account,timestamp_start,timestamp_end
+0.1,3500.0,0.875,deposit~withdraw,check_deposit~bill_payment,BBB,2017-03-01 00:02:00,2017-03-01 00:08:00
+24.083333,1000.0,0.5,deposit~transfer,cash_deposit~p2p_transfer,CCC,2017-03-01 00:21:00,2017-03-02 00:25:59
+95.96666666666667,250.0,0.0625,deposit~untracked,check_deposit~,BBB,2017-03-01 00:02:00,2017-03-05 00:00:00
+71.15,250.0,0.5,deposit~untracked,direct_deposit~,BBB,2017-03-02 00:51:00,2017-03-05 00:00:00
+25.166667,250.0,0.0625,deposit~transfer,check_deposit~p2p_transfer,BBB,2017-03-01 00:02:00,2017-03-02 01:12:00
+0.35,250.0,0.5,deposit~transfer,direct_deposit~p2p_transfer,BBB,2017-03-02 00:51:00,2017-03-02 01:12:00
+25.466667,1000.0,0.5,deposit~transfer,cash_deposit~p2p_transfer,CCC,2017-03-01 00:21:00,2017-03-02 01:49:00
+24.633333,500.0,1.0,transfer~withdraw,p2p_transfer~cash_withdraw,DDD,2017-03-02 01:12:00,2017-03-03 01:49:59
+24.016667,1000.0,1.0,transfer~withdraw,p2p_transfer~cash_withdraw,DDD,2017-03-02 01:49:00,2017-03-03 01:50:00
+25.866667,100.0,0.1,transfer~withdraw,p2p_transfer~card_payment,EEE,2017-03-02 00:26:00,2017-03-03 02:18:00
+nan,500.0,1.0,existing~withdraw,~cash_withdraw,BBB,,2017-03-03 02:21:00
+50.366667,900.0,0.9,transfer~withdraw,p2p_transfer~bill_payment,EEE,2017-03-02 00:26:00,2017-03-04 02:48:00

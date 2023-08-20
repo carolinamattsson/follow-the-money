@@ -1,0 +1,39 @@
+Re-formatting into a resonable table
+
+trj_durations.py --column all
+
+This analysis code turns the internal flow representation into a useful
+tabular dataset. It will always output "duration" and "amount". The other
+available columns are "fraction", "categ", "motif", "account, "timestamps".
+
+`account_durations_lifo.csv`
+`account_durations_mixed.csv`
+
+  Again, this example takes the perspective of a single account, so there is 
+  nothing complicated going on here. One-to-one correspondence between the 
+  flows and the durations. Notice how the variables are passed over.
+
+`network_durations_lifo.csv`
+`network_durations_mixed.csv`
+
+  Notice how the variables are passed over from the pairwise flow file. As 
+  these durations come from a network, several involve transfers.
+
+`network_durations_mixed_sm30000.csv`
+
+  This is the default for denoting durations that start with existing funds
+  or end with untracked funds. To avoid double-counting, we treat the pairs
+  that start with existing funds as no duration ("nan") and those that end
+  in untracked funds as remaining in the system indefinitely ("inf").
+
+`network_durations_mixed_sm30000_end.csv`
+
+  Alternatively, you can pass along a `--timewindow` (and a `--timeformat`) in
+  the form "(,<<timestamp>>)" to infer a max duration for the untracked funds.
+  Presumably you would want to give the ending timestamp used for follow.
+
+`network_durations_mixed_sm30000_start.csv`
+`network_durations_mixed_sm30000_both.csv`
+
+  It is also possible to pass along a starting timestamp; this is discouraged. 
+  The existing~withdraw flows are stubs and should generally be filtered out.

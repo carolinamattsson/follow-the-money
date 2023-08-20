@@ -1,4 +1,5 @@
 # Wish list #
 - make the amounts into Decimal type, with desired precision as an input
+- output the fraction of the balance as well as fraction of deposit/in-transaction
 - credit lines and the issuance/cancellation of endogenous credit money
 - dispensation for the creation/destruction of monetary units (ex. mining)

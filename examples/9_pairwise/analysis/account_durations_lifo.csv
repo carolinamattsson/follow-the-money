@@ -1,0 +1,15 @@
+duration,amount,fraction,categ,motif,account,timestamp_start,timestamp_end
+5.0,10.0,0.25,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-18 00:00:00,2019-08-18 05:00:00
+8.0,10.0,0.25,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-18 00:00:00,2019-08-18 08:00:00
+15.0,10.0,0.25,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-18 00:00:00,2019-08-18 15:00:00
+16.0,10.0,0.25,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-18 00:00:00,2019-08-18 16:00:00
+5.0,10.0,0.333333,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-21 06:00:00,2019-08-21 11:00:00
+24.0,10.0,0.333333,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-21 06:00:00,2019-08-22 06:00:00
+32.0,10.0,1.0,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-22 08:00:00,2019-08-23 16:00:00
+98.0,10.0,0.333333,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-21 06:00:00,2019-08-25 08:00:00
+1.0,10.0,0.5,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-27 07:00:00,2019-08-27 08:00:00
+12.0,5.0,0.25,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-27 07:00:00,2019-08-27 19:00:00
+2.0,180.0,0.9,deposit~withdraw,cash-in~bill-payment,XYZ,2019-08-28 12:00:00,2019-08-28 14:00:00
+32.0,10.0,0.05,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-28 12:00:00,2019-08-29 20:00:00
+48.0,10.0,0.05,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-28 12:00:00,2019-08-30 12:00:00
+95.0,5.0,0.25,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-27 07:00:00,2019-08-31 06:00:00
