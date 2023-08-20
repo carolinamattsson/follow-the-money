@@ -35,14 +35,11 @@ def get_motif(pair,consolidate=None):
 
 def get_duration(pair):
     '''
-    Exact or upper bound duration of this trajectory, in hours.
+    Exact or lower bound duration of this trajectory, in hours.
     '''
     if pair['trj_categ'][0] == 'existing':
         # There is no duration, this is an instantanous one for pairwise flows from existing funds
         return float("nan")
-    elif pair['trj_categ'][1] == 'untracked':
-        # The duration is unknown, this is a lower bound for pairwise flows to untracked funds
-        return float("inf")
     else:
         # Otherwise just return the raw duration
         return pair["trj_dur"]
@@ -85,9 +82,13 @@ def get_timestamp_start(value,timeformat="%Y-%m-%d %H:%M:%S"):
 
 def get_timestamp_end(value,timeformat="%Y-%m-%d %H:%M:%S"):
     '''
-    Retrieve the ending timestamp from the timestamps tuple and pass through the duration.
+    Retrieve the ending timestamp from the timestamps tuple and pass through the duration,
+    unless this is a pair from existing funds in which case use the min duration
     '''
-    return value["duration"], datetime.strftime(value['timestamps'][1],timeformat) if value['timestamps'][1] is not None else None
+    if value['timestamps'][1] is None:
+        # For untracked funds, compute the end timestamp from the lower bound duration
+        value['timestamps'] = (value['timestamps'][0],value['timestamps'][0]+timedelta(hours=value['duration']))
+    return value["duration"], datetime.strftime(value['timestamps'][1],timeformat)
 
 def impose_timestamp_start(value,existing_start=None,timeformat="%Y-%m-%d %H:%M:%S"):
     '''
@@ -107,15 +108,18 @@ def impose_timestamp_end(value,untracked_end=None,timeformat="%Y-%m-%d %H:%M:%S"
     Retrieve the ending timestamp from the timestamps tuple and pass through the duration,
     unless this is a pair ending in untracked funds in which case impose a max duration.
     '''
-    if  value['timestamps'][1] is None:
-        # Impose the ending timestamp and compute the resulting duration
-        value["duration"] = (untracked_end-value['timestamps'][0]).total_seconds()/3600
-        return value["duration"], datetime.strftime(untracked_end,timeformat)
+    if value['timestamps'][1] is None:
+        if untracked_end is None:
+            # The duration is unknown, there is an indefinite upper bound for the duration
+            return float("inf"), None
+        else:
+            # Impose the ending timestamp and compute the resulting duration
+            return (untracked_end-value['timestamps'][0]).total_seconds()/3600, datetime.strftime(untracked_end,timeformat)
     else:
-        # the given timestamp is the starting one, and we know the ending one
-        return value["duration"], datetime.strftime(value['timestamps'][1],timeformat) if value['timestamps'][1] is not None else None
+        # The duration in known and we know the ending timestamp
+        return value["duration"], datetime.strftime(value['timestamps'][1],timeformat)
 
-def trj_durations(pair_file,output_file,columns=[],consolidate=None,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S"):
+def trj_durations(pair_file,output_file,columns=[],consolidate=None,timestamp_start=None,timestamp_end=None,timeformat="%Y-%m-%d %H:%M:%S"):
     #############################################################
     # Create the dictionary of functions to get the values for each column
     get_value = {'duration':get_duration,
@@ -131,10 +135,11 @@ def trj_durations(pair_file,output_file,columns=[],consolidate=None,timewindow=(
     if consolidate is not None: 
         get_value.update({'motif':lambda x: get_motif(x,consolidate=consolidate)})
     # Adjust the timestamp_start and timestamp_end getter functions if asked to impose a timewindow
-    if timewindow[0] is not None:
-        get_value.update({'timestamp_start':lambda x: impose_timestamp_start(x,existing_start=timewindow[0],timeformat=timeformat)})
-    if timewindow[1] is not None:
-        get_value.update({'timestamp_end':lambda x: impose_timestamp_end(x,untracked_end=timewindow[1],timeformat=timeformat)})
+    if timestamp_start is not None:
+        get_value.update({'timestamp_start':lambda x: impose_timestamp_start(x,existing_start=timestamp_start,timeformat=timeformat)})
+        get_value.update({'timestamp_end':lambda x: impose_timestamp_end(x,untracked_end=None,timeformat=timeformat)})
+    if timestamp_end is not None:
+        get_value.update({'timestamp_end':lambda x: impose_timestamp_end(x,untracked_end=timestamp_end,timeformat=timeformat)})
     ##########################################################################################
     # Create the header for the durations output file
     columns = ["duration","amount"]+columns
@@ -183,7 +188,8 @@ if __name__ == '__main__':
     parser.add_argument('--suffix', default="", help='Suffix appended to output filenames')
     parser.add_argument('--column', action='append', default=[], help="Use 'all' or manually include any number of these columns: "+str(available_columns)+".")
     parser.add_argument('--consolidate', action='append', default=[], help="[motif] Transaction types to change/consolidate, as 'name:[type1,type2,...]'. Feel free to call multiple times.")
-    parser.add_argument('--timewindow', default="(,)", help='Timewindow for imposing max durations for untracked/existing funds, as a tuple. Default "(,)".')
+    parser.add_argument('--timestamp_start', default=None, help='Impose max durations for existing funds, leaving untracked funds to be of indefinite duration.')
+    parser.add_argument('--timestamp_end', default=None, help='Also impose max durations for untracked funds, in case infinities make you uncomfortable.')
     parser.add_argument('--timeformat', default="%Y-%m-%d %H:%M:%S", help='Format used for timestamps in trajectory file & timewindow, as a string.')
 
     args = parser.parse_args()
@@ -215,8 +221,12 @@ if __name__ == '__main__':
     if len(all_joins_list) != len(set(all_joins_list)):
         raise ValueError("Please do not duplicate consolidated transaction types:",args.consolidate)
 
-    args.timewindow = tuple([(datetime.strptime(timestamp.strip(),args.timeformat) if timestamp != "" else None) for timestamp in args.timewindow.strip('()').strip('[]').split(',')])
+    if args.timestamp_start is not None:
+        args.timestamp_start = datetime.strptime(args.timestamp_start.strip(),args.timeformat)
+    if args.timestamp_end is not None:
+        if args.timestamp_start is None: raise ValueError("Please specify a --timestamp_start if you want to impose a --timestamp_end")
+        args.timestamp_end = datetime.strptime(args.timestamp_end.strip(),args.timeformat)
 
     #################################################
-    trj_durations(pair_filename,output_filename,columns=args.column,consolidate=args.consolidate,timeformat=args.timeformat,timewindow=args.timewindow)
+    trj_durations(pair_filename,output_filename,columns=args.column,consolidate=args.consolidate,timeformat=args.timeformat,timestamp_start=args.timestamp_start,timestamp_end=args.timestamp_end)
     #################################################

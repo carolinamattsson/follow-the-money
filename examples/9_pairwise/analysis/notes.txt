@@ -19,21 +19,26 @@ available columns are "fraction", "categ", "motif", "account, "timestamps".
   Notice how the variables are passed over from the pairwise flow file. As 
   these durations come from a network, several involve transfers.
 
-`network_durations_mixed_sm30000.csv`
+`network_durations_mixed_sm30000_min.csv`
 
-  This is the default for denoting durations that start with existing funds
-  or end with untracked funds. To avoid double-counting, we treat the pairs
-  that start with existing funds as no duration ("nan") and those that end
-  in untracked funds as remaining in the system indefinitely ("inf").
+  No outside information is needed to get the exact and lower-bound durations.
 
-`network_durations_mixed_sm30000_end.csv`
+  This is the approximation where it is as if untracked funds are "removed": 
+  Exact durations are reported as such, and the durations reported for untracked 
+  funds are the lower bound. In this scenario the pairs involving existing funds 
+  are stubs with instantanous durations that should be filtered out.
 
-  Alternatively, you can pass along a `--timewindow` (and a `--timeformat`) in
-  the form "(,<<timestamp>>)" to infer a max duration for the untracked funds.
-  Presumably you would want to give the ending timestamp used for follow.
+`network_durations_mixed_sm30000_max_inf.csv`
+`network_durations_mixed_sm30000_max.csv`
 
-`network_durations_mixed_sm30000_start.csv`
-`network_durations_mixed_sm30000_both.csv`
+  With a given `--timestamp_start` it is possible to get upper-bound durations.
 
-  It is also possible to pass along a starting timestamp; this is discouraged. 
-  The existing~withdraw flows are stubs and should generally be filtered out.
+  This is the approximation where it is as if untracked funds are "static": 
+  Exact durations are reported as such, and the durations reported for untracked 
+  funds are the upper bound. In this scenario the existing funds have always been
+  present (from `--timestamp_start`) and untracked funds will never move again. 
+  Here it is the pairs involving untracked funds that should be filtered out. If
+  these max durations being infinite is a problem, give also a `--timestamp_end`.
+
+  Note that it would never make sense to keep pairs involving both existing and 
+  untracked funds. They are two halves of the same whole; pick one or the other.
