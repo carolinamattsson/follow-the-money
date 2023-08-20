@@ -9,7 +9,7 @@ from trj_summarize import get_motif
 #######################################################################################################
 def find_motifs(wflow_file,motif_file,circulate=None,timewindow=(None,None),timeformat="%Y-%m-%d %H:%M:%S",joins=None):
     ##########################################################################################
-    wflow_header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']
+    wflow_header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_fees','txn_txns','acct_IDs','acct_durs']
     motif_header = ["motif","flows","amount","deposits","users","median_dur_f","median_dur_a","median_dur_d"]
     with open(wflow_file,'r') as wflow_file:
         reader_wflows   = csv.DictReader(wflow_file,delimiter=",",quotechar='"',escapechar="%")

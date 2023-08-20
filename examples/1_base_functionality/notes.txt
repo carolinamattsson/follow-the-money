@@ -1,5 +1,8 @@
 Base functionality
 
+`--lifo` flag implements the last-in-first-out tracking heuristic
+`--mixed` flag implements the homogenous mixing tracking heuristic
+
 `account_txns.csv`
 
   This example takes the perspective of a single account, helping demonstrate

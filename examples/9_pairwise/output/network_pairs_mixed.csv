@@ -1,4 +1,4 @@
-trj_timestamp,trj_amt,trj_txn,trj_categ,trj_len,trj_dur,txn_IDs,txn_types,txn_amts,txn_revs,txn_txns,acct_IDs,acct_durs
+trj_timestamp,trj_amt,trj_txn,trj_categ,trj_len,trj_dur,txn_IDs,txn_types,txn_amts,txn_fees,txn_txns,acct_IDs,acct_durs
 2017-03-01 00:02:00,3500.0,0.875,"(deposit,withdraw)",0,0.1,"[1,2]","[check_deposit,bill_payment]","[3500.0,3500.0]","[0.0,0.0]","[0.875,1.0]","[AAA,BBB,QQQ]",[0.1]
 2017-03-01 00:21:00,1000.0,0.5,"(deposit,transfer)",1,24.083333,"[3,4]","[cash_deposit,p2p_transfer]","[1000.0,1000.0]","[0.0,0.0]","[0.5,1.0]","[AAA,CCC,EEE]",[24.083333]
 2017-03-01 00:02:00,250.0,0.0625,"(deposit,transfer)",1,25.166667,"[1,6]","[check_deposit,p2p_transfer]","[250.0,250.0]","[0.0,0.0]","[0.0625,0.5]","[AAA,BBB,DDD]",[25.166667]

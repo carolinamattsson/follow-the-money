@@ -13,10 +13,10 @@ def parse(wflow,timeformat):
     for term in ['trj_amt','trj_txn','trj_dur']:
         wflow[term] = None if wflow[term]=="" else float(wflow[term])
     # unpack lists
-    for term in ['txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']:
+    for term in ['txn_IDs','txn_types','txn_amts','txn_fees','txn_txns','acct_IDs','acct_durs']:
         wflow[term] = [] if wflow[term]=="[]" else wflow[term].strip('[]').split(',')
     # convert within-trajectory values
-    for term in ['txn_amts','txn_revs','txn_txns','acct_durs']:
+    for term in ['txn_amts','txn_fees','txn_txns','acct_durs']:
         wflow[term] = [float(val) for val in wflow[term]]
     # return!
     return wflow

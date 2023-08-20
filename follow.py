@@ -57,7 +57,7 @@ class Flow:
     # This Class allows us to represent unique trajectories that specific amounts of money follow through the system
     # These "money flows" allow for useful aggregations at the system level where monetary units are never double-counted
     # Class variable defines what flow.to_print() currently outputs
-    header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_revs','txn_txns','acct_IDs','acct_durs']
+    header = ['trj_timestamp','trj_amt','trj_txn','trj_categ','trj_len','trj_dur','txn_IDs','txn_types','txn_amts','txn_fees','txn_txns','acct_IDs','acct_durs']
     def __init__(self, branch, amt, fee):
         # "money flows" have a size (flow.amt), a length within the system (flow.tux), and a duration of time that they remained in the system (flow.duration)
         # the specific trajectory is described by a list of transactions, through a list of accounts, where the money stayed for a list of durations
@@ -66,7 +66,7 @@ class Flow:
         self.root_amt  = amt+fee
         self.root_txn  = (amt+fee)/(branch.txn.amt_sent)
         self.amts      = [amt]
-        self.revs      = [fee]
+        self.fees      = [fee]
         self.txns      = [(amt+fee)/(branch.txn.amt_sent)]
         self.txn_IDs   = [branch.txn.txn_ID]
         self.txn_types = [branch.txn.type]
@@ -80,7 +80,7 @@ class Flow:
         # this funciton builds up a "money flow" by incorporating the information in a subsequent "branch"
         # this is called inside the recursive function branch.follow_back(amt)
         self.amts.append(amt)
-        self.revs.append(fee)
+        self.fees.append(fee)
         self.txns.append((amt+fee)/(branch.txn.amt_sent))
         self.txn_IDs.append(branch.txn.txn_ID)
         self.acct_IDs.append(branch.txn.tgt.acct_ID if branch.txn.tgt is not None else branch.txn.tgt_ID)
@@ -124,7 +124,7 @@ class Flow:
                     '['+','.join(id for id in self.txn_IDs)+']',\
                     '['+','.join(type for type in self.txn_types)+']',\
                     '['+','.join(str(round(amt,digits)) for amt in self.amts)+']',\
-                    '['+','.join(str(round(rev,digits)) for rev in self.revs)+']',\
+                    '['+','.join(str(round(fee,digits)) for fee in self.fees)+']',\
                     '['+','.join(str(round(txn,digits)) for txn in self.txns)+']',\
                     '['+','.join(id for id in self.acct_IDs)+']',\
                     '['+','.join(self.durations)+']']
