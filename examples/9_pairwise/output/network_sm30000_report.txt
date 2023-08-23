@@ -1,13 +1,13 @@
 
 =====================================================================
-'Follow the money' for: /Users/carolina/Developer/GitHub/follow-the-money/examples/9_pairwise/network_txns.csv
-Using the configuration file: /Users/carolina/Developer/GitHub/follow-the-money/examples/9_pairwise/network_config.json
+'Follow the money' for: /Users/carolina.mattsson/Developer/GitHub/follow-the-money/examples/9_pairwise/network_txns.csv
+Using the configuration file: /Users/carolina.mattsson/Developer/GitHub/follow-the-money/examples/9_pairwise/network_config.json
 System options:
     Using 'transactions' as the network boundary definition.
 Initializing:
     Inferring account balances at start, when unknown...
 
-Output is going here:/Users/carolina/Developer/GitHub/follow-the-money/examples/9_pairwise/output/network_sm30000_
+Output is going here:/Users/carolina.mattsson/Developer/GitHub/follow-the-money/examples/9_pairwise/output/network_sm30000_
 Tracking options:
     Untracked transaction recorded with extension: untracked.csv
     Inferred transaction recorded with extension: inferred.csv
