@@ -1,4 +1,4 @@
-duration,amount,fraction,categ,motif,account,timestamp_start,timestamp_end
+duration,amount,fraction,categ,motif,account,timestamp_beg,timestamp_end
 5.0,10.0,0.25,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-18 00:00:00,2019-08-18 05:00:00
 8.0,10.0,0.25,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-18 00:00:00,2019-08-18 08:00:00
 15.0,10.0,0.25,deposit~withdraw,cash-in~mobile-minutes,XYZ,2019-08-18 00:00:00,2019-08-18 15:00:00

@@ -7,4 +7,4 @@ trj_timestamp,trj_amt,trj_txn,trj_categ,trj_len,trj_dur,txn_IDs,txn_types,txn_am
 2017-03-02 01:49:00,1000.0,1.0,"(transfer,withdraw)",1,24.016667,"[7,8]","[p2p_transfer,cash_withdraw]","[1000.0,1000.0]","[0.0,0.0]","[1.0,0.666667]","[CCC,DDD,AAA]",[24.016667]
 2017-03-02 00:26:00,100.0,0.1,"(transfer,withdraw)",1,25.866667,"[4,9]","[p2p_transfer,card_payment]","[100.0,100.0]","[0.0,0.0]","[0.1,1.0]","[CCC,EEE,RRR]",[25.866667]
 2017-03-01 00:02:00,500.0,0.125,"(deposit,withdraw)",0,50.316667,"[1,10]","[check_deposit,cash_withdraw]","[500.0,500.0]","[0.0,0.0]","[0.125,1.0]","[AAA,BBB,AAA]",[50.316667]
-2017-03-02 00:26:00,900.0,0.9,"(transfer,withdraw)",1,50.366667,"[4,11]","[p2p_transfer,bill_payment]","[900.0,900.0]","[0.0,0.0]","[0.9,1.0]","[CCC,EEE,QQQ]",[50.366667]
+2017-03-02 00:26:00,900.0,0.9,"(transfer,withdraw)",1,47.566667,"[4,i_1486d55fb4c8]","[p2p_transfer,final]","[900.0,900.0]","[0.0,0.0]","[0.9,1.0]","[CCC,EEE,inferred]",[47.566667]

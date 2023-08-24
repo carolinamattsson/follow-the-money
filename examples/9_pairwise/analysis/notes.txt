@@ -1,10 +1,20 @@
-Re-formatting into a resonable table
+Re-formatting into a tabular dataset of durations
 
-trj_durations.py --column all
+trj_durations.py <<pairs_heuristic.csv>> --column all
 
-This analysis code turns the internal flow representation into a useful
-tabular dataset. It will always output "duration" and "amount". The other
-available columns are "fraction", "categ", "motif", "account, "timestamps".
+This processing code turns the internal pairwise flow representation into a nice
+tabular dataset. It will always output the "duration" and "amount". The other
+available column names are "fraction", "categ", "motif", "account, "timestamps". 
+Here "fraction" corresponds to the share of the in-transaction. Using "all" or
+"timestamps" gives two columns in the output ("timestamp_beg" & "timestamp_end").
+
+Note that the defaults make it difficult to output pairs involving both existing~ 
+and ~untracked funds. That is because these are two halves of the same whole and 
+one should usually work with one or the other. Here I make it easy to output the 
+exact durations and a lower-bound on broken pairs (no flags needed), or the exact 
+durations and an upper-bound on broken pairs (use `--timewindow_beg`).
+
+The following examples demonstrate the main functionalities:
 
 `account_durations_lifo.csv`
 `account_durations_mixed.csv`
@@ -19,26 +29,40 @@ available columns are "fraction", "categ", "motif", "account, "timestamps".
   Notice how the variables are passed over from the pairwise flow file. As 
   these durations come from a network, several involve transfers.
 
+`network_durations_mixed_sm30000_min_unobs.csv`
 `network_durations_mixed_sm30000_min.csv`
 
-  No outside information is needed to get the exact and lower-bound durations.
+  No outside information is needed to get exact durations or a lower-bound.
 
-  This is the approximation where it is as if untracked funds are "removed": 
-  Exact durations are reported as such, and the durations reported for untracked 
-  funds are the lower bound. In this scenario the pairs involving existing funds 
-  are stubs with instantanous durations that should be filtered out.
+  This corresponds to an approximation where untracked funds are seen as "removed": 
+  Exact durations are reported as such, and durations are reported for broken pairs
+  as a lower bound on ~untraked funds. In this scenario, pairs involving existing~ 
+  funds are stubs with instantanous durations that are, by default, filtered out.
 
-`network_durations_mixed_sm30000_max_inf.csv`
+  To output the instantanous stubs, use the `--unobserved` flag. 
+
+`network_durations_mixed_sm30000_max_unobs.csv`
 `network_durations_mixed_sm30000_max.csv`
 
-  With a given `--timestamp_start` it is possible to get upper-bound durations.
+  With a given `--timewindow_beg` it is possible to retrieve upper-bounds.
 
-  This is the approximation where it is as if untracked funds are "static": 
-  Exact durations are reported as such, and the durations reported for untracked 
-  funds are the upper bound. In this scenario the existing funds have always been
-  present (from `--timestamp_start`) and untracked funds will never move again. 
-  Here it is the pairs involving untracked funds that should be filtered out. If
-  these max durations being infinite is a problem, give also a `--timestamp_end`.
+  This corresponds to an approximation where untracked funds are seen as "static": 
+  Exact durations are reported as such, and durations are reported for broken pairs
+  as an upper bound on existing~ funds. The existing~ funds have been present from 
+  `--timewindow_beg` while the ~untracked funds are incomplete pairs of indefinite 
+  duration (i.e. they will never move again) and are, by default, filtered out.
 
-  Note that it would never make sense to keep pairs involving both existing and 
-  untracked funds. They are two halves of the same whole; pick one or the other.
+  To output the indefinite-duration pairs, use the `--unobserved` flag. 
+
+`network_durations_mixed_sm30000_end_unobs.csv`
+`network_durations_mixed_sm30000_end.csv`
+
+  Giving a `--timewindow_end` imposes an ending point for untracked funds seen as 
+  "static", similar to the inferred final withdrawals within `follow-the-money`.
+
+  By default, any flows ending at or after `--timewindow_end` are filtered out.
+  This includes the inferred final withdrawals so long as `--timewindow_end` is 
+  earlier than that used in the `follow-the-money` config file... perhaps best to 
+  use the same `--timewindow_end` for the sake of clarity, or document well.
+
+  To output the pairs ending at `--timewindow_end`, use the `--unobserved` flag. 
