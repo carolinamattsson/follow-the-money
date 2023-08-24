@@ -152,8 +152,8 @@ def trj_durations(pair_file,output_file,columns=[],consolidate=None,unobserveds=
     if timewindow_beg is not None:
         get_value.update({'timestamp_beg':lambda x: impose_timestamp_beg(x,existing_beg=timewindow_beg)})
         get_value.update({'timestamp_end':lambda x: impose_timestamp_end(x,untracked_end=None)})
-    if timewindow_end is not None:
-        get_value.update({'timestamp_end':lambda x: impose_timestamp_end(x,untracked_end=timewindow_end)})
+        if timewindow_end is not None:
+            get_value.update({'timestamp_end':lambda x: impose_timestamp_end(x,untracked_end=timewindow_end)})
     ##########################################################################################
     # Create the header for the durations output file
     columns = ["duration","amount"]+columns
@@ -245,7 +245,6 @@ if __name__ == '__main__':
     if args.timewindow_beg is not None:
         args.timewindow_beg = datetime.strptime(args.timewindow_beg.strip(),args.timeformat)
     if args.timewindow_end is not None:
-        if args.timewindow_beg is None: raise ValueError("Please specify a --timewindow_beg if you want to impose a --timewindow_end")
         args.timewindow_end = datetime.strptime(args.timewindow_end.strip(),args.timeformat)
 
     #################################################
