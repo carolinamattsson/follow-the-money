@@ -62,7 +62,6 @@ class Flow:
         # "money flows" have a size (flow.amt), a length within the system (flow.tux), and a duration of time that they remained in the system (flow.duration)
         # the specific trajectory is described by a list of transactions, through a list of accounts, where the money stayed for a list of durations
         # when aggregating over "money flows", they can be weighted by their size or by their transactions using flow.frac_root
-        stub = (len == 0 and branch.txn.categ != 'deposit')
         self.timestamp = branch.txn.timestamp
         self.root_amt  = amt+fee
         self.root_txn  = (amt+fee)/(branch.txn.amt_sent)
@@ -72,7 +71,7 @@ class Flow:
         self.txn_IDs   = [branch.txn.txn_ID]
         self.txn_types = [branch.txn.type]
         self.acct_IDs  = [branch.txn.src.acct_ID if branch.txn.src is not None else branch.txn.src_ID,branch.txn.tgt.acct_ID if branch.txn.tgt is not None else branch.txn.tgt_ID]
-        self.beg_categ = 'existing' if stub else branch.txn.categ
+        self.beg_categ = branch.txn.categ if len else 'existing'
         self.end_categ = branch.txn.categ
         self.duration  = None
         self.durations = []
@@ -215,10 +214,11 @@ class Tracker(list):
     @classmethod
     def stop_tracking(cls,leaf_branches,complete=True,exact=True,timestamp=None,duration=None,total=True): # not sure what this default should be
         for branch in leaf_branches:
-            flow = branch.follow_back(branch.amt)
             if complete:
+                flow = branch.follow_back(branch.amt)
                 yield flow
             else:
+                flow = branch.follow_back(branch.amt,len=1)
                 if timestamp is not None:
                     duration = timestamp - flow.timestamp
                     total = True
