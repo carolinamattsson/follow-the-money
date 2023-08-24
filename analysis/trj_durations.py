@@ -125,7 +125,7 @@ def filter_unobserveds(value,timewindow_end=None):
     '''
     if value["duration"] == float("inf"):
         return False
-    elif value["duration"] == float("nan"):
+    elif not value["duration"] == value["duration"]: # only valid check for float("nan"), nans are weird
         return False
     elif timewindow_end is not None and value['timestamp_end'] >= timewindow_end:
         return False
@@ -143,7 +143,8 @@ def trj_durations(pair_file,output_file,columns=[],consolidate=None,unobserveds=
                  'account':get_account,
                  'timestamps':get_timestamps,
                  'timestamp_beg':lambda x: get_timestamp_beg(x),
-                 'timestamp_end':lambda x: get_timestamp_end(x)}
+                 'timestamp_end':lambda x: get_timestamp_end(x),
+                 }
     # Adjust the motif getter function if asked to consolidate transaction types
     if consolidate is not None: 
         get_value.update({'motif':lambda x: get_motif(x,consolidate=consolidate)})
@@ -177,7 +178,7 @@ def trj_durations(pair_file,output_file,columns=[],consolidate=None,unobserveds=
                     value["duration"], value["timestamp_beg"] = get_value["timestamp_beg"](value)
                     value["duration"], value["timestamp_end"] = get_value["timestamp_end"](value)
                 # Filter out infinitessimal, infinite, or unobserved durations
-                if unobserveds or filter_unobserveds(value):
+                if unobserveds or filter_unobserveds(value,timewindow_end=timewindow_end):
                     # Format the timestamps
                     if "timestamps" in columns:
                         value["timestamp_beg"] = datetime.strftime(value["timestamp_beg"],timeformat) if value["timestamp_beg"] is not None else None
