@@ -1,5 +1,7 @@
 # follow_the_money
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20309141.svg)](https://doi.org/10.5281/zenodo.20309141)
+
 This code turns a list of transactions from a financial ecosystem into trajectories of money through that system. These "money flows" include several possible weighting schemes and are built using explicit, modifiable, and accounting-consistent tracking heuristics. If you use this code please reference this article:
 
 `Mattsson, Carolina E. S., and Frank W. Takes. 2021. “Trajectories through Temporal Networks.” Applied Network Science 6(35):1–31. doi: 10.1007/s41109-021-00374-7.`
