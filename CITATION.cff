@@ -5,9 +5,9 @@ authors:
   given-names: "Carolina E. S."
   orcid: "https://orcid.org/0000-0002-9160-7523"
 title: "follow-the-money"
-version: 2.0.0
-doi: 
-date-released: 
+version: 0.2.0
+doi:
+date-released: 2026-05-20
 url: "https://github.com/carolinamattsson/follow-the-money"
 preferred-citation:
   type: article
